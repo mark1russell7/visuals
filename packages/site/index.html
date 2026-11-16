@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>visuals</title>
-<meta name="description" content="Viewers of records in the browser: 3D scenes, plans, maps and globes, with picking, themes and fallbacks.">
+<meta name="description" content="Viewers of records in 3D for a page in the browser: a stage on three.js with a camera, views, picking and themes, and a globe of the Earth.">
 <script>
   // The theme before the first paint: the choice of the visitor, else the theme of the system.
   try { const t = localStorage.getItem("theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch {}
@@ -24,15 +24,64 @@
 </header>
 
 <main>
-  <h1>visuals</h1>
-  <p class="lead">Viewers of records in the browser: 3D scenes, plans, maps and globes, with picking, themes and fallbacks.</p>
+  <section class="plate" aria-label="A live globe">
+    <div class="title">
+      <h1>visuals</h1>
+      <p class="lead">Viewers of records in 3D, for a page in the browser. This globe is live: turn it, and select a record.</p>
+    </div>
 
-  <h2>Get the code</h2>
-  <div class="command">
-    <code id="install">git clone https://github.com/mark1russell7/visuals.git</code>
-    <button id="copy" type="button">Copy</button>
-  </div>
-  <p class="note"><a href="./releases/">Releases</a> shows each version, and <a href="./status/">Status</a> shows the open work.</p>
+    <div class="chart">
+      <div id="globe" class="globe">
+        <noscript><p class="note">The globe needs JavaScript.</p></noscript>
+      </div>
+      <p id="readout" class="readout"></p>
+      <div id="views" class="views" role="group" aria-label="Views of the globe">
+        <button type="button" data-view="atlantic">Atlantic</button>
+        <button type="button" data-view="indian">Indian Ocean</button>
+        <button type="button" data-view="pacific">Pacific</button>
+      </div>
+      <p id="hint" class="hint">Drag to turn the Earth. Click it, then scroll to zoom.</p>
+    </div>
+
+    <div class="panel">
+      <div id="legend" class="legend" role="group" aria-label="Kinds of records on the globe"></div>
+      <ul id="records" class="records" aria-label="Records on the globe"></ul>
+      <p class="note">Sample data. The warnings and the earthquakes are made up. The land is from <a href="https://www.naturalearthdata.com/">Natural Earth</a>.</p>
+    </div>
+  </section>
+
+  <section class="text">
+    <h2>Put a globe in a page</h2>
+    <div class="command">
+      <code id="install">npm install @mark1russell7/visuals three</code>
+      <button id="copy" type="button">Copy</button>
+    </div>
+<pre><code>import { GLOBE_POLAR, createGlobe, globeView } from "@mark1russell7/visuals/globe";
+import { createStage } from "@mark1russell7/visuals/three";
+
+const globe = createGlobe({
+  areas: [{ record: "storm", kind: "warning", value: "A storm warning", region }],
+  points: [{ record: "city", kind: "city", value: "A city", place: { lat: 32.8, lon: -96.8 } }],
+});
+
+const stage = createStage(document.querySelector("#globe"), {
+  content: globe,
+  theme,
+  label: "The Earth with one storm warning",
+  views: { earth: globeView({ lat: 35, lon: -95 }) },
+  home: "earth",
+  polar: GLOBE_POLAR,
+  pan: false,
+  onSelect: (value) => console.log(value),
+});</code></pre>
+    <ul class="points">
+      <li>A stage is one canvas with a camera that a person moves. It has views by name, picking and themes.</li>
+      <li>A globe shows areas and points on the Earth. It uses no map tiles and no service.</li>
+      <li>An area is a <code>Polygon</code> or a <code>MultiPolygon</code> of GeoJSON. The theme has a style for each kind.</li>
+      <li><code>createStage</code> gives <code>undefined</code> in a browser with no WebGL 2. This page then shows a flat map.</li>
+    </ul>
+    <p class="note">The <a href="https://github.com/mark1russell7/visuals/tree/main/packages/visuals#readme">README</a> tells each option. <a href="./releases/">Releases</a> shows each version, and <a href="./status/">Status</a> shows the open work.</p>
+  </section>
 </main>
 
 <script type="module" src="./src/index.ts"></script>
