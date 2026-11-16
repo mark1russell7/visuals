@@ -1,0 +1,289 @@
+/*
+ * The style sheet of the scrubber of @mark1russell7/visuals.
+ *
+ * The scrubber takes its font and its color from the page. A page changes a color with these custom properties,
+ * on the scrubber or on an element around it:
+ *
+ *   --scrubber-ink      the axis, the ticks and the handle of the time that passed
+ *   --scrubber-quiet    the labels of the axis
+ *   --scrubber-line     the axis and the ticks of the time to come, and the outline of the button of the speed
+ *   --scrubber-surface  the color behind the scrubber: the inner part of the handle
+ *   --scrubber-focus    the outline of the part that has the keyboard
+ *   --scrubber-time-width  the width of the text of the time, when the scrubber is one row
+ */
+.visuals-scrubber {
+  --_ink: var(--scrubber-ink, currentColor);
+  --_quiet: var(--scrubber-quiet, color-mix(in srgb, currentColor 68%, transparent));
+  --_line: var(--scrubber-line, color-mix(in srgb, currentColor 45%, transparent));
+  --_surface: var(--scrubber-surface, Canvas);
+  --_focus: var(--scrubber-focus, Highlight);
+  --_thumb: 1.25rem;
+  --scrubber-part: 0;
+  container-type: inline-size;
+  text-align: start;
+  /* A time axis goes from the left to the right in each language. */
+  direction: ltr;
+}
+
+/* A narrow scrubber has two rows: the buttons and the text of the time, then the axis. */
+.visuals-scrubber-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "play time speed"
+    "rule rule rule";
+  align-items: center;
+  gap: 0.375rem 0.75rem;
+}
+
+/* A wide scrubber is one row. The middle of each button is on the line of the axis. */
+@container (min-width: 44rem) {
+  .visuals-scrubber-row {
+    grid-template-columns: auto var(--scrubber-time-width, 11rem) minmax(0, 1fr) auto;
+    grid-template-areas: "play time rule speed";
+    align-items: start;
+  }
+
+  .visuals-scrubber-time {
+    line-height: 2.5rem;
+  }
+
+  .visuals-scrubber-speed {
+    margin-top: 0.125rem;
+  }
+}
+
+.visuals-scrubber-play,
+.visuals-scrubber-speed {
+  min-height: 0;
+  margin: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.visuals-scrubber-play {
+  display: grid;
+  grid-area: play;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 1.5px solid var(--_ink);
+  border-radius: 50%;
+}
+
+.visuals-scrubber-sign {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  fill: var(--_ink);
+}
+
+.visuals-scrubber-speed {
+  grid-area: speed;
+  min-width: 3rem;
+  height: 2.25rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--_line);
+  border-radius: 1.125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.visuals-scrubber-play:hover:not(:disabled),
+.visuals-scrubber-speed:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 9%, transparent);
+}
+
+.visuals-scrubber-play:focus-visible,
+.visuals-scrubber-speed:focus-visible {
+  outline: 2px solid var(--_focus);
+  outline-offset: 2px;
+}
+
+.visuals-scrubber-play:disabled,
+.visuals-scrubber-speed:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.visuals-scrubber-time {
+  grid-area: time;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * The rule: the axis with its ticks, the handle and the labels. The slider of the browser is above them, and it is not visible.
+ * The middle of the handle of the slider goes from half of its width to the full width less that half.
+ * So the axis has that half as its space at each end, and a tick is exactly below the handle at its time.
+ */
+.visuals-scrubber-rule {
+  position: relative;
+  grid-area: rule;
+  height: 3rem;
+  padding-inline: calc(var(--_thumb) / 2);
+}
+
+.visuals-scrubber-ticks {
+  display: block;
+  width: 100%;
+  height: 1.75rem;
+  overflow: visible;
+}
+
+.visuals-scrubber-ticks path {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.visuals-scrubber-ahead {
+  stroke: var(--_line);
+  stroke-width: 1.5px;
+}
+
+.visuals-scrubber-steps {
+  stroke: var(--_quiet);
+  stroke-width: 1px;
+}
+
+/* The picture of the time that passed has the same lines as the picture below it. It ends at the time of the handle. */
+.visuals-scrubber-passed {
+  position: absolute;
+  top: 0;
+  left: calc(var(--_thumb) / 2);
+  width: calc(100% - var(--_thumb));
+  clip-path: inset(-0.25rem calc((1 - var(--scrubber-part)) * 100%) -0.25rem -0.25rem);
+  pointer-events: none;
+}
+
+.visuals-scrubber-past {
+  stroke: var(--_ink);
+  stroke-width: 1.5px;
+}
+
+.visuals-scrubber-range {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  opacity: 0;
+  cursor: pointer;
+  touch-action: pan-y;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.visuals-scrubber-range:disabled {
+  cursor: default;
+}
+
+.visuals-scrubber-range::-webkit-slider-thumb {
+  width: var(--_thumb);
+  height: 3rem;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.visuals-scrubber-range::-moz-range-thumb {
+  width: var(--_thumb);
+  height: 3rem;
+  border: 0;
+}
+
+/* The handle: a thin line through the ticks, and a ring on the line of the axis. */
+.visuals-scrubber-head {
+  position: absolute;
+  top: 0;
+  left: calc(var(--_thumb) / 2 + var(--scrubber-part) * (100% - var(--_thumb)));
+  width: 0;
+  height: 1.25rem;
+  pointer-events: none;
+}
+
+.visuals-scrubber-head::before {
+  position: absolute;
+  top: 0.125rem;
+  bottom: 0;
+  left: -0.75px;
+  border-left: 1.5px solid var(--_ink);
+  content: "";
+}
+
+.visuals-scrubber-head::after {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 2px solid var(--_ink);
+  border-radius: 50%;
+  background: var(--_surface);
+  content: "";
+  translate: -50% -50%;
+}
+
+.visuals-scrubber-range:hover:not(:disabled) + .visuals-scrubber-head::after {
+  width: 1rem;
+  height: 1rem;
+}
+
+.visuals-scrubber-range:active:not(:disabled) + .visuals-scrubber-head::after {
+  background: var(--_ink);
+}
+
+.visuals-scrubber-range:focus-visible + .visuals-scrubber-head::after {
+  outline: 2px solid var(--_focus);
+  outline-offset: 2px;
+}
+
+.visuals-scrubber-range:disabled + .visuals-scrubber-head {
+  opacity: 0.45;
+}
+
+.visuals-scrubber-labels {
+  position: relative;
+  height: 1.25rem;
+  color: var(--_quiet);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.visuals-scrubber-label {
+  position: absolute;
+  top: 0;
+  left: calc(var(--scrubber-at) * 100%);
+  translate: -50% 0;
+}
+
+.visuals-scrubber-label[data-align="start"] {
+  translate: 0 0;
+}
+
+.visuals-scrubber-label[data-align="end"] {
+  translate: -100% 0;
+}
+
+/* With the colors of the system, a background has no color. The ring of the handle keeps its inner part. */
+@media (forced-colors: active) {
+  .visuals-scrubber-head::after {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+    background: Canvas;
+  }
+
+  .visuals-scrubber-range:active:not(:disabled) + .visuals-scrubber-head::after {
+    background: CanvasText;
+  }
+}

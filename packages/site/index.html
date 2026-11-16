@@ -27,7 +27,7 @@
   <section class="plate" aria-label="A live globe">
     <div class="title">
       <h1>visuals</h1>
-      <p class="lead">Viewers of records in 3D, for a page in the browser. This globe is live: turn it, and select a record.</p>
+      <p class="lead">Viewers of records in 3D, for a page in the browser. This globe is live: turn it, select a record, and replay the last three days.</p>
     </div>
 
     <div class="chart">
@@ -35,6 +35,7 @@
         <noscript><p class="note">The globe needs JavaScript.</p></noscript>
       </div>
       <p id="readout" class="readout"></p>
+      <div id="time" class="time"></div>
       <div id="views" class="views" role="group" aria-label="Views of the globe">
         <button type="button" data-view="atlantic">Atlantic</button>
         <button type="button" data-view="indian">Indian Ocean</button>
@@ -60,8 +61,12 @@
 import { createStage } from "@mark1russell7/visuals/three";
 
 const globe = createGlobe({
-  areas: [{ record: "storm", kind: "warning", value: "A storm warning", region }],
-  points: [{ record: "city", kind: "city", value: "A city", place: { lat: 32.8, lon: -96.8 } }],
+  areas: [
+    { record: "storm", kind: "warning", value: "A storm warning", region },
+  ],
+  points: [
+    { record: "city", kind: "city", value: "A city", place: { lat: 32.8, lon: -96.8 } },
+  ],
 });
 
 const stage = createStage(document.querySelector("#globe"), {
@@ -79,6 +84,32 @@ const stage = createStage(document.querySelector("#globe"), {
       <li>A globe shows areas and points on the Earth. It uses no map tiles and no service.</li>
       <li>An area is a <code>Polygon</code> or a <code>MultiPolygon</code> of GeoJSON. The theme has a style for each kind.</li>
       <li><code>createStage</code> gives <code>undefined</code> in a browser with no WebGL 2. This page then shows a flat map.</li>
+    </ul>
+
+    <h2>Replay a history</h2>
+<pre><code>import { changeTimes, isLive, replayOf } from "@mark1russell7/visuals";
+import { createScrubber } from "@mark1russell7/visuals/scrubber";
+import "@mark1russell7/visuals/scrubber.css";
+
+// The value of each part of the globe is its time in the picture, in hours.
+const lives = [{ from: 6, to: 18 }, { from: 12 }];
+
+createScrubber(document.querySelector("#time"), {
+  label: "Time of the picture",
+  replay: replayOf({ from: 0, to: 24 }),
+  times: changeTimes(lives),
+  labels: [{ at: 0, text: "00:00" }, { at: 12, text: "12:00" }],
+  format: (at) => `${String(Math.floor(at)).padStart(2, "0")}:00`,
+  onChange: ({ at }) => {
+    globe.show((part) => isLive(part.value, at));
+    stage.refresh();
+  },
+});</code></pre>
+    <ul class="points">
+      <li>A scrubber sets the time of a picture, and it replays the changes. It has a tick at each change.</li>
+      <li>The slider is an <code>input</code> of the type <code>range</code>. A pointer, a touch screen, a keyboard and a screen reader use it.</li>
+      <li>The arrow keys go from one change to the next change. The key Space starts and stops the replay.</li>
+      <li>The replay is a model with no browser. A test and a server use the same functions.</li>
     </ul>
     <p class="note">The <a href="https://github.com/mark1russell7/visuals/tree/main/packages/visuals#readme">README</a> tells each option. <a href="./releases/">Releases</a> shows each version, and <a href="./status/">Status</a> shows the open work.</p>
   </section>

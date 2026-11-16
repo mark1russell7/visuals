@@ -1,6 +1,7 @@
 @import "@fontsource/spectral/latin-400.css";
 @import "@fontsource/spectral/latin-400-italic.css";
 @import "@fontsource/spectral/latin-600.css";
+@import "@mark1russell7/visuals/scrubber.css";
 
 /* The colors of the page, then the colors of the chart. The globe reads the colors of the chart from here. */
 :root {
@@ -205,8 +206,9 @@ button {
   text-align: center;
 }
 
+/* The globe, the line of the name, the time, the views and the hint are all in view on a wide page. */
 .globe {
-  width: min(100%, max(72vh, 17rem));
+  width: min(100%, max(62vh, 17rem));
   margin: 0 auto;
   aspect-ratio: 1;
 }
@@ -220,6 +222,21 @@ button {
   min-height: 1.6em;
   margin: 0.5rem 0 0.5rem;
   font: italic 1.125rem/1.4 var(--lettering);
+}
+
+/* The time of the picture: the scrubber of the package, with the colors of the page. It is as wide as the globe. */
+.time {
+  --scrubber-ink: var(--ink);
+  --scrubber-quiet: var(--quiet);
+  --scrubber-line: color-mix(in srgb, var(--ink) 45%, var(--page));
+  --scrubber-surface: var(--page);
+  --scrubber-focus: var(--link);
+  width: min(100%, max(62vh, 17rem));
+  margin: 0 auto 1rem;
+}
+
+.globe.is-flat ~ .time {
+  width: 100%;
 }
 
 .views {

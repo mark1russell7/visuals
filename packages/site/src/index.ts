@@ -11,6 +11,7 @@ copy.addEventListener("click", () => {
 startDemo({
   picture: byId("globe"),
   readout: byId("readout"),
+  time: byId("time"),
   views: byId("views"),
   hint: byId("hint"),
   legend: byId("legend"),

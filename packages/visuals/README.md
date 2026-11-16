@@ -2,12 +2,14 @@
 
 3D stages for data. A stage is one canvas of three.js with a camera that a person moves. The content of the stage is your data.
 
-The package has four entries:
+The package has five entries and one style sheet:
 
-- The entry `.` has the camera maths: views, places, moves, keys and highlights. It needs no browser, and it does not need `three`.
+- The entry `.` has the camera maths and the model of a replay. It needs no browser, and it does not need `three`.
 - The entry `/marks` has the marks that a viewer draws, as plain data. It needs no browser, and it does not need `three`.
 - The entry `/three` has the stage. It needs the package `three`, version 0.187.0 or later.
 - The entry `/globe` has a content that shows the Earth as a globe, with areas and points on it. It also needs `three`.
+- The entry `/scrubber` has a control that sets the time of a picture. It needs a browser, and it does not need `three`.
+- The file `/scrubber.css` is the style sheet of the scrubber.
 
 ## Install
 
@@ -15,7 +17,7 @@ The package has four entries:
 npm install @mark1russell7/visuals three
 ```
 
-A package that uses only the entries `.` and `/marks` does not install `three`.
+A package that uses only the entries `.`, `/marks` and `/scrubber` does not install `three`.
 
 ## A stage
 
@@ -204,6 +206,88 @@ const surface = regionSurface(storm.region, 2);
 surface.corners.length / 2; // => 43: the corners of the outline with a step of 2 degrees, and the corners in the surface
 surface.triangles.length / 3; // => 70
 ```
+
+## A scrubber
+
+The entry `/scrubber` has a control with which a person sets the time of a picture, and replays its changes.
+
+```ts
+import { changeTimes, isLive, replayOf, type Lifetime } from "@mark1russell7/visuals";
+import { createScrubber } from "@mark1russell7/visuals/scrubber";
+import "@mark1russell7/visuals/scrubber.css";
+
+// The value of each part of a globe is its lifetime, in hours.
+const lives: readonly Lifetime[] = [{ from: 6, to: 18 }, { from: 12 }];
+
+const scrubber = createScrubber(document.body, {
+  label: "Time of the picture",
+  replay: replayOf({ from: 0, to: 24 }),
+  times: changeTimes(lives), // => [6, 12, 18]
+  labels: [
+    { at: 0, text: "00:00" },
+    { at: 12, text: "12:00" },
+  ],
+  format: (at) => `${String(Math.floor(at)).padStart(2, "0")}:00`,
+  onChange: ({ at }) => {
+    globe.show((part) => isLive(part.value, at));
+    stage.refresh();
+  },
+});
+```
+
+- The control has a button for the replay, the text of the time, a slider on an axis and a button for the speed.
+- The axis has a tick at each time of `times`. The ticks of the time that passed have the color of the ink.
+- The slider is an `input` of the type `range`. A pointer, a touch screen, a keyboard and a screen reader use it.
+- The arrow keys go from one change to the next change. The keys `PageUp` and `PageDown` go a tenth of the range.
+- The keys `Home` and `End` go to the ends of the range. The key Space starts and stops the replay.
+- A replay at the end of its range starts again from the start. A replay stops at the end.
+- `onChange` gets each new state. The control knows nothing about the picture, so it works with each stage and each page.
+- `setReplay`, `setTimes` and `setLabels` change the control from the page, for example after new data.
+- The control writes no inline style and no inline script, so it works under a strict content security policy.
+
+The style sheet is plain CSS. A bundler takes it from the import. A page with no bundler links to the file of the package.
+The control takes its font and the color of its text from the page.
+
+| Variable | What it sets | Default |
+| --- | --- | --- |
+| `--scrubber-ink` | The color of the handle, the ticks of the time that passed, and the button of the replay. | The color of the text |
+| `--scrubber-quiet` | The color of the labels of the axis. | 68% of the color of the text |
+| `--scrubber-line` | The color of the ticks of the time to come, and of the border of the button of the speed. | 45% of the color of the text |
+| `--scrubber-surface` | The color in the ring of the handle. Give it the color behind the control. | `Canvas` |
+| `--scrubber-focus` | The color of the focus ring. | `Highlight` |
+| `--scrubber-time-width` | The width of the text of the time in a control with one row. Thus the axis does not move. | `11rem` |
+
+A narrow control has two rows. A control that is 44 rem wide or more has one row. The width is the width of its container.
+
+## The replay
+
+A replay is a value: a range of time, the time of the picture, the speed, and if the time goes. Each function gives a new value.
+
+```ts
+import { changeIndex, changeTimes, isLive, replayAdvance, replayKey, replayOf, replayPlay } from "@mark1russell7/visuals";
+
+const times = changeTimes([{ from: 6, to: 18 }, { from: 12 }]); // => [6, 12, 18]
+isLive({ from: 6, to: 18 }, 18); // => false: a part is not in the picture at its end
+
+const replay = replayOf({ from: 0, to: 24 }); // The picture is at the end of the range, and the time does not go.
+const start = replayPlay(replay); // The replay starts again from the start of the range.
+replayAdvance(start, 5000, 20_000).at; // => 6: a quarter of the duration is a quarter of the range
+replayKey("ArrowLeft", replay, times)?.at; // => 18: the last change before the time
+changeIndex(times, 13); // => 2: draw the picture again only when this count changes
+```
+
+| Function | What it gives |
+| --- | --- |
+| `isLive` | If a part with a lifetime is in the picture at a time. |
+| `changeTimes`, `spanOfTimes` | The sorted times at which a picture changes, and the range from the first time to the last time. |
+| `changeAfter`, `changeBefore`, `changeIndex` | The next change, the change before, and the count of the changes that are not after a time. |
+| `spanPart`, `spanTime` | The place of a time in a range from 0 to 1, and the time at a place. |
+| `replayOf`, `replaySeek`, `replaySpan` | A replay of a range, a replay at a time, and a replay with a new range. |
+| `replayPlay`, `replayPause`, `replayToggle` | A replay that goes, and a replay that does not go. |
+| `replayAdvance` | The replay after a time of the clock. |
+| `replayNextSpeed`, `replayKey` | The replay with the next speed, and the replay after a key. |
+
+A time is a number in a unit that the page chooses. `replaySpan` keeps a picture of the present at the present when the range becomes longer.
 
 ## The marks
 

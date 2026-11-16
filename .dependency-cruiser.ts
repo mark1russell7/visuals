@@ -16,8 +16,8 @@ const config: Config = boundaries(root, {
       name: "data-entry-no-three",
       severity: "error",
       comment:
-        "The entries `.` and `./marks` of @mark1russell7/visuals are data and maths. They import no three.js, also not through a different file. A package with no browser imports them.",
-      from: { path: "^packages/visuals/src/(index|marks)\\.ts$" },
+        "The entries `.`, `./marks` and `./scrubber` of @mark1russell7/visuals import no three.js, also not through a different file. The entries `.` and `./marks` are data and maths: a package with no browser imports them. The scrubber is a control for each page, also a page with no 3D picture.",
+      from: { path: "^packages/visuals/src/(index|marks|scrubber)\\.ts$" },
       to: { path: "(^|/)node_modules/(@types/)?three(/|$)", reachable: true },
     },
   ],

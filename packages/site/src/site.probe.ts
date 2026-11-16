@@ -1,5 +1,6 @@
 // The probe of the home page for the command `site-pages check`. The check runs this code in the page, at each width.
-// It tests the interactive core: the list selects a record, the legend filters the records, and the pointer finds a record in the picture.
+// It tests the interactive core: the list selects a record, the legend filters the records, the scrubber sets the time,
+// and the pointer finds a record in the picture.
 declare const check: (name: string, ok: unknown, detail?: unknown) => boolean;
 declare const $: (selector: string) => HTMLElement | null;
 declare const $$: (selector: string) => HTMLElement[];
@@ -25,7 +26,7 @@ check("the page shows the Earth as a globe or as a flat map", picture, "The pict
 const height = (picture as Element | null)?.getBoundingClientRect().height ?? 0;
 check("the picture has a height of 150 pixels or more", height >= 150, height);
 
-check("the list has each sample record", rows() === 16, rows());
+check("the list has each sample record of the present", rows() === 16, rows());
 check("the legend has a button for each kind, and each kind is on", $$('.kind[aria-pressed="true"]').length === 4, $$(".kind").length);
 check("the line of the name is empty before a selection", text("#readout") === "", text("#readout"));
 
@@ -44,9 +45,48 @@ check("a hidden record is not selected", $$('.record[aria-pressed="true"]').leng
 click(QUAKES);
 check("the legend shows the records of the kind again", await until(() => rows() === 16 && pressed(QUAKES) === "true"), rows());
 
+// The time of the picture. The sample has 72 hours, so the middle of the slider is 36 hours before the present.
+const slider = $("#time input[type=range]") as HTMLInputElement | null;
+const time = (): string => text("#time .visuals-scrubber-time");
+const label = (selector: string): string | null => $(selector)?.getAttribute("aria-label") ?? null;
+const key = (name: string): void => {
+  slider?.dispatchEvent(new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true }));
+};
+const PLAY = "#time .visuals-scrubber-play";
+const SPEED = "#time .visuals-scrubber-speed";
+check("the page has a control of the time, at the present", slider !== null && time() === "Now" && label(PLAY) === "Play", [time(), label(PLAY)]);
+
+if (slider !== null) {
+  slider.value = "0.5";
+  slider.dispatchEvent(new Event("input", { bubbles: true }));
+}
+check("the slider sets the time of the picture", await until(() => time() === "36 hours ago" && rows() === 8), [time(), rows()]);
+check("the slider tells its time to a screen reader", slider?.getAttribute("aria-valuetext") === "36 hours ago", slider?.getAttribute("aria-valuetext"));
+check("a record of the list has its level at that time", text(`${GALE} .record-name`) === "Gale watch", text(`${GALE} .record-name`));
+check("the legend counts the records of that time", text('.kind[data-kind="warning"] .count') === "3" && text(`${QUAKES} .count`) === "3", [text('.kind[data-kind="warning"] .count'), text(`${QUAKES} .count`)]);
+
+key("ArrowRight");
+check("an arrow key goes to the next change", await until(() => time() === "35 hours ago" && rows() === 7), [time(), rows()]);
+
+click(SPEED);
+check("the button of the speed goes to the next speed", await until(() => text(SPEED) === "2×"), text(SPEED));
+
+// A replay at the present starts again from the start of the time. The picture has no record there.
+key("End");
+click(PLAY);
+check("the button of the replay starts the replay from the start", await until(() => label(PLAY) === "Pause" && time() !== "Now" && rows() < 16, 8000), [label(PLAY), time(), rows()]);
+click(PLAY);
+check("the button stops the replay", await until(() => label(PLAY) === "Play"), label(PLAY));
+const stopped = time();
+await wait(300);
+check("a stopped replay keeps its time", time() === stopped, [stopped, time()]);
+key("End");
+check("the key End goes to the present", await until(() => time() === "Now" && rows() === 16), [time(), rows()]);
+
 const flat = $("#globe svg.flat");
 if (flat !== null) {
-  check("the flat map has a shape for each record", flat.querySelectorAll("[data-record]").length === 16, flat.querySelectorAll("[data-record]").length);
+  const shapes = [...flat.querySelectorAll<SVGElement>("[data-record]")].filter((shape) => shape.style.display !== "none").length;
+  check("the flat map shows a shape for each record of the present", shapes === 16, shapes);
   check("the page tells why it shows a flat map", text("#hint").includes("WebGL 2"), text("#hint"));
 }
 

@@ -1,9 +1,11 @@
 import { h } from "@mark1russell7/site-pages/chrome";
+import { changeIndex, isLive, replayOf } from "@mark1russell7/visuals";
 import { GLOBE_POLAR, createGlobe, globeView, regionView, type GlobeArea, type GlobePoint } from "@mark1russell7/visuals/globe";
+import { createScrubber } from "@mark1russell7/visuals/scrubber";
 import { createStage } from "@mark1russell7/visuals/three";
 import { globeTheme, onThemeChange } from "./colors.ts";
 import { createFlatMap } from "./flat.ts";
-import { AREAS, KINDS, QUAKES, RECORDS, kindOf, landRegion, nameOf, regionOf, type Kind, type SampleRecord } from "./sample.ts";
+import { CHANGES, HISTORY, KINDS, RECORDS, TIME_LABELS, VERSIONS, landRegion, nameOf, recordsAt, timeText, versionAt, type Kind, type SampleRecord, type Version } from "./sample.ts";
 
 /** The elements of the page that the demo uses. */
 export interface DemoElements {
@@ -11,6 +13,8 @@ export interface DemoElements {
   readonly picture: HTMLElement;
   /** The line that names the record under the pointer, or the selected record. */
   readonly readout: HTMLElement;
+  /** The box of the control of the time. The demo puts a scrubber in it. */
+  readonly time: HTMLElement;
   /** The box of the buttons of the views. Each button has the name of its view in `data-view`. */
   readonly views: HTMLElement;
   /** The line that tells how to move the picture. */
@@ -19,6 +23,16 @@ export interface DemoElements {
   readonly legend: HTMLElement;
   /** The list of the records. The demo puts one item for each record in it. */
   readonly records: HTMLElement;
+}
+
+/** The parts of the row of a record in the list. The row shows the version of the record at the time of the picture. */
+interface Row {
+  readonly record: SampleRecord;
+  readonly item: HTMLElement;
+  readonly button: HTMLElement;
+  readonly sign: HTMLElement;
+  readonly name: HTMLElement;
+  readonly more: HTMLElement;
 }
 
 /** The name of each kind in the legend. */
@@ -39,11 +53,6 @@ const QUAKE_CAP = 20;
 /** The largest step of an edge of the globe, in degrees. The land has many corners, and this step keeps the picture fast. */
 const STEP = 2;
 
-/** This function gives the second line of a record in the list: what the record tells. */
-function detailOf(record: SampleRecord): string {
-  return record.type === "quake" ? `Magnitude ${record.magnitude.toFixed(1)}, at a depth of ${record.depth} km.` : record.text;
-}
-
 /** This function makes the sign of a kind: a small shape with the color of the kind. The style sheet draws it. */
 function sign(kind: Kind): HTMLElement {
   return h("span", { class: "sign", "data-kind": kind, "aria-hidden": "true" });
@@ -51,6 +60,7 @@ function sign(kind: Kind): HTMLElement {
 
 /**
  * This function starts the live demo: a globe with the sample records, a legend that filters them and a list that selects them.
+ * A scrubber sets the time of the picture, and it replays the 72 hours of the sample.
  * A browser with no WebGL 2 gets a flat map of the same records.
  */
 export function startDemo(elements: DemoElements): void {
@@ -58,18 +68,21 @@ export function startDemo(elements: DemoElements): void {
   const hidden = new Set<Kind>();
   let hovered: SampleRecord | undefined;
   let selected: SampleRecord | undefined;
+  /** The time of the picture. */
+  let at = HISTORY.to;
+  /** The count of the changes before the picture. The picture is the same between two changes. */
+  let drawn = changeIndex(CHANGES, at);
 
-  const areas: GlobeArea<SampleRecord | undefined>[] = [
+  // The globe has one part for each version of a record. The versions of one record have one name, so they are one record.
+  const areas: GlobeArea<Version | undefined>[] = [
     { record: "land", kind: "land", value: undefined, region: land, pick: false },
-    ...AREAS.map((area) => ({ record: area.record, kind: area.level, value: area, region: regionOf(area) })),
+    ...VERSIONS.flatMap((version) => (version.region === undefined ? [] : [{ record: version.record.record, kind: version.kind, value: version, region: version.region }])),
   ];
-  const points: GlobePoint<SampleRecord | undefined>[] = QUAKES.map((quake) => ({
-    record: quake.record,
-    kind: "quake",
-    value: quake,
-    place: quake.at,
-    size: QUAKE_SIZE + Math.max(quake.magnitude - 4.5, 0) * QUAKE_GROWTH,
-  }));
+  const points: GlobePoint<Version | undefined>[] = VERSIONS.flatMap((version) => {
+    const { record } = version;
+    if (record.type !== "quake") return [];
+    return [{ record: record.record, kind: version.kind, value: version, place: record.at, size: QUAKE_SIZE + Math.max(record.magnitude - 4.5, 0) * QUAKE_GROWTH }];
+  });
   const globe = createGlobe({ areas, points, step: STEP, grid: 15, lineWidth: 1.5, highlightWidth: 3 });
   const stage = createStage(elements.picture, {
     content: globe,
@@ -84,16 +97,16 @@ export function startDemo(elements: DemoElements): void {
     polar: GLOBE_POLAR,
     pan: false,
     onHover: (pick) => {
-      hover(pick);
+      hover(pick?.record);
     },
     onSelect: (pick) => {
-      select(pick, false);
+      select(pick?.record, false);
     },
   });
   // The globe is in the stage only when the stage exists. Without a stage, the page shows a flat map of the same records.
   const flat =
     stage === undefined
-      ? createFlatMap(land, RECORDS, {
+      ? createFlatMap(land, VERSIONS, {
           onHover: (record) => {
             hover(record);
           },
@@ -110,38 +123,36 @@ export function startDemo(elements: DemoElements): void {
     elements.hint.textContent = "This browser has no WebGL 2, so the page shows a flat map. Select a record in the list.";
   }
 
-  const rows = new Map<string, HTMLButtonElement>();
-  for (const record of RECORDS) {
-    const row = h(
-      "button",
-      { class: "record", type: "button", "data-record": record.record, "data-kind": kindOf(record), "aria-pressed": "false" },
-      sign(kindOf(record)),
-      h("span", { class: "record-name" }, record.type === "quake" ? "Earthquake" : record.title),
-      h("span", { class: "record-place" }, record.place),
-      h("span", { class: "record-more" }, detailOf(record)),
-    );
-    row.addEventListener("click", () => {
+  const rows: Row[] = RECORDS.map((record) => {
+    const mark = sign("quake");
+    const name = h("span", { class: "record-name" });
+    const more = h("span", { class: "record-more" });
+    const button = h("button", { class: "record", type: "button", "data-record": record.record, "aria-pressed": "false" }, mark, name, h("span", { class: "record-place" }, record.place), more);
+    button.addEventListener("click", () => {
       select(selected === record ? undefined : record, true);
     });
-    row.addEventListener("pointerenter", () => {
+    button.addEventListener("pointerenter", () => {
       hover(record);
     });
-    row.addEventListener("pointerleave", () => {
+    button.addEventListener("pointerleave", () => {
       hover(undefined);
     });
-    rows.set(record.record, row);
-    elements.records.append(h("li", {}, row));
-  }
+    const item = h("li", {}, button);
+    elements.records.append(item);
+    return { record, item, button, sign: mark, name, more };
+  });
 
+  const counts = new Map<Kind, HTMLElement>();
   for (const kind of KINDS) {
-    const count = RECORDS.filter((record) => kindOf(record) === kind).length;
-    const button = h("button", { class: "kind", type: "button", "data-kind": kind, "aria-pressed": "true" }, sign(kind), `${KIND_NAMES[kind]} `, h("span", { class: "count" }, String(count)));
+    const count = h("span", { class: "count" });
+    const button = h("button", { class: "kind", type: "button", "data-kind": kind, "aria-pressed": "true" }, sign(kind), `${KIND_NAMES[kind]} `, count);
     button.addEventListener("click", () => {
       if (hidden.has(kind)) hidden.delete(kind);
       else hidden.add(kind);
       button.setAttribute("aria-pressed", String(!hidden.has(kind)));
-      filter();
+      draw();
     });
+    counts.set(kind, count);
     elements.legend.append(button);
   }
 
@@ -151,16 +162,37 @@ export function startDemo(elements: DemoElements): void {
     });
   }
 
+  createScrubber(elements.time, {
+    label: "Time of the picture",
+    replay: replayOf(HISTORY, at),
+    times: CHANGES,
+    labels: TIME_LABELS,
+    format: timeText,
+    onChange: (replay) => {
+      at = replay.at;
+      const index = changeIndex(CHANGES, at);
+      if (index === drawn) return;
+      drawn = index;
+      draw();
+    },
+  });
+
+  /** This function tells if a version is in the picture: it is of the time, and the legend has its kind on. */
+  function shown(version: Version | undefined): version is Version {
+    return version !== undefined && isLive(version.life, at) && !hidden.has(version.kind);
+  }
+
   /** This function shows the highlights of the pointer and of the selection in the picture, in the list and in the line of the name. */
   function paint(): void {
     stage?.highlight(hovered === undefined ? [] : [hovered.record]);
     flat?.highlight(hovered?.record, selected?.record);
-    for (const [name, row] of rows) {
-      row.classList.toggle("is-hovered", name === hovered?.record);
-      row.setAttribute("aria-pressed", String(name === selected?.record));
+    for (const row of rows) {
+      row.button.classList.toggle("is-hovered", row.record === hovered);
+      row.button.setAttribute("aria-pressed", String(row.record === selected));
     }
     const named = hovered ?? selected;
-    elements.readout.textContent = named === undefined ? "" : nameOf(named);
+    const version = named === undefined ? undefined : versionAt(named, at);
+    elements.readout.textContent = version === undefined ? "" : nameOf(version);
   }
 
   function hover(record: SampleRecord | undefined): void {
@@ -173,22 +205,48 @@ export function startDemo(elements: DemoElements): void {
   function select(record: SampleRecord | undefined, move: boolean): void {
     selected = record;
     stage?.select(record?.record);
-    if (record !== undefined && move) stage?.setView(record.type === "quake" ? globeView(record.at, QUAKE_CAP) : regionView([regionOf(record)], AREA_MARGIN));
+    if (record !== undefined && move) {
+      const region = versionAt(record, at)?.region;
+      if (record.type === "quake") stage?.setView(globeView(record.at, QUAKE_CAP));
+      else if (region !== undefined) stage?.setView(regionView([region], AREA_MARGIN));
+    }
     paint();
   }
 
-  /** This function shows only the records of the kinds that the legend has on. */
-  function filter(): void {
-    const shown = (record: SampleRecord): boolean => !hidden.has(kindOf(record));
+  /** This function puts the rows of the list in the sequence of the records of the time. A row with no record of the time is last. */
+  function sortRows(live: readonly Version[]): void {
+    const place = new Map(live.map((version, index) => [version.record, index]));
+    const sorted = [...rows].sort((a, b) => (place.get(a.record) ?? live.length) - (place.get(b.record) ?? live.length));
+    if (sorted.every((row, index) => elements.records.children[index] === row.item)) return;
+    // A row that moves in the list loses the keyboard. The row gets it back.
+    const active = elements.records.ownerDocument.activeElement;
+    elements.records.append(...sorted.map((row) => row.item));
+    if (active instanceof HTMLElement && elements.records.contains(active)) active.focus();
+  }
+
+  /**
+   * This function shows the records of the time of the picture, less the kinds that the legend has off.
+   * It starts after a change of the legend, and when the time goes across a change of the sample.
+   */
+  function draw(): void {
+    const live = recordsAt(at);
+    const versions = new Map(live.map((version) => [version.record, version]));
     // The land has no record, so it has no value. It stays in the picture.
     if (stage !== undefined) globe.show((part) => part.value === undefined || shown(part.value));
     flat?.show(shown);
-    for (const record of RECORDS) {
-      const item = rows.get(record.record)?.parentElement;
-      if (item !== null && item !== undefined) item.hidden = !shown(record);
+    for (const row of rows) {
+      const version = versions.get(row.record);
+      row.item.hidden = !shown(version);
+      if (version === undefined) continue;
+      row.button.dataset["kind"] = version.kind;
+      row.sign.dataset["kind"] = version.kind;
+      row.name.textContent = version.title;
+      row.more.textContent = version.text;
     }
-    if (hovered !== undefined && !shown(hovered)) hovered = undefined;
-    if (selected !== undefined && !shown(selected)) select(undefined, false);
+    sortRows(live);
+    for (const [kind, count] of counts) count.textContent = String(live.filter((version) => version.kind === kind).length);
+    if (hovered !== undefined && !shown(versions.get(hovered))) hovered = undefined;
+    if (selected !== undefined && !shown(versions.get(selected))) select(undefined, false);
     else paint();
     stage?.refresh();
   }
@@ -196,5 +254,5 @@ export function startDemo(elements: DemoElements): void {
   onThemeChange(() => {
     stage?.setTheme(globeTheme());
   });
-  paint();
+  draw();
 }
