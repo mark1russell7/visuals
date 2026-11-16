@@ -5,7 +5,9 @@ import { keyAction } from "../keys.ts";
 import { isClick, highlightOf, NO_HIGHLIGHTS, type Highlight, type Highlights } from "../highlight.ts";
 import { moveAt, type Move } from "../motion.ts";
 import type { StageTheme } from "../theme.ts";
-import { cameraPosition, clampPlace, speedAt, viewOf, type Place } from "../view.ts";
+import { cameraPosition, clampPlace, FIELD_OF_VIEW, speedAt, turnAcross, viewOf, type Place } from "../view.ts";
+
+export { FIELD_OF_VIEW };
 
 /** The record under the pointer: its name, and the value that the content gives for it. */
 export interface StagePick<P> {
@@ -113,16 +115,16 @@ export interface Stage<P, T extends StageTheme = StageTheme> {
   dispose(): void;
 }
 
-/** The default vertical angle of the picture, in degrees. */
-export const FIELD_OF_VIEW = 32;
-
 /** The default lights: a strong light from above and below, and a light from the front left. */
 export const STAGE_LIGHTS: StageLights = { sky: 2.2, sun: 1.5, from: { x: -10, y: 24, z: 15 } };
 
 /** The time of the move between two views, in milliseconds. */
 const MOVE_TIME = 380;
 
-/** The turn of the camera for a drag across the height of the picture, as a part of a full turn, far from the surface. */
+/**
+ * The largest turn of the camera for a drag across the height of the picture, as a part of a full turn.
+ * A camera far from a ball, or with no ball, turns by this part.
+ */
 const TURN_SPEED = 0.9;
 
 /** The smallest polar angle. At 0, the azimuth of a camera has no meaning. */
@@ -219,11 +221,16 @@ export function createStage<P, T extends StageTheme = StageTheme>(container: HTM
     invalidate();
   };
 
-  /** This function sets the turn speed and the zoom speed from the height of the camera above the surface. */
+  /**
+   * This function sets the turn speed and the zoom speed from the height of the camera above the surface.
+   * The surface of a ball at the middle of the picture follows the pointer in a drag.
+   */
   const setSpeed = (): void => {
-    const speed = speedAt(camera.position.distanceTo(controls.target), surfaceOf(content.extent));
-    controls.rotateSpeed = TURN_SPEED * speed;
-    controls.zoomSpeed = speed;
+    const distance = camera.position.distanceTo(controls.target);
+    const surface = surfaceOf(content.extent);
+    // The controls turn the camera by a full turn times the speed for a drag across the height of the picture.
+    controls.rotateSpeed = Math.min(TURN_SPEED, turnAcross(distance, surface, fieldOfView) / (2 * Math.PI));
+    controls.zoomSpeed = speedAt(distance, surface);
   };
   const placeNow = (): Place => {
     const target = { x: controls.target.x, y: controls.target.y, z: controls.target.z };
@@ -403,7 +410,7 @@ export function createStage<P, T extends StageTheme = StageTheme>(container: HTM
     "keydown",
     (event) => {
       if (event.altKey || event.ctrlKey || event.metaKey) return;
-      const action = keyAction(event.key, placeNow(), { home: options.home, views: options.keys, surface: surfaceOf(content.extent) });
+      const action = keyAction(event.key, placeNow(), { home: options.home, views: options.keys, surface: surfaceOf(content.extent), fieldOfView });
       if (action === undefined) return;
       event.preventDefault();
       setInUse(true);

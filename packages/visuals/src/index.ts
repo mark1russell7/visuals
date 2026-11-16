@@ -12,7 +12,7 @@ export {
   type StageView,
   type ViewFrame,
 } from "./extent.ts";
-export { KEY_TURN, KEY_ZOOM, keyAction, type KeyAction, type KeyOptions } from "./keys.ts";
+export { KEY_PART, KEY_TURN, KEY_ZOOM, keyAction, type KeyAction, type KeyOptions } from "./keys.ts";
 export { CLICK_DISTANCE, NO_HIGHLIGHTS, isClick, highlightOf, type Highlight, type Highlights } from "./highlight.ts";
 export { approach, easeInOut, moveAt, type Move, type MoveStep } from "./motion.ts";
 export {
@@ -44,12 +44,14 @@ export {
 export { screenPoint } from "./screen.ts";
 export type { StageTheme } from "./theme.ts";
 export {
+  FIELD_OF_VIEW,
   cameraPosition,
   capDistance,
   clampPlace,
   fitDistance,
   placeBetween,
   speedAt,
+  turnAcross,
   turnBetween,
   viewAxes,
   viewOf,

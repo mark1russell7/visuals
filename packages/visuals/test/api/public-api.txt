@@ -7,9 +7,11 @@
 ## . (build/index.d.ts): names
 
 CLICK_DISTANCE: build/theme.chunk.d.ts#CLICK_DISTANCE
+FIELD_OF_VIEW: build/theme.chunk.d.ts#FIELD_OF_VIEW
 FIT_MARGIN: build/theme.chunk.d.ts#FIT_MARGIN
 type Highlight: build/theme.chunk.d.ts#Highlight
 type Highlights: build/theme.chunk.d.ts#Highlights
+KEY_PART: build/index.d.ts#KEY_PART
 KEY_TURN: build/index.d.ts#KEY_TURN
 KEY_ZOOM: build/index.d.ts#KEY_ZOOM
 type KeyAction: build/index.d.ts#KeyAction
@@ -70,13 +72,14 @@ spanTime: build/replay.chunk.d.ts#spanTime
 speedAt: build/theme.chunk.d.ts#speedAt
 stageLimits: build/theme.chunk.d.ts#stageLimits
 surfaceOf: build/theme.chunk.d.ts#surfaceOf
+turnAcross: build/theme.chunk.d.ts#turnAcross
 turnBetween: build/theme.chunk.d.ts#turnBetween
 viewAxes: build/theme.chunk.d.ts#viewAxes
 viewOf: build/theme.chunk.d.ts#viewOf
 
 ## ./three (build/three.d.ts): names
 
-FIELD_OF_VIEW: build/stage.chunk.d.ts#FIELD_OF_VIEW
+FIELD_OF_VIEW: build/theme.chunk.d.ts#FIELD_OF_VIEW
 STAGE_LIGHTS: build/stage.chunk.d.ts#STAGE_LIGHTS
 type Stage: build/stage.chunk.d.ts#Stage
 type StageContent: build/stage.chunk.d.ts#StageContent
@@ -297,6 +300,9 @@ export declare function regionView(regions: readonly Region[], margin?: number):
 ### build/globe.d.ts#surfaceSag
 export declare function surfaceSag(step: number): number;
 
+### build/index.d.ts#KEY_PART
+export declare const KEY_PART = .125;
+
 ### build/index.d.ts#KEY_TURN
 export declare const KEY_TURN: number;
 
@@ -317,6 +323,7 @@ interface KeyOptions {
   readonly home: string;
   readonly views?: Readonly<Record<string, string>> | undefined;
   readonly surface?: number | undefined;
+  readonly fieldOfView?: number | undefined;
 }
 
 ### build/index.d.ts#Move
@@ -705,9 +712,6 @@ export declare function tickPath(places: readonly number[], top: number, bottom:
 ### build/scrubber.d.ts#tickPlaces
 export declare function tickPlaces(span: TimeSpan, times: readonly number[]): readonly number[];
 
-### build/stage.chunk.d.ts#FIELD_OF_VIEW
-declare const FIELD_OF_VIEW = 32;
-
 ### build/stage.chunk.d.ts#STAGE_LIGHTS
 declare const STAGE_LIGHTS: StageLights;
 
@@ -785,6 +789,9 @@ declare function createStage<P, T extends StageTheme = StageTheme>(container: HT
 
 ### build/theme.chunk.d.ts#CLICK_DISTANCE
 declare const CLICK_DISTANCE = 4;
+
+### build/theme.chunk.d.ts#FIELD_OF_VIEW
+declare const FIELD_OF_VIEW = 32;
 
 ### build/theme.chunk.d.ts#FIT_MARGIN
 declare const FIT_MARGIN = 1.06;
@@ -913,6 +920,9 @@ declare function stageLimits(frame: ViewFrame, views: readonly StageView[], pola
 
 ### build/theme.chunk.d.ts#surfaceOf
 declare function surfaceOf(extent: StageExtent): number;
+
+### build/theme.chunk.d.ts#turnAcross
+declare function turnAcross(distance: number, surface: number, fieldOfView: number): number;
 
 ### build/theme.chunk.d.ts#turnBetween
 declare function turnBetween(from: number, to: number): number;
