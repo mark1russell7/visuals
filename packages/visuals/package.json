@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/package",
   "name": "@mark1russell7/visuals",
-  "version": "0.1.0",
-  "description": "3D stages for data on three.js: a camera that a person moves, views by name, picking, marks and themes.",
+  "version": "0.1.1",
+  "description": "3D stages for data on three.js: a camera that a person moves, views by name, picking, marks and themes, and a globe of the Earth.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -29,6 +29,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./three": "./src/three.ts",
+    "./globe": "./src/globe.ts",
     "./package.json": "./package.json"
   },
   "files": [
@@ -41,6 +42,7 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json"
   },
   "dependencies": {
+    "@mark1russell7/geo": "^0.5.0",
     "@mark1russell7/layout-contract": "^0.10.2"
   },
   "peerDependencies": {
@@ -79,6 +81,11 @@
         "types": "./build/three.d.ts",
         "import": "./build/three.js",
         "default": "./build/three.js"
+      },
+      "./globe": {
+        "types": "./build/globe.d.ts",
+        "import": "./build/globe.js",
+        "default": "./build/globe.js"
       },
       "./package.json": "./package.json"
     }

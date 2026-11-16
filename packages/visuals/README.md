@@ -2,10 +2,11 @@
 
 3D stages for data. A stage is one canvas of three.js with a camera that a person moves. The content of the stage is your data.
 
-The package has two entries:
+The package has three entries:
 
 - The entry `.` has the camera maths: views, places, moves, keys and marks. It needs no browser, and it does not need `three`.
 - The entry `/three` has the stage. It needs the package `three`, version 0.187.0 or later.
+- The entry `/globe` has a content that shows the Earth as a globe, with areas and points on it. It also needs `three`.
 
 ## Install
 
@@ -110,6 +111,97 @@ all({ extent: globe, fieldOfView: 32, aspect: 1.5 }).distance; // => 3.79: the o
 region({ extent: globe, fieldOfView: 32, aspect: 1.5 }).distance; // => 1.18: a cap of 0.05 radians fills the height
 ```
 
+## A globe
+
+The entry `/globe` has a content for a stage that shows the Earth. The picture goes from the whole Earth to one region.
+
+```ts
+import { GLOBE_POLAR, createGlobe, globeView, regionView, type GlobeArea, type GlobeTheme } from "@mark1russell7/visuals/globe";
+import { createStage } from "@mark1russell7/visuals/three";
+
+const storm: GlobeArea<string> = {
+  record: "storm",
+  kind: "warning",
+  value: "A storm warning",
+  region: {
+    type: "Polygon",
+    coordinates: [
+      [
+        [-98, 30],
+        [-90, 30],
+        [-90, 36],
+        [-98, 36],
+        [-98, 30],
+      ],
+    ],
+  },
+};
+
+const theme: GlobeTheme = {
+  sky: "#ffffff",
+  ground: "#8a8f98",
+  ball: "#0d2236",
+  grid: "#24415c",
+  shade: "#02060a",
+  styles: {
+    warning: { fill: "#f0883e", opacity: 0.35, line: "#f0883e" },
+    city: { fill: "#ffffff", line: "#0d2236" },
+  },
+  other: { fill: "#6b7785", opacity: 0.5 },
+  hovered: "#ffd866",
+  selected: "#ffffff",
+};
+
+const globe = createGlobe({
+  areas: [storm],
+  points: [{ record: "city", kind: "city", value: "A city", place: { lat: 32.8, lon: -96.8 } }],
+});
+
+const stage = createStage(document.body, {
+  content: globe,
+  theme,
+  label: "The Earth with one storm warning",
+  views: { earth: globeView({ lat: 35, lon: -95 }), storm: regionView([storm.region]) },
+  home: "earth",
+  polar: GLOBE_POLAR,
+  pan: false,
+  onSelect: (value) => console.log(value), // => "A storm warning" after a click on the area
+});
+```
+
+- An area is a region of `@mark1russell7/geo`: a `Polygon` or a `MultiPolygon` of GeoJSON. A point is a place with a latitude and a longitude.
+- The surface of an area follows the curve of the Earth. The option `step` sets the largest step of an edge, in degrees.
+- A kind names the style of an area or a point in the theme. A new theme changes each color, and the geometry stays.
+- The pointer finds a point first, then the last area of the list. The pointer ignores a part with `pick: false`.
+- `show` hides each part that a test refuses, for example the records that are not active at a time.
+- `placeAt` gives the place on the Earth under the pointer.
+- The globe uses no map tiles and no service. Give the land to it as an area.
+
+The views of a globe:
+
+- `globeView(place, degrees)` shows the cap of the Earth around a place. The default shows a half of the Earth.
+- `regionView(regions)` shows each region of a list, from above their middle.
+
+The functions of the globe maths have no state. A test in Node.js uses them:
+
+| Function | What it gives |
+| --- | --- |
+| `globePoint`, `globePlace` | The point of the globe for a place on the Earth, and the place for a point. |
+| `regionSurface` | The triangles of the surface of a region. No edge is longer than 1.25 steps. |
+| `regionEdges` | The lines of the outline of a region. A cut on the antimeridian or at a pole gives no line. |
+| `gridLines` | The meridians and the parallels of a grid. |
+| `rayBall`, `inSight` | The first point of a ball on a ray, and if a camera sees a point of the ball. |
+
+```ts
+import { globePoint, regionSurface } from "@mark1russell7/visuals/globe";
+
+globePoint({ lat: 0, lon: 0 }); // => { x: 0, y: 0, z: 1 }: the axis z goes to latitude 0 and longitude 0, and the axis y to the north pole
+
+const surface = regionSurface(storm.region, 2);
+surface.corners.length / 2; // => 43: the corners of the outline with a step of 2 degrees, and the corners in the surface
+surface.triangles.length / 3; // => 70
+```
+
 ## The camera maths
 
 The entry `.` has pure functions. A page with no WebGL 2 and a test in Node.js use the same functions as the stage.
@@ -120,7 +212,9 @@ The entry `.` has pure functions. A page with no WebGL 2 and a test in Node.js u
 | `fitDistance`, `capDistance` | The distance at which the camera shows points, or a cap of a ball. |
 | `cameraPosition`, `viewOf` | The position of a camera from its place, and the place from its position. |
 | `placeBetween`, `moveAt`, `easeInOut` | A place on the way between two places, and the place at a time of a move. |
+| `ballView` | A view that shows points on a ball, from above their middle. |
 | `clampPlace`, `stageLimits` | A place in the limits of a stage, and the limits from the content. |
+| `reachOf`, `nearDepth` | The radius of the ball that holds the content, and the nearest depth that the camera draws. |
 | `keyAction` | The action of a key. |
 | `markOf`, `isClick` | The mark of a record, and the difference between a click and a drag. |
 | `approach` | One step of a value to its goal, for a part that changes with time. |

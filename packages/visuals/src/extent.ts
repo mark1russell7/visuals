@@ -1,5 +1,5 @@
 import type { Point3 } from "@mark1russell7/layout-contract";
-import { capDistance, fitDistance, type Place, type PlaceLimits, type ViewAngles } from "./view.ts";
+import { capDistance, fitDistance, viewOf, type Place, type PlaceLimits, type ViewAngles } from "./view.ts";
 
 /** The space that the content of a stage fills. A view and the limits of the camera come from it. */
 export interface StageExtent {
@@ -71,6 +71,71 @@ export function capView(angles: ViewAngles, angle: number, margin: number = FIT_
 }
 
 /**
+ * This function makes a view of points on the ball of the content. The camera is above the middle of the points, and the picture shows each point.
+ *
+ * The middle is the center of the box of the points. `margin` is the space around the points, as a factor of the height above the ball.
+ * A list with no points gives a view of all of the ball from the front. Points with their middle at the center of the ball give the same view.
+ */
+export function ballView(points: readonly Point3[], margin: number = FIT_MARGIN): StageView {
+  let found: { readonly center: Point3; readonly view: StageView } | undefined;
+  return (frame) => {
+    const { center } = frame.extent;
+    // The middle and the cap are the same for each picture of one content. So the function calculates them one time for each center.
+    if (found === undefined || found.center.x !== center.x || found.center.y !== center.y || found.center.z !== center.z) {
+      found = { center, view: capOf(points, center, margin) };
+    }
+    return found.view(frame);
+  };
+}
+
+/** This function makes the view of the cap of a ball around `center` that holds each point. */
+function capOf(points: readonly Point3[], center: Point3, margin: number): StageView {
+  const low = { x: Infinity, y: Infinity, z: Infinity };
+  const high = { x: -Infinity, y: -Infinity, z: -Infinity };
+  for (const point of points) {
+    low.x = Math.min(low.x, point.x);
+    low.y = Math.min(low.y, point.y);
+    low.z = Math.min(low.z, point.z);
+    high.x = Math.max(high.x, point.x);
+    high.y = Math.max(high.y, point.y);
+    high.z = Math.max(high.z, point.z);
+  }
+  const middle = { x: (low.x + high.x) / 2 - center.x, y: (low.y + high.y) / 2 - center.y, z: (low.z + high.z) / 2 - center.z };
+  const length = Math.hypot(middle.x, middle.y, middle.z);
+  if (!(length > 0) || !Number.isFinite(length)) return capView({ polar: Math.PI / 2, azimuth: 0 }, Math.PI / 2, margin);
+  let angle = 0;
+  for (const point of points) {
+    const x = point.x - center.x;
+    const y = point.y - center.y;
+    const z = point.z - center.z;
+    const distance = Math.hypot(x, y, z);
+    if (!(distance > 0)) continue;
+    const cosine = (x * middle.x + y * middle.y + z * middle.z) / (distance * length);
+    angle = Math.max(angle, Math.acos(Math.min(Math.max(cosine, -1), 1)));
+  }
+  const { polar, azimuth } = viewOf(middle, { x: 0, y: 0, z: 0 });
+  return capView({ polar, azimuth }, angle, margin);
+}
+
+/** This function gives the radius of the ball around the center of an extent that holds the ball of the extent and each corner. */
+export function reachOf(extent: StageExtent): number {
+  let reach = surfaceOf(extent);
+  for (const corner of extent.corners) reach = Math.max(reach, Math.hypot(corner.x - extent.center.x, corner.y - extent.center.y, corner.z - extent.center.z));
+  return reach;
+}
+
+/**
+ * This function gives the nearest depth that a camera draws, from the distance of the camera to the center of the content.
+ *
+ * A camera far from the content gets a large value. The depths of the content then have more steps, so two surfaces that are near stay apart.
+ * The result is not less than the nearest depth of the limits, and it is in front of all the content.
+ */
+export function nearDepth(limits: StageLimits, extent: StageExtent, distance: number): number {
+  const free = (distance - reachOf(extent)) / 8;
+  return free > limits.near ? Math.min(free, limits.far / 4) : limits.near;
+}
+
+/**
  * This function gives the limits of the camera of a stage for a picture.
  *
  * The largest distance of the views is the base. The camera goes out to 3 times this distance, and in to 3 % of the height of that view.
@@ -82,8 +147,7 @@ export function stageLimits(frame: ViewFrame, views: readonly StageView[], polar
   let widest = 0;
   for (const view of views) widest = Math.max(widest, view(frame).distance);
   if (!(widest > surface)) widest = surface + 1;
-  let reach = surface;
-  for (const corner of extent.corners) reach = Math.max(reach, Math.hypot(corner.x - extent.center.x, corner.y - extent.center.y, corner.z - extent.center.z));
+  const reach = reachOf(extent);
   const minDistance = extent.minDistance ?? surface + (widest - surface) * 0.03;
   const maxDistance = Math.max(extent.maxDistance ?? surface + (widest - surface) * 3, minDistance);
   const height = Math.max(minDistance - surface, 1e-6);

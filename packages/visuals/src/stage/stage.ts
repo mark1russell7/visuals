@@ -1,6 +1,6 @@
 import { DirectionalLight, HemisphereLight, PerspectiveCamera, Raycaster, Scene as World, Vector2, WebGLRenderer, type Object3D } from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { stageLimits, surfaceOf, type StageExtent, type StageLimits, type StageView, type ViewFrame } from "../extent.ts";
+import { nearDepth, stageLimits, surfaceOf, type StageExtent, type StageLimits, type StageView, type ViewFrame } from "../extent.ts";
 import { keyAction } from "../keys.ts";
 import { isClick, markOf, NO_MARKS, type Mark, type Marks } from "../marks.ts";
 import { moveAt, type Move } from "../motion.ts";
@@ -240,14 +240,25 @@ export function createStage<P, T extends StageTheme = StageTheme>(container: HTM
   /** This function gives the view function of a view, or `undefined` for a name that the options do not have. */
   const viewFunction = (of: string | StageView): StageView | undefined => (typeof of === "string" ? options.views[of] : of);
 
+  /**
+   * This function sets the nearest depth that the camera draws, from the distance of the camera to the content.
+   * A camera far from the content then has small steps of depth at the content, so a layer near a surface stays above it.
+   */
+  const setDepth = (): void => {
+    const { center } = content.extent;
+    const distance = Math.hypot(camera.position.x - center.x, camera.position.y - center.y, camera.position.z - center.z);
+    const near = nearDepth(limits, content.extent, distance);
+    if (near === camera.near && limits.far === camera.far) return;
+    camera.near = near;
+    camera.far = limits.far;
+    camera.updateProjectionMatrix();
+  };
   /** This function sets the limits of the camera from the content and the shape of the picture. */
   const setLimits = (): void => {
     limits = stageLimits(viewFrame(), Object.values(options.views), polar);
     controls.minDistance = limits.minDistance;
     controls.maxDistance = limits.maxDistance;
-    camera.near = limits.near;
-    camera.far = limits.far;
-    camera.updateProjectionMatrix();
+    setDepth();
   };
   /**
    * This function stops the turn that continues after a drag. The camera stays where it is.
@@ -307,6 +318,7 @@ export function createStage<P, T extends StageTheme = StageTheme>(container: HTM
     let active = stepMove(now);
     setSpeed();
     active = controls.update() || active;
+    setDepth();
     const stepped = content.step?.({ camera, seconds, settle: settle || lessMotion(), height, fieldOfView }) ?? false;
     settle = false;
     renderer.render(world, camera);
