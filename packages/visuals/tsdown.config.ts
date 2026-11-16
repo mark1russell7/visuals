@@ -2,7 +2,7 @@ import { defineConfig } from "tsdown";
 
 // The build for npm: ES modules in build/, with their declarations. The workspace uses the source (main is src/index.ts).
 export default defineConfig({
-  entry: ["src/index.ts", "src/three.ts", "src/globe.ts"],
+  entry: ["src/index.ts", "src/three.ts", "src/globe.ts", "src/marks.ts"],
   outDir: "build",
   format: "esm",
   platform: "neutral",

@@ -20,7 +20,7 @@ import {
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
-import type { Mark } from "../marks.ts";
+import type { Highlight } from "../highlight.ts";
 import type { StageContent, StageFrame, StagePick } from "../stage/stage.ts";
 import type { StageTheme } from "../theme.ts";
 import { gridLines, regionEdges, regionSurface, surfaceSag } from "./mesh.ts";
@@ -48,7 +48,7 @@ export interface GlobeTheme extends StageTheme {
   readonly styles: Readonly<Record<string, GlobeStyle>>;
   /** The style of a kind that `styles` does not have. */
   readonly other: GlobeStyle;
-  /** The color of the edge of a record under the pointer, or in the marked list. */
+  /** The color of the edge of a record under the pointer, or in the highlighted list. */
   readonly hovered: string;
   /** The color of the edge of the selected record. */
   readonly selected: string;
@@ -56,7 +56,7 @@ export interface GlobeTheme extends StageTheme {
 
 /** An area of a globe: a region of the Earth that belongs to a record. */
 export interface GlobeArea<P> {
-  /** The name of the record. Two parts with one name are one record: the stage marks them together. */
+  /** The name of the record. Two parts with one name are one record: the stage highlights them together. */
   readonly record: string;
   /** The region, with edges that are straight lines in longitude and latitude, as in `@mark1russell7/geo`. */
   readonly region: Region;
@@ -70,7 +70,7 @@ export interface GlobeArea<P> {
 
 /** A point of a globe: a place on the Earth that belongs to a record. The picture shows it as a dot of a constant size. */
 export interface GlobePoint<P> {
-  /** The name of the record. Two parts with one name are one record: the stage marks them together. */
+  /** The name of the record. Two parts with one name are one record: the stage highlights them together. */
   readonly record: string;
   readonly place: LatLon;
   /** The name of the style of the point in the theme. */
@@ -99,8 +99,8 @@ export interface GlobeOptions<P> {
   readonly nearest?: number | undefined;
   /** The width of the edge of an area. The default is 1.25. */
   readonly lineWidth?: number | undefined;
-  /** The width of the edge of a record with a mark. The default is 2.5. */
-  readonly markWidth?: number | undefined;
+  /** The width of the edge of a record with a highlight. The default is 2.5. */
+  readonly highlightWidth?: number | undefined;
   /** The width of a line of the grid. The default is 1. */
   readonly gridWidth?: number | undefined;
   /** The width of the dot of a point. The default is 9. */
@@ -123,11 +123,11 @@ export interface GlobeContent<P> extends StageContent<P, GlobeTheme> {
 /** The smallest height of the layer of the areas above the ball, as a part of the radius. */
 const MIN_LIFT = 0.0005;
 
-/** The opacity that a mark adds to the surface of an area. */
-const MARK_OPACITY = 0.16;
+/** The opacity that a highlight adds to the surface of an area. */
+const HIGHLIGHT_OPACITY = 0.16;
 
-/** The factor of the width of a point with a mark. */
-const MARK_SIZE = 1.35;
+/** The factor of the width of a point with a highlight. */
+const HIGHLIGHT_SIZE = 1.35;
 
 /** The width of the ring around a point, in CSS pixels. */
 const RING_WIDTH = 1.5;
@@ -214,7 +214,7 @@ interface AreaPart<P> {
   shown: boolean;
   filled: boolean;
   lined: boolean;
-  mark: Mark;
+  highlight: Highlight;
 }
 
 /** A point with its place on the globe. */
@@ -224,7 +224,7 @@ interface PointPart<P> {
   readonly size: number;
   shown: boolean;
   filled: boolean;
-  mark: Mark;
+  highlight: Highlight;
 }
 
 /** This function gives the text of a thrown value. */
@@ -325,7 +325,7 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
         shown: true,
         filled: false,
         lined: false,
-        mark: 0,
+        highlight: 0,
       });
       surfaces.push(surface);
       cornerTotal += surface.corners.length / 2;
@@ -369,12 +369,12 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
   edges.renderOrder = 3;
   edges.frustumCulled = false;
 
-  // The edges of the records with a mark, above the other edges.
-  const markMaterial = new LineMaterial({ linewidth: options.markWidth ?? 2.5, vertexColors: true, transparent: true, depthWrite: false });
-  const marked = new LineSegments2(new LineSegmentsGeometry(), markMaterial);
-  marked.renderOrder = 5;
-  marked.frustumCulled = false;
-  marked.visible = false;
+  // The edges of the records with a highlight, above the other edges.
+  const highlightMaterial = new LineMaterial({ linewidth: options.highlightWidth ?? 2.5, vertexColors: true, transparent: true, depthWrite: false });
+  const highlighted = new LineSegments2(new LineSegmentsGeometry(), highlightMaterial);
+  highlighted.renderOrder = 5;
+  highlighted.frustumCulled = false;
+  highlighted.visible = false;
 
   // The points.
   const pointSize = options.pointSize ?? 9;
@@ -384,7 +384,7 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
     size: point.size ?? pointSize,
     shown: true,
     filled: false,
-    mark: 0,
+    highlight: 0,
   }));
   const pointPositions = new Float32Array(pointParts.length * 3);
   pointParts.forEach((part, index) => pointPositions.set([part.at.x, part.at.y, part.at.z], index * 3));
@@ -421,7 +421,7 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
   let pixelAngle = 0.001;
 
   const styleOf = (theme: GlobeTheme, kind: string): GlobeStyle => theme.styles[kind] ?? theme.other;
-  const markColor = (theme: GlobeTheme, mark: Mark): string => (mark === 2 ? theme.selected : theme.hovered);
+  const highlightColor = (theme: GlobeTheme, highlight: Highlight): string => (highlight === 2 ? theme.selected : theme.hovered);
 
   /** This function writes the colors of an area into the buffers. */
   const paintArea = (part: AreaPart<P>, theme: GlobeTheme): void => {
@@ -431,7 +431,7 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
     if (style.fill !== undefined) {
       color.set(style.fill);
       const opacity = Math.min(Math.max(style.opacity ?? 1, 0), 1);
-      const alpha = part.mark === 0 ? opacity : Math.min(opacity + MARK_OPACITY, 1);
+      const alpha = part.highlight === 0 ? opacity : Math.min(opacity + HIGHLIGHT_OPACITY, 1);
       const values = [color.r, color.g, color.b, alpha];
       for (let corner = 0; corner < part.cornerCount; corner++) fillColors.array.set(values, (part.firstCorner + corner) * 4);
       fillColors.needsUpdate = true;
@@ -447,7 +447,7 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
   const sync = (theme: GlobeTheme): void => {
     let indexCount = 0;
     let segmentCount = 0;
-    let markCount = 0;
+    let highlightCount = 0;
     for (const part of areaParts) {
       if (!part.shown) continue;
       if (part.filled) {
@@ -461,7 +461,7 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
         edgeColors.array.set(allSegmentColors.subarray(from, to), segmentCount * 6);
         segmentCount += part.segmentCount;
       }
-      if (part.mark !== 0) markCount += part.segmentCount;
+      if (part.highlight !== 0) highlightCount += part.segmentCount;
     }
     fillIndices.needsUpdate = true;
     fillGeometry.setDrawRange(0, indexCount);
@@ -471,32 +471,32 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
     edgeGeometry.instanceCount = segmentCount;
     edges.visible = segmentCount > 0;
 
-    // The edges of the records with a mark get a new geometry. They are few, and a record changes its mark only on an act of a person.
-    const markPositions = new Float32Array(markCount * 6);
-    const markColors = new Float32Array(markCount * 6);
+    // The edges of the records with a highlight get a new geometry. They are few, and a record changes its highlight only on an act of a person.
+    const highlightPositions = new Float32Array(highlightCount * 6);
+    const highlightColors = new Float32Array(highlightCount * 6);
     let at = 0;
     for (const part of areaParts) {
-      if (!part.shown || part.mark === 0) continue;
-      color.set(markColor(theme, part.mark));
+      if (!part.shown || part.highlight === 0) continue;
+      color.set(highlightColor(theme, part.highlight));
       const values = [color.r, color.g, color.b, color.r, color.g, color.b];
-      markPositions.set(allSegments.subarray(part.firstSegment * 6, (part.firstSegment + part.segmentCount) * 6), at * 6);
-      for (let segment = 0; segment < part.segmentCount; segment++) markColors.set(values, (at + segment) * 6);
+      highlightPositions.set(allSegments.subarray(part.firstSegment * 6, (part.firstSegment + part.segmentCount) * 6), at * 6);
+      for (let segment = 0; segment < part.segmentCount; segment++) highlightColors.set(values, (at + segment) * 6);
       at += part.segmentCount;
     }
-    marked.geometry.dispose();
-    marked.geometry =
-      markCount > 0 ? segmentGeometry(new InstancedInterleavedBuffer(markPositions, 6, 1), new InstancedInterleavedBuffer(markColors, 6, 1), markCount, bounds) : new LineSegmentsGeometry();
-    marked.visible = markCount > 0;
+    highlighted.geometry.dispose();
+    highlighted.geometry =
+      highlightCount > 0 ? segmentGeometry(new InstancedInterleavedBuffer(highlightPositions, 6, 1), new InstancedInterleavedBuffer(highlightColors, 6, 1), highlightCount, bounds) : new LineSegmentsGeometry();
+    highlighted.visible = highlightCount > 0;
 
     pointParts.forEach((part, index) => {
       const style = styleOf(theme, part.point.kind);
       part.filled = style.fill !== undefined;
       const visible = part.shown && style.fill !== undefined;
-      pointSizes.array[index] = visible ? part.size * (part.mark === 0 ? 1 : MARK_SIZE) : 0;
+      pointSizes.array[index] = visible ? part.size * (part.highlight === 0 ? 1 : HIGHLIGHT_SIZE) : 0;
       if (style.fill === undefined) return;
       color.set(style.fill);
       pointFills.array.set([color.r, color.g, color.b], index * 3);
-      color.set(part.mark === 0 ? (style.line ?? style.fill) : markColor(theme, part.mark));
+      color.set(part.highlight === 0 ? (style.line ?? style.fill) : highlightColor(theme, part.highlight));
       pointRings.array.set([color.r, color.g, color.b], index * 3);
     });
     pointSizes.needsUpdate = true;
@@ -505,7 +505,7 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
   };
 
   return {
-    objects: [ball, grid, fills, edges, shade, marked, dots] satisfies Object3D[],
+    objects: [ball, grid, fills, edges, shade, highlighted, dots] satisfies Object3D[],
     extent: { center: { x: 0, y: 0, z: 0 }, corners: [], surface: radius, minDistance: radius * (1 + Math.max(options.nearest ?? 0.005, 1e-6)) },
     has: (record) => records.has(record),
     pick(ray): StagePick<P> | undefined {
@@ -534,7 +534,7 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
       }
       return undefined;
     },
-    paint(theme, mark): void {
+    paint(theme, highlight): void {
       const all = theme !== painted;
       painted = theme;
       if (all) {
@@ -543,12 +543,12 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
         shadeColor.value.set(theme.shade);
       }
       for (const part of areaParts) {
-        const next = mark(part.area.record);
-        if (!all && next === part.mark) continue;
-        part.mark = next;
+        const next = highlight(part.area.record);
+        if (!all && next === part.highlight) continue;
+        part.highlight = next;
         paintArea(part, theme);
       }
-      for (const part of pointParts) part.mark = mark(part.point.record);
+      for (const part of pointParts) part.highlight = highlight(part.point.record);
       sync(theme);
     },
     step(frame: StageFrame): boolean {
@@ -574,8 +574,8 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
       fillMaterial.dispose();
       edgeGeometry.dispose();
       edgeMaterial.dispose();
-      marked.geometry.dispose();
-      markMaterial.dispose();
+      highlighted.geometry.dispose();
+      highlightMaterial.dispose();
       pointGeometry.dispose();
       pointMaterial.dispose();
     },

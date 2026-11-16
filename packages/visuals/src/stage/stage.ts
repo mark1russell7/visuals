@@ -2,14 +2,14 @@ import { DirectionalLight, HemisphereLight, PerspectiveCamera, Raycaster, Scene 
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { nearDepth, stageLimits, surfaceOf, type StageExtent, type StageLimits, type StageView, type ViewFrame } from "../extent.ts";
 import { keyAction } from "../keys.ts";
-import { isClick, markOf, NO_MARKS, type Mark, type Marks } from "../marks.ts";
+import { isClick, highlightOf, NO_HIGHLIGHTS, type Highlight, type Highlights } from "../highlight.ts";
 import { moveAt, type Move } from "../motion.ts";
 import type { StageTheme } from "../theme.ts";
 import { cameraPosition, clampPlace, speedAt, viewOf, type Place } from "../view.ts";
 
 /** The record under the pointer: its name, and the value that the content gives for it. */
 export interface StagePick<P> {
-  /** The name of the record. The marks of the stage use this name. */
+  /** The name of the record. The highlights of the stage use this name. */
   readonly record: string;
   /** The value of the record for the page, for example its kind and its source. */
   readonly value: P;
@@ -44,8 +44,8 @@ export interface StageContent<P, T extends StageTheme = StageTheme> {
   has(record: string): boolean;
   /** This function gives the record that a ray from the camera finds first, or `undefined` for no record. */
   pick(ray: Raycaster): StagePick<P> | undefined;
-  /** This function gives each part its colors, from the theme and the mark of its record. */
-  paint(theme: T, mark: (record: string) => Mark): void;
+  /** This function gives each part its colors, from the theme and the highlight of its record. */
+  paint(theme: T, highlight: (record: string) => Highlight): void;
   /**
    * This function changes the parts that depend on the camera or on the time, before each picture.
    * It gives true while a part continues to change. The stage then makes the next picture.
@@ -103,7 +103,7 @@ export interface Stage<P, T extends StageTheme = StageTheme> {
   setView(view: string | StageView, animate?: boolean): void;
   /** This function gives the place of the camera. */
   place(): Place;
-  /** This function marks records by their names, as the pointer does. An empty list removes the marks. */
+  /** This function highlights records by their names, as the pointer does. An empty list removes the highlights. */
   highlight(records: readonly string[]): void;
   /** This function selects one record by its name, or no record. It does not start `onSelect`. */
   select(record: string | undefined): void;
@@ -182,7 +182,7 @@ export function createStage<P, T extends StageTheme = StageTheme>(container: HTM
   let theme = options.theme;
   for (const object of content.objects) world.add(object);
 
-  let marks: Marks = NO_MARKS;
+  let highlights: Highlights = NO_HIGHLIGHTS;
   let view: string | StageView = options.home;
   let move: Move | undefined;
   /** This value is true after a person moved the view. Then a new size of the container does not move the camera. */
@@ -214,8 +214,8 @@ export function createStage<P, T extends StageTheme = StageTheme>(container: HTM
   let limits: StageLimits = stageLimits(viewFrame(), Object.values(options.views), polar);
 
   const paint = (): void => {
-    const now = marks;
-    content.paint(theme, (record) => markOf(now, record));
+    const now = highlights;
+    content.paint(theme, (record) => highlightOf(now, record));
     invalidate();
   };
 
@@ -340,8 +340,8 @@ export function createStage<P, T extends StageTheme = StageTheme>(container: HTM
 
   const setHover = (pick: StagePick<P> | undefined): void => {
     const record = pick?.record;
-    if (record === marks.hovered) return;
-    marks = { ...marks, hovered: record };
+    if (record === highlights.hovered) return;
+    highlights = { ...highlights, hovered: record };
     canvas.style.cursor = record === undefined ? "grab" : "pointer";
     paint();
     options.onHover?.(pick?.value);
@@ -377,7 +377,7 @@ export function createStage<P, T extends StageTheme = StageTheme>(container: HTM
       if (start === undefined || start.id !== event.pointerId) return;
       if (!isClick(start, { x: event.clientX, y: event.clientY })) return;
       const pick = pickAt(event);
-      marks = { ...marks, selected: pick?.record };
+      highlights = { ...highlights, selected: pick?.record };
       paint();
       options.onSelect?.(pick?.value);
     },
@@ -429,7 +429,7 @@ export function createStage<P, T extends StageTheme = StageTheme>(container: HTM
     invalidate();
   });
   controls.addEventListener("end", () => {
-    canvas.style.cursor = marks.hovered === undefined ? "grab" : "pointer";
+    canvas.style.cursor = highlights.hovered === undefined ? "grab" : "pointer";
   });
   controls.addEventListener("change", invalidate);
 
@@ -460,8 +460,8 @@ export function createStage<P, T extends StageTheme = StageTheme>(container: HTM
       content.dispose();
       content = next;
       for (const object of content.objects) world.add(object);
-      const selected = marks.selected !== undefined && content.has(marks.selected) ? marks.selected : undefined;
-      marks = { ...marks, hovered: undefined, selected };
+      const selected = highlights.selected !== undefined && content.has(highlights.selected) ? highlights.selected : undefined;
+      highlights = { ...highlights, hovered: undefined, selected };
       settle = true;
       setLimits();
       if (!moved) goTo(view, false);
@@ -476,11 +476,11 @@ export function createStage<P, T extends StageTheme = StageTheme>(container: HTM
     },
     place: placeNow,
     highlight(records: readonly string[]): void {
-      marks = { ...marks, marked: new Set(records) };
+      highlights = { ...highlights, highlighted: new Set(records) };
       paint();
     },
     select(record: string | undefined): void {
-      marks = { ...marks, selected: record };
+      highlights = { ...highlights, selected: record };
       paint();
     },
     refresh: paint,
