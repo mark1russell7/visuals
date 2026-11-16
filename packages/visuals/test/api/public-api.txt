@@ -1,0 +1,320 @@
+# The public API of @mark1russell7/visuals
+#
+# The names of each entry of the exports field, and the declaration of each name, without comments
+# and private members. The command `api-report check` compares this file with the built .d.ts files.
+# To accept a change of the API, start the build, then `api-report update`, and review the diff.
+
+## . (build/index.d.ts): names
+
+CLICK_DISTANCE: build/theme.chunk.d.ts#CLICK_DISTANCE
+FIT_MARGIN: build/theme.chunk.d.ts#FIT_MARGIN
+KEY_TURN: build/index.d.ts#KEY_TURN
+KEY_ZOOM: build/index.d.ts#KEY_ZOOM
+type KeyAction: build/index.d.ts#KeyAction
+type KeyOptions: build/index.d.ts#KeyOptions
+type Mark: build/theme.chunk.d.ts#Mark
+type Marks: build/theme.chunk.d.ts#Marks
+type Move: build/index.d.ts#Move
+type MoveStep: build/index.d.ts#MoveStep
+NO_MARKS: build/theme.chunk.d.ts#NO_MARKS
+type Place: build/theme.chunk.d.ts#Place
+type PlaceLimits: build/theme.chunk.d.ts#PlaceLimits
+type StageExtent: build/theme.chunk.d.ts#StageExtent
+type StageLimits: build/theme.chunk.d.ts#StageLimits
+type StageTheme: build/theme.chunk.d.ts#StageTheme
+type StageView: build/theme.chunk.d.ts#StageView
+type ViewAngles: build/theme.chunk.d.ts#ViewAngles
+type ViewAxes: build/theme.chunk.d.ts#ViewAxes
+type ViewFrame: build/theme.chunk.d.ts#ViewFrame
+approach: build/index.d.ts#approach
+cameraPosition: build/theme.chunk.d.ts#cameraPosition
+capDistance: build/theme.chunk.d.ts#capDistance
+capView: build/theme.chunk.d.ts#capView
+clampPlace: build/theme.chunk.d.ts#clampPlace
+easeInOut: build/index.d.ts#easeInOut
+fitDistance: build/theme.chunk.d.ts#fitDistance
+fitView: build/theme.chunk.d.ts#fitView
+isClick: build/theme.chunk.d.ts#isClick
+keyAction: build/index.d.ts#keyAction
+markOf: build/theme.chunk.d.ts#markOf
+moveAt: build/index.d.ts#moveAt
+placeBetween: build/theme.chunk.d.ts#placeBetween
+speedAt: build/theme.chunk.d.ts#speedAt
+stageLimits: build/theme.chunk.d.ts#stageLimits
+surfaceOf: build/theme.chunk.d.ts#surfaceOf
+turnBetween: build/theme.chunk.d.ts#turnBetween
+viewAxes: build/theme.chunk.d.ts#viewAxes
+viewOf: build/theme.chunk.d.ts#viewOf
+
+## ./three (build/three.d.ts): names
+
+FIELD_OF_VIEW: build/three.d.ts#FIELD_OF_VIEW
+STAGE_LIGHTS: build/three.d.ts#STAGE_LIGHTS
+type Stage: build/three.d.ts#Stage
+type StageContent: build/three.d.ts#StageContent
+type StageFrame: build/three.d.ts#StageFrame
+type StageLights: build/three.d.ts#StageLights
+type StageOptions: build/three.d.ts#StageOptions
+type StagePick: build/three.d.ts#StagePick
+createStage: build/three.d.ts#createStage
+
+## Declarations
+
+### build/index.d.ts#KEY_TURN
+export declare const KEY_TURN: number;
+
+### build/index.d.ts#KEY_ZOOM
+export declare const KEY_ZOOM = .85;
+
+### build/index.d.ts#KeyAction
+type KeyAction = {
+  readonly type: "place";
+  readonly place: Place;
+} | {
+  readonly type: "view";
+  readonly view: string;
+};
+
+### build/index.d.ts#KeyOptions
+interface KeyOptions {
+  readonly home: string;
+  readonly views?: Readonly<Record<string, string>> | undefined;
+  readonly surface?: number | undefined;
+}
+
+### build/index.d.ts#Move
+interface Move {
+  readonly from: Place;
+  readonly to: Place;
+  readonly start: number;
+  readonly duration: number;
+}
+
+### build/index.d.ts#MoveStep
+interface MoveStep {
+  readonly place: Place;
+  readonly done: boolean;
+}
+
+### build/index.d.ts#approach
+export declare function approach(value: number, goal: number, seconds: number, time: number, snap?: number): number;
+
+### build/index.d.ts#easeInOut
+export declare function easeInOut(part: number): number;
+
+### build/index.d.ts#keyAction
+export declare function keyAction(key: string, now: Place, options: KeyOptions): KeyAction | undefined;
+
+### build/index.d.ts#moveAt
+export declare function moveAt(move: Move, now: number, surface?: number): MoveStep;
+
+### build/theme.chunk.d.ts#CLICK_DISTANCE
+declare const CLICK_DISTANCE = 4;
+
+### build/theme.chunk.d.ts#FIT_MARGIN
+declare const FIT_MARGIN = 1.06;
+
+### build/theme.chunk.d.ts#Mark
+type Mark = 0 | 1 | 2;
+
+### build/theme.chunk.d.ts#Marks
+interface Marks {
+  readonly hovered: string | undefined;
+  readonly selected: string | undefined;
+  readonly marked: ReadonlySet<string>;
+}
+
+### build/theme.chunk.d.ts#NO_MARKS
+declare const NO_MARKS: Marks;
+
+### build/theme.chunk.d.ts#Place
+interface Place extends ViewAngles {
+  readonly target: Point3;
+  readonly distance: number;
+}
+
+### build/theme.chunk.d.ts#PlaceLimits
+interface PlaceLimits {
+  readonly minPolar: number;
+  readonly maxPolar: number;
+  readonly minDistance: number;
+  readonly maxDistance: number;
+}
+
+### build/theme.chunk.d.ts#StageExtent
+interface StageExtent {
+  readonly corners: readonly Point3[];
+  readonly center: Point3;
+  readonly surface?: number | undefined;
+  readonly minDistance?: number | undefined;
+  readonly maxDistance?: number | undefined;
+}
+
+### build/theme.chunk.d.ts#StageLimits
+interface StageLimits extends PlaceLimits {
+  readonly near: number;
+  readonly far: number;
+}
+
+### build/theme.chunk.d.ts#StageTheme
+interface StageTheme {
+  readonly sky: string;
+  readonly ground: string;
+}
+
+### build/theme.chunk.d.ts#StageView
+type StageView = (frame: ViewFrame) => Place;
+
+### build/theme.chunk.d.ts#ViewAngles
+interface ViewAngles {
+  readonly polar: number;
+  readonly azimuth: number;
+}
+
+### build/theme.chunk.d.ts#ViewAxes
+interface ViewAxes {
+  readonly back: Point3;
+  readonly right: Point3;
+  readonly up: Point3;
+}
+
+### build/theme.chunk.d.ts#ViewFrame
+interface ViewFrame {
+  readonly extent: StageExtent;
+  readonly fieldOfView: number;
+  readonly aspect: number;
+}
+
+### build/theme.chunk.d.ts#cameraPosition
+declare function cameraPosition(target: Point3, view: ViewAngles, distance: number): Point3;
+
+### build/theme.chunk.d.ts#capDistance
+declare function capDistance(radius: number, angle: number, fov: number, aspect: number): number;
+
+### build/theme.chunk.d.ts#capView
+declare function capView(angles: ViewAngles, angle: number, margin?: number): StageView;
+
+### build/theme.chunk.d.ts#clampPlace
+declare function clampPlace(place: Place, limits: PlaceLimits): Place;
+
+### build/theme.chunk.d.ts#fitDistance
+declare function fitDistance(points: readonly Point3[], target: Point3, view: ViewAngles, fov: number, aspect: number): number;
+
+### build/theme.chunk.d.ts#fitView
+declare function fitView(angles: ViewAngles, margin?: number): StageView;
+
+### build/theme.chunk.d.ts#isClick
+declare function isClick(down: {
+  readonly x: number;
+  readonly y: number;
+}, up: {
+  readonly x: number;
+  readonly y: number;
+}, limit?: number): boolean;
+
+### build/theme.chunk.d.ts#markOf
+declare function markOf(marks: Marks, record: string): Mark;
+
+### build/theme.chunk.d.ts#placeBetween
+declare function placeBetween(from: Place, to: Place, part: number, surface?: number): Place;
+
+### build/theme.chunk.d.ts#speedAt
+declare function speedAt(distance: number, surface: number): number;
+
+### build/theme.chunk.d.ts#stageLimits
+declare function stageLimits(frame: ViewFrame, views: readonly StageView[], polar: {
+  readonly min: number;
+  readonly max: number;
+}): StageLimits;
+
+### build/theme.chunk.d.ts#surfaceOf
+declare function surfaceOf(extent: StageExtent): number;
+
+### build/theme.chunk.d.ts#turnBetween
+declare function turnBetween(from: number, to: number): number;
+
+### build/theme.chunk.d.ts#viewAxes
+declare function viewAxes(view: ViewAngles): ViewAxes;
+
+### build/theme.chunk.d.ts#viewOf
+declare function viewOf(camera: Point3, target: Point3): ViewAngles & {
+  readonly distance: number;
+};
+
+### build/three.d.ts#FIELD_OF_VIEW
+export declare const FIELD_OF_VIEW = 32;
+
+### build/three.d.ts#STAGE_LIGHTS
+export declare const STAGE_LIGHTS: StageLights;
+
+### build/three.d.ts#Stage
+interface Stage<P, T extends StageTheme = StageTheme> {
+  readonly canvas: HTMLCanvasElement;
+  setContent(content: StageContent<P, T>): void;
+  setTheme(theme: T): void;
+  setView(view: string | StageView, animate?: boolean): void;
+  place(): Place;
+  highlight(records: readonly string[]): void;
+  select(record: string | undefined): void;
+  refresh(): void;
+  dispose(): void;
+}
+
+### build/three.d.ts#StageContent
+interface StageContent<P, T extends StageTheme = StageTheme> {
+  readonly objects: readonly Object3D[];
+  readonly extent: StageExtent;
+  has(record: string): boolean;
+  pick(ray: Raycaster): StagePick<P> | undefined;
+  paint(theme: T, mark: (record: string) => Mark): void;
+  step?(frame: StageFrame): boolean;
+  dispose(): void;
+}
+
+### build/three.d.ts#StageFrame
+interface StageFrame {
+  readonly camera: PerspectiveCamera;
+  readonly seconds: number;
+  readonly settle: boolean;
+  readonly height: number;
+  readonly fieldOfView: number;
+}
+
+### build/three.d.ts#StageLights
+interface StageLights {
+  readonly sky: number;
+  readonly sun: number;
+  readonly from: {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+  };
+}
+
+### build/three.d.ts#StageOptions
+interface StageOptions<P, T extends StageTheme = StageTheme> {
+  readonly content: StageContent<P, T>;
+  readonly theme: T;
+  readonly label: string;
+  readonly views: Readonly<Record<string, StageView>>;
+  readonly home: string;
+  readonly keys?: Readonly<Record<string, string>> | undefined;
+  readonly fieldOfView?: number | undefined;
+  readonly polar?: {
+    readonly min?: number | undefined;
+    readonly max?: number | undefined;
+  } | undefined;
+  readonly pan?: boolean | undefined;
+  readonly lights?: StageLights | undefined;
+  readonly onHover?: ((pick: P | undefined) => void) | undefined;
+  readonly onSelect?: ((pick: P | undefined) => void) | undefined;
+}
+
+### build/three.d.ts#StagePick
+interface StagePick<P> {
+  readonly record: string;
+  readonly value: P;
+}
+
+### build/three.d.ts#createStage
+export declare function createStage<P, T extends StageTheme = StageTheme>(container: HTMLElement, options: StageOptions<P, T>): Stage<P, T> | undefined;

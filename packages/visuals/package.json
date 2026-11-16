@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json.schemastore.org/package",
+  "name": "@mark1russell7/visuals",
+  "version": "0.1.0",
+  "description": "3D stages for data on three.js: a camera that a person moves, views by name, picking, marks and themes.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mark1russell7/visuals.git",
+    "directory": "packages/visuals"
+  },
+  "homepage": "https://mark1russell7.github.io/visuals/",
+  "bugs": {
+    "url": "https://github.com/mark1russell7/visuals/issues"
+  },
+  "keywords": [
+    "3d",
+    "three",
+    "viewer",
+    "camera",
+    "orbit",
+    "picking",
+    "globe",
+    "webgl"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./three": "./src/three.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "build"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "@mark1russell7/layout-contract": "^0.10.2"
+  },
+  "peerDependencies": {
+    "three": ">=0.187.0"
+  },
+  "peerDependenciesMeta": {
+    "three": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@mark1russell7/cue": "^2.0.0",
+    "@types/node": "^26.6.5",
+    "@types/three": "^0.187.0",
+    "@vitest/coverage-v8": "^5.0.3",
+    "fast-check": "^4.10.2",
+    "three": "^0.187.0",
+    "tsdown": "^0.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "main": "./build/index.js",
+    "types": "./build/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./build/index.d.ts",
+        "import": "./build/index.js",
+        "default": "./build/index.js"
+      },
+      "./three": {
+        "types": "./build/three.d.ts",
+        "import": "./build/three.js",
+        "default": "./build/three.js"
+      },
+      "./package.json": "./package.json"
+    }
+  }
+}
