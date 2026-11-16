@@ -81,14 +81,31 @@ describe("ballView", () => {
   const deep = Math.sqrt(23);
   const four = [-1, 1].flatMap((x) => [-1, 1].map((y) => ({ x, y, z: deep })));
 
-  it("puts the camera above the middle of the points, at the distance that shows the cap of the points", () => {
-    const place = ballView(four)(frameOf(ball));
-    const cap = capView(FRONT, Math.acos(deep / 5))(frameOf(ball));
+  /** The tangent of the half of the vertical angle of the picture of `frameOf`. */
+  const tanUp = Math.tan((32 * Math.PI) / 360);
+
+  it("puts the camera above the middle of the points, at the smallest distance that shows each point", () => {
+    const place = ballView(four, 1)(frameOf(ball));
     expect(place.target).toBe(origin);
     expect(place.polar).toBeCloseTo(FRONT.polar, 12);
     expect(place.azimuth).toBeCloseTo(FRONT.azimuth, 12);
-    expect(place.distance).toBeCloseTo(cap.distance, 9);
+    // The picture is wider than its height, so the height of the square of the points is the limit.
+    expect(place.distance).toBeCloseTo(deep + 1 / tanUp, 9);
     expect(place.distance).toBeGreaterThan(5);
+  });
+
+  it("fills a wide picture with wide points", () => {
+    /** Four points of the ball: a rectangle of 4 by 2 around the axis z. */
+    const far = Math.sqrt(20);
+    const wide = [-2, 2].flatMap((x) => [-1, 1].map((y) => ({ x, y, z: far })));
+    // A picture with the shape of the rectangle shows it from edge to edge.
+    expect(ballView(wide, 1)(frameOf(ball, 2)).distance).toBeCloseTo(far + 1 / tanUp, 9);
+    // In a square picture, the width of the rectangle is the limit. In a tall picture, the camera goes farther.
+    expect(ballView(wide, 1)(frameOf(ball, 1)).distance).toBeCloseTo(far + 2 / tanUp, 9);
+    expect(ballView(wide, 1)(frameOf(ball, 0.5)).distance).toBeCloseTo(far + 4 / tanUp, 9);
+    // The view of the cap of the points keeps the space of a circle around them, so its camera is farther.
+    const cap = capView(FRONT, Math.acos(far / 5), 1)(frameOf(ball, 2));
+    expect(cap.distance).toBeCloseTo(far + Math.sqrt(5) / tanUp, 9);
   });
 
   it("uses the margin that it gets", () => {
@@ -140,6 +157,24 @@ describe("ballView", () => {
         // The camera at this distance shows each point, or the point is behind the outline of the ball.
         expect(fitDistance(points, origin, place, frame.fieldOfView, aspect)).toBeLessThanOrEqual(place.distance * (1 + 1e-9));
         expect(place.distance).toBeGreaterThanOrEqual(5);
+      }),
+    );
+  });
+
+  it("is not farther than the view of the cap of the points, and not farther than a view of all of the ball", () => {
+    const anyAngle = fc.record({ polar: fc.double({ min: 0.2, max: 2.9, noNaN: true }), azimuth: fc.double({ min: -3, max: 3, noNaN: true }) });
+    fc.assert(
+      fc.property(fc.array(anyAngle, { minLength: 1, maxLength: 12 }), fc.double({ min: 0.4, max: 2.5, noNaN: true }), (angles, aspect) => {
+        const points = angles.map((angle) => cameraPosition(origin, angle, 5));
+        const frame = frameOf(ball, aspect);
+        const place = ballView(points, 1)(frame);
+        // The angle of the cap is the largest angle between the direction of the camera and a point.
+        const toward = cameraPosition(origin, place, 1);
+        const cosines = points.map((point) => (point.x * toward.x + point.y * toward.y + point.z * toward.z) / 5);
+        const angle = Math.max(...cosines.map((cosine) => Math.acos(Math.min(Math.max(cosine, -1), 1))));
+        const cap = capView(place, Math.min(angle, Math.PI / 2), 1)(frame);
+        expect(place.distance).toBeLessThanOrEqual(cap.distance * (1 + 1e-9));
+        expect(place.distance).toBeLessThanOrEqual(capView(place, Math.PI / 2, 1)(frame).distance * (1 + 1e-9));
       }),
     );
   });

@@ -191,7 +191,7 @@ const stage = createStage(document.body, {
 The views of a globe:
 
 - `globeView(place, degrees)` shows the cap of the Earth around a place. The default shows a half of the Earth.
-- `regionView(regions)` shows each region of a list, from above their middle.
+- `regionView(regions)` shows each region of a list, from above their middle. The regions fill the width or the height of the picture.
 
 The functions of the globe maths have no state. A test in Node.js uses them:
 
@@ -411,7 +411,7 @@ The entry `.` has pure functions. A page with no WebGL 2 and a test in Node.js u
 | `fitDistance`, `capDistance` | The distance at which the camera shows points, or a cap of a ball. |
 | `cameraPosition`, `viewOf` | The position of a camera from its place, and the place from its position. |
 | `placeBetween`, `moveAt`, `easeInOut` | A place on the way between two places, and the place at a time of a move. |
-| `ballView` | A view that shows points on a ball, from above their middle. |
+| `ballView` | A view that shows points on a ball, from above their middle. The points fill the width or the height of the picture. |
 | `clampPlace`, `stageLimits` | A place in the limits of a stage, and the limits from the content. |
 | `reachOf`, `nearDepth` | The radius of the ball that holds the content, and the nearest depth that the camera draws. |
 | `keyAction` | The action of a key. |

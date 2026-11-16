@@ -143,6 +143,16 @@ describe("regionView", () => {
     );
   });
 
+  it("fills a wide picture with a wide region", () => {
+    const wide = regionView([square(-10, -3, 10, 3)], 1);
+    const height = (aspect: number): number => wide(frameOf(aspect)).distance - 1;
+    // The width of the region is the limit in a square picture. A picture of two times the width shows it from a half of the height.
+    expect(height(2)).toBeLessThan(height(1) * 0.55);
+    expect(height(2)).toBeGreaterThan(height(1) * 0.45);
+    // The height of the region is the limit in a very wide picture, so more width changes nothing.
+    expect(height(8)).toBeCloseTo(height(6), 9);
+  });
+
   it("shows a half of the Earth for a list with no regions", () => {
     expect(regionView([])(frameOf())).toEqual(capView({ polar: Math.PI / 2, azimuth: 0 }, Math.PI / 2)(frameOf()));
   });
