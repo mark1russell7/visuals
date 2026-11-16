@@ -8,15 +8,15 @@
 
 CLICK_DISTANCE: build/theme.chunk.d.ts#CLICK_DISTANCE
 FIT_MARGIN: build/theme.chunk.d.ts#FIT_MARGIN
+type Highlight: build/theme.chunk.d.ts#Highlight
+type Highlights: build/theme.chunk.d.ts#Highlights
 KEY_TURN: build/index.d.ts#KEY_TURN
 KEY_ZOOM: build/index.d.ts#KEY_ZOOM
 type KeyAction: build/index.d.ts#KeyAction
 type KeyOptions: build/index.d.ts#KeyOptions
-type Mark: build/theme.chunk.d.ts#Mark
-type Marks: build/theme.chunk.d.ts#Marks
 type Move: build/index.d.ts#Move
 type MoveStep: build/index.d.ts#MoveStep
-NO_MARKS: build/theme.chunk.d.ts#NO_MARKS
+NO_HIGHLIGHTS: build/theme.chunk.d.ts#NO_HIGHLIGHTS
 type Place: build/theme.chunk.d.ts#Place
 type PlaceLimits: build/theme.chunk.d.ts#PlaceLimits
 type StageExtent: build/theme.chunk.d.ts#StageExtent
@@ -35,9 +35,9 @@ clampPlace: build/theme.chunk.d.ts#clampPlace
 easeInOut: build/index.d.ts#easeInOut
 fitDistance: build/theme.chunk.d.ts#fitDistance
 fitView: build/theme.chunk.d.ts#fitView
+highlightOf: build/theme.chunk.d.ts#highlightOf
 isClick: build/theme.chunk.d.ts#isClick
 keyAction: build/index.d.ts#keyAction
-markOf: build/theme.chunk.d.ts#markOf
 moveAt: build/index.d.ts#moveAt
 nearDepth: build/theme.chunk.d.ts#nearDepth
 placeBetween: build/theme.chunk.d.ts#placeBetween
@@ -85,6 +85,38 @@ regionSurface: build/globe.d.ts#regionSurface
 regionView: build/globe.d.ts#regionView
 surfaceSag: build/globe.d.ts#surfaceSag
 
+## ./marks (build/marks.d.ts): names
+
+DIRECTION_TOLERANCE: build/marks.d.ts#DIRECTION_TOLERANCE
+type FieldMark: build/marks.d.ts#FieldMark
+type FieldScale: build/marks.d.ts#FieldScale
+type Frame: build/marks.d.ts#Frame
+LEVELS: build/marks.d.ts#LEVELS
+LEVEL_SHAPES: build/marks.d.ts#LEVEL_SHAPES
+type Level: build/marks.d.ts#Level
+type LevelShape: build/marks.d.ts#LevelShape
+type LinkEnd: build/marks.d.ts#LinkEnd
+type LinkMark: build/marks.d.ts#LinkMark
+MARK_FAULT_CODES: build/marks.d.ts#MARK_FAULT_CODES
+MARK_TYPES: build/marks.d.ts#MARK_TYPES
+type Mark: build/marks.d.ts#Mark
+type MarkBase: build/marks.d.ts#MarkBase
+type MarkFault: build/marks.d.ts#MarkFault
+type MarkFaultCode: build/marks.d.ts#MarkFaultCode
+type MarkType: build/marks.d.ts#MarkType
+type MeterMark: build/marks.d.ts#MeterMark
+type PointMark: build/marks.d.ts#PointMark
+type RunMark: build/marks.d.ts#RunMark
+SHAPE_OUTLINES: build/marks.d.ts#SHAPE_OUTLINES
+type ShapeOutline: build/marks.d.ts#ShapeOutline
+checkMarks: build/marks.d.ts#checkMarks
+fieldCellCenter: build/marks.d.ts#fieldCellCenter
+fieldRowStep: build/marks.d.ts#fieldRowStep
+fieldValue: build/marks.d.ts#fieldValue
+levelRank: build/marks.d.ts#levelRank
+levelShape: build/marks.d.ts#levelShape
+shapeRing: build/marks.d.ts#shapeRing
+
 ## Declarations
 
 ### build/globe.d.ts#GLOBE_POLAR
@@ -117,7 +149,7 @@ interface GlobeOptions<P> {
   readonly grid?: number | undefined;
   readonly nearest?: number | undefined;
   readonly lineWidth?: number | undefined;
-  readonly markWidth?: number | undefined;
+  readonly highlightWidth?: number | undefined;
   readonly gridWidth?: number | undefined;
   readonly pointSize?: number | undefined;
   readonly shade?: number | undefined;
@@ -244,6 +276,145 @@ export declare function keyAction(key: string, now: Place, options: KeyOptions):
 ### build/index.d.ts#moveAt
 export declare function moveAt(move: Move, now: number, surface?: number): MoveStep;
 
+### build/marks.d.ts#DIRECTION_TOLERANCE
+export declare const DIRECTION_TOLERANCE = 1e-6;
+
+### build/marks.d.ts#FieldMark
+interface FieldMark extends MarkBase {
+  readonly type: "field";
+  readonly frame: Frame;
+  readonly across: Point3;
+  readonly cell: number;
+  readonly columns: number;
+  readonly rows: number;
+  readonly values: readonly (number | null)[];
+  readonly scale: FieldScale;
+}
+
+### build/marks.d.ts#FieldScale
+interface FieldScale {
+  readonly min: number;
+  readonly max: number;
+  readonly unit: string;
+}
+
+### build/marks.d.ts#Frame
+interface Frame {
+  readonly at: Point3;
+  readonly out: Point3;
+}
+
+### build/marks.d.ts#LEVELS
+export declare const LEVELS: readonly ["unknown", "ok", "near", "over"];
+
+### build/marks.d.ts#LEVEL_SHAPES
+export declare const LEVEL_SHAPES: readonly ["ring", "disc", "triangle", "square"];
+
+### build/marks.d.ts#Level
+type Level = (typeof LEVELS)[number];
+
+### build/marks.d.ts#LevelShape
+type LevelShape = (typeof LEVEL_SHAPES)[number];
+
+### build/marks.d.ts#LinkEnd
+interface LinkEnd {
+  readonly record: string;
+  readonly at: Point3;
+}
+
+### build/marks.d.ts#LinkMark
+interface LinkMark extends MarkBase {
+  readonly type: "link";
+  readonly from: LinkEnd;
+  readonly to: LinkEnd;
+}
+
+### build/marks.d.ts#MARK_FAULT_CODES
+export declare const MARK_FAULT_CODES: readonly ["type", "level", "name", "label", "number", "direction", "angle", "size", "grid", "values", "scale", "path"];
+
+### build/marks.d.ts#MARK_TYPES
+export declare const MARK_TYPES: readonly ["point", "run", "link", "field", "meter"];
+
+### build/marks.d.ts#Mark
+type Mark = PointMark | RunMark | LinkMark | FieldMark | MeterMark;
+
+### build/marks.d.ts#MarkBase
+interface MarkBase {
+  readonly record: string;
+  readonly kind: string;
+  readonly level: Level;
+  readonly label: string;
+}
+
+### build/marks.d.ts#MarkFault
+interface MarkFault {
+  readonly code: MarkFaultCode;
+  readonly index: number;
+  readonly record: string;
+  readonly part: string;
+  readonly message: string;
+}
+
+### build/marks.d.ts#MarkFaultCode
+type MarkFaultCode = (typeof MARK_FAULT_CODES)[number];
+
+### build/marks.d.ts#MarkType
+type MarkType = (typeof MARK_TYPES)[number];
+
+### build/marks.d.ts#MeterMark
+interface MeterMark extends MarkBase {
+  readonly type: "meter";
+  readonly value: number;
+  readonly limit: number;
+  readonly unit: string;
+}
+
+### build/marks.d.ts#PointMark
+interface PointMark extends MarkBase {
+  readonly type: "point";
+  readonly frame: Frame;
+  readonly size?: number | undefined;
+}
+
+### build/marks.d.ts#RunMark
+interface RunMark extends MarkBase {
+  readonly type: "run";
+  readonly path: readonly Frame[];
+  readonly width: number;
+}
+
+### build/marks.d.ts#SHAPE_OUTLINES
+export declare const SHAPE_OUTLINES: Readonly<Record<LevelShape, ShapeOutline>>;
+
+### build/marks.d.ts#ShapeOutline
+interface ShapeOutline {
+  readonly radius: number;
+  readonly sides: number;
+  readonly start: number;
+  readonly hole: number;
+}
+
+### build/marks.d.ts#checkMarks
+export declare function checkMarks(marks: readonly Mark[]): readonly MarkFault[];
+
+### build/marks.d.ts#fieldCellCenter
+export declare function fieldCellCenter(field: FieldMark, column: number, row: number): Point3;
+
+### build/marks.d.ts#fieldRowStep
+export declare function fieldRowStep(field: FieldMark): Point3;
+
+### build/marks.d.ts#fieldValue
+export declare function fieldValue(field: FieldMark, column: number, row: number): number | null;
+
+### build/marks.d.ts#levelRank
+export declare function levelRank(level: Level): number;
+
+### build/marks.d.ts#levelShape
+export declare function levelShape(level: Level | undefined): LevelShape;
+
+### build/marks.d.ts#shapeRing
+export declare function shapeRing(shape: LevelShape, radius?: number): Ring;
+
 ### build/stage.chunk.d.ts#FIELD_OF_VIEW
 declare const FIELD_OF_VIEW = 32;
 
@@ -269,7 +440,7 @@ interface StageContent<P, T extends StageTheme = StageTheme> {
   readonly extent: StageExtent;
   has(record: string): boolean;
   pick(ray: Raycaster): StagePick<P> | undefined;
-  paint(theme: T, mark: (record: string) => Mark): void;
+  paint(theme: T, highlight: (record: string) => Highlight): void;
   step?(frame: StageFrame): boolean;
   dispose(): void;
 }
@@ -328,18 +499,18 @@ declare const CLICK_DISTANCE = 4;
 ### build/theme.chunk.d.ts#FIT_MARGIN
 declare const FIT_MARGIN = 1.06;
 
-### build/theme.chunk.d.ts#Mark
-type Mark = 0 | 1 | 2;
+### build/theme.chunk.d.ts#Highlight
+type Highlight = 0 | 1 | 2;
 
-### build/theme.chunk.d.ts#Marks
-interface Marks {
+### build/theme.chunk.d.ts#Highlights
+interface Highlights {
   readonly hovered: string | undefined;
   readonly selected: string | undefined;
-  readonly marked: ReadonlySet<string>;
+  readonly highlighted: ReadonlySet<string>;
 }
 
-### build/theme.chunk.d.ts#NO_MARKS
-declare const NO_MARKS: Marks;
+### build/theme.chunk.d.ts#NO_HIGHLIGHTS
+declare const NO_HIGHLIGHTS: Highlights;
 
 ### build/theme.chunk.d.ts#Place
 interface Place extends ViewAngles {
@@ -420,6 +591,9 @@ declare function fitDistance(points: readonly Point3[], target: Point3, view: Vi
 ### build/theme.chunk.d.ts#fitView
 declare function fitView(angles: ViewAngles, margin?: number): StageView;
 
+### build/theme.chunk.d.ts#highlightOf
+declare function highlightOf(highlights: Highlights, record: string): Highlight;
+
 ### build/theme.chunk.d.ts#isClick
 declare function isClick(down: {
   readonly x: number;
@@ -428,9 +602,6 @@ declare function isClick(down: {
   readonly x: number;
   readonly y: number;
 }, limit?: number): boolean;
-
-### build/theme.chunk.d.ts#markOf
-declare function markOf(marks: Marks, record: string): Mark;
 
 ### build/theme.chunk.d.ts#nearDepth
 declare function nearDepth(limits: StageLimits, extent: StageExtent, distance: number): number;

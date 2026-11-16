@@ -70,7 +70,7 @@ export function startDemo(elements: DemoElements): void {
     place: quake.at,
     size: QUAKE_SIZE + Math.max(quake.magnitude - 4.5, 0) * QUAKE_GROWTH,
   }));
-  const globe = createGlobe({ areas, points, step: STEP, grid: 15, lineWidth: 1.5, markWidth: 3 });
+  const globe = createGlobe({ areas, points, step: STEP, grid: 15, lineWidth: 1.5, highlightWidth: 3 });
   const stage = createStage(elements.picture, {
     content: globe,
     theme: globeTheme(),
@@ -151,10 +151,10 @@ export function startDemo(elements: DemoElements): void {
     });
   }
 
-  /** This function shows the marks of the pointer and of the selection in the picture, in the list and in the line of the name. */
+  /** This function shows the highlights of the pointer and of the selection in the picture, in the list and in the line of the name. */
   function paint(): void {
     stage?.highlight(hovered === undefined ? [] : [hovered.record]);
-    flat?.mark(hovered?.record, selected?.record);
+    flat?.highlight(hovered?.record, selected?.record);
     for (const [name, row] of rows) {
       row.classList.toggle("is-hovered", name === hovered?.record);
       row.setAttribute("aria-pressed", String(name === selected?.record));

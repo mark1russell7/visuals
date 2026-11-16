@@ -2,9 +2,10 @@
 
 3D stages for data. A stage is one canvas of three.js with a camera that a person moves. The content of the stage is your data.
 
-The package has three entries:
+The package has four entries:
 
-- The entry `.` has the camera maths: views, places, moves, keys and marks. It needs no browser, and it does not need `three`.
+- The entry `.` has the camera maths: views, places, moves, keys and highlights. It needs no browser, and it does not need `three`.
+- The entry `/marks` has the marks that a viewer draws, as plain data. It needs no browser, and it does not need `three`.
 - The entry `/three` has the stage. It needs the package `three`, version 0.187.0 or later.
 - The entry `/globe` has a content that shows the Earth as a globe, with areas and points on it. It also needs `three`.
 
@@ -13,6 +14,8 @@ The package has three entries:
 ```sh
 npm install @mark1russell7/visuals three
 ```
+
+A package that uses only the entries `.` and `/marks` does not install `three`.
 
 ## A stage
 
@@ -32,7 +35,7 @@ const content: StageContent<string> = {
   },
   has: (record) => record === "box",
   pick: (ray) => (ray.intersectObject(box).length > 0 ? { record: "box", value: "the box" } : undefined),
-  paint: (_theme, mark) => void material.color.set(mark("box") === 0 ? "#4f7cac" : "#e0a03a"),
+  paint: (_theme, highlight) => void material.color.set(highlight("box") === 0 ? "#4f7cac" : "#e0a03a"),
   dispose: () => {
     box.geometry.dispose();
     material.dispose();
@@ -71,11 +74,11 @@ A stage knows nothing about the data. The content gives it these parts:
 | `objects` | The three.js objects of the content. |
 | `extent` | The space that the content fills: the point that the camera looks at, and the corners that a view shows. |
 | `pick` | The record that a ray from the camera finds first. |
-| `paint` | The colors of each part, from the theme and the mark of its record. |
+| `paint` | The colors of each part, from the theme and the highlight of its record. |
 | `step` | The parts that change with the camera or with the time, before each picture. It is optional. |
 | `dispose` | The release of the memory of the graphics card. |
 
-A record has a name. The mark of a record is 0, 1 or 2: no mark, a record under the pointer, the selected record. `highlight` and `select` set the marks from the page.
+A record has a name. The highlight of a record is 0, 1 or 2: no highlight, a record under the pointer, the selected record. `highlight` and `select` set the highlights from the page.
 
 ## Views
 
@@ -202,6 +205,57 @@ surface.corners.length / 2; // => 43: the corners of the outline with a step of 
 surface.triangles.length / 3; // => 70
 ```
 
+## The marks
+
+A mark is a record that a viewer draws. A mark is plain data with no topic, so each viewer draws the marks of each producer.
+
+```ts
+import { checkMarks, levelShape, shapeRing, type Mark } from "@mark1russell7/visuals/marks";
+
+const marks: readonly Mark[] = [
+  {
+    type: "point",
+    record: "outlet-1",
+    kind: "outlet",
+    level: "near",
+    label: "Outlet 1",
+    frame: { at: { x: 1, y: 0, z: 0.3 }, out: { x: 0, y: 1, z: 0 } },
+  },
+  { type: "meter", record: "circuit-1", kind: "circuit", level: "over", label: "Circuit 1", value: 1900, limit: 1440, unit: "W" },
+];
+
+checkMarks(marks); // => []: the list has no fault
+levelShape("near"); // => "triangle"
+shapeRing("triangle").length; // => 3: the corners of the sign, counter-clockwise
+```
+
+| Mark | Data | Example |
+| --- | --- | --- |
+| `point` | A frame and a size | An outlet, a tap, a lamp |
+| `run` | A list of frames and a width | A cable, a pipe, a duct |
+| `link` | Two ends, each with a record name and a point | A power line from an outlet to a computer |
+| `field` | A grid of values on a plane, and a scale | Light in lux, sound in decibels, heat |
+| `meter` | A value, a limit and the text of the unit | The load of a circuit against its limit |
+
+- Each mark has a record name, a kind, a level and a label. The kind is a word of the producer for the legend and the filter.
+- A frame is a point of a surface and the unit vector out of the surface.
+- The level of a mark is `unknown`, `ok`, `near` or `over`. The producer calculates it, because each topic has its own limits.
+- A mark has no shape and no color. `levelShape` gives each level its shape, and the theme of a viewer gives its color.
+- Thus a person who does not see a color reads the level from the shape: a ring, a disc, a triangle or a square.
+- A viewer draws the marks in the sequence of `levelRank`, so the worst level is always in view.
+- A field has its values row by row, with `null` for a cell with no value. `fieldValue` and `fieldCellCenter` read a cell.
+- A meter has no place. A page draws it in a panel, and a 3D view ignores it.
+- Each point of a list of marks is in one space. The producer tells the unit and the axes of that space.
+
+`checkMarks` gives the faults of a list, each with a code, the index of its mark and the part with the fault. It examines the values that the types do not hold:
+
+- A number that is not finite, and a direction that is not a unit vector.
+- A size, a width or a cell that is not more than 0.
+- The grid, the values and the scale of a field, and a run with fewer than 2 points.
+- An empty name, an empty label, and a level or a type that is not known.
+
+Use it as a gate in the tests of a producer. A viewer uses it on a list that it did not make. It does not examine the form of a mark, so read a list from JSON through a schema first.
+
 ## The camera maths
 
 The entry `.` has pure functions. A page with no WebGL 2 and a test in Node.js use the same functions as the stage.
@@ -216,7 +270,7 @@ The entry `.` has pure functions. A page with no WebGL 2 and a test in Node.js u
 | `clampPlace`, `stageLimits` | A place in the limits of a stage, and the limits from the content. |
 | `reachOf`, `nearDepth` | The radius of the ball that holds the content, and the nearest depth that the camera draws. |
 | `keyAction` | The action of a key. |
-| `markOf`, `isClick` | The mark of a record, and the difference between a click and a drag. |
+| `highlightOf`, `isClick` | The highlight of a record, and the difference between a click and a drag. |
 | `approach` | One step of a value to its goal, for a part that changes with time. |
 
 The space of a stage has the y axis up. A place has a target, a polar angle from the y axis, an azimuth around it and a distance.

@@ -74,7 +74,7 @@ if (canvas !== null) {
     return text("#readout") === "Dust advisory, Western Sahel";
   }, 8000);
   check("the pointer finds the area at the center of the picture", found, text("#readout"));
-  check("the list marks the record under the pointer", $(SAHEL)?.classList.contains("is-hovered") === true, $(SAHEL)?.className);
+  check("the list highlights the record under the pointer", $(SAHEL)?.classList.contains("is-hovered") === true, $(SAHEL)?.className);
 
   const [x, y] = center();
   send("pointerdown", x, y, 1);

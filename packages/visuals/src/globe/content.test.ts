@@ -2,7 +2,7 @@ import { GeoError, type LatLon, type Position, type Region } from "@mark1russell
 import { Mesh, MeshBasicMaterial, PerspectiveCamera, Points, Raycaster, Vector3, type BufferAttribute, type InterleavedBufferAttribute, type Object3D } from "three";
 import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
 import { describe, expect, it } from "vitest";
-import type { Mark } from "../marks.ts";
+import type { Highlight } from "../highlight.ts";
 import type { StageFrame } from "../stage/stage.ts";
 import { createGlobe, type GlobeArea, type GlobeContent, type GlobePoint, type GlobeTheme } from "./content.ts";
 import { surfaceSag } from "./mesh.ts";
@@ -27,7 +27,7 @@ const theme: GlobeTheme = {
   selected: "#ff00ff",
 };
 
-const noMark = (): Mark => 0;
+const noHighlight = (): Highlight => 0;
 
 /** This function makes a region with four corners. */
 function square(west: number, south: number, east: number, north: number): Region {
@@ -68,7 +68,7 @@ interface Parts {
   readonly fills: Mesh;
   readonly edges: LineSegments2;
   readonly shade: Mesh;
-  readonly marked: LineSegments2;
+  readonly highlighted: LineSegments2;
   readonly dots: Points;
 }
 
@@ -83,9 +83,9 @@ function linesOf(object: Object3D | undefined): LineSegments2 {
 }
 
 function partsOf(globe: GlobeContent<string>): Parts {
-  const [ball, grid, fills, edges, shade, marked, dots] = globe.objects;
+  const [ball, grid, fills, edges, shade, highlighted, dots] = globe.objects;
   if (!(dots instanceof Points)) throw new Error("The last object is not a list of points.");
-  return { ball: meshOf(ball), grid: linesOf(grid), fills: meshOf(fills), edges: linesOf(edges), shade: meshOf(shade), marked: linesOf(marked), dots };
+  return { ball: meshOf(ball), grid: linesOf(grid), fills: meshOf(fills), edges: linesOf(edges), shade: meshOf(shade), highlighted: linesOf(highlighted), dots };
 }
 
 /** This function gives the numbers of one item of an attribute. */
@@ -134,12 +134,12 @@ describe("createGlobe", () => {
 
   it("shows only the ball, the shade and the grid for a globe with no data", () => {
     const globe = createGlobe<string>();
-    globe.paint(theme, noMark);
-    const { grid, fills, edges, marked, dots } = partsOf(globe);
+    globe.paint(theme, noHighlight);
+    const { grid, fills, edges, highlighted, dots } = partsOf(globe);
     expect(grid.visible).toBe(true);
     expect(fills.visible).toBe(false);
     expect(edges.visible).toBe(false);
-    expect(marked.visible).toBe(false);
+    expect(highlighted.visible).toBe(false);
     expect(dots.visible).toBe(false);
     expect(globe.pick(rayTo({ lat: 5, lon: 5 }))).toBeUndefined();
   });
@@ -180,18 +180,18 @@ describe("paint", () => {
 
   it("gives the ball, the grid and the shade the colors of the theme", () => {
     const globe = createGlobe<string>();
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     const { ball, grid } = partsOf(globe);
     expect(colorOf(ball)).toBe("0b1d2e");
     expect(grid.material.color.getHexString()).toBe("29425a");
-    globe.paint({ ...theme, ball: "#ffffff", grid: "#101010" }, noMark);
+    globe.paint({ ...theme, ball: "#ffffff", grid: "#101010" }, noHighlight);
     expect(colorOf(ball)).toBe("ffffff");
     expect(grid.material.color.getHexString()).toBe("101010");
   });
 
   it("gives each corner of an area the color and the opacity of its kind", () => {
     const globe = createGlobe({ areas: [land, storm] });
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     const { fills } = partsOf(globe);
     const colors = fills.geometry.getAttribute("color");
     const count = colors.count;
@@ -203,13 +203,13 @@ describe("paint", () => {
 
   it("uses the style for other kinds for a kind that the theme does not have", () => {
     const globe = createGlobe({ areas: [area("new", "a new kind", square(0, 0, 10, 10))] });
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     expect(itemOf(partsOf(globe).fills.geometry.getAttribute("color"), 0)).toEqual(close([...linear("#808080"), 0.5]));
   });
 
   it("draws the surface of an area only for a kind with a color, and its edge only for a kind with a line color", () => {
     const outline = createGlobe({ areas: [area("zone", "outline", square(0, 0, 10, 10))] });
-    outline.paint(theme, noMark);
+    outline.paint(theme, noHighlight);
     expect(partsOf(outline).fills.visible).toBe(false);
     expect(partsOf(outline).fills.geometry.drawRange.count).toBe(0);
     expect(partsOf(outline).edges.visible).toBe(true);
@@ -218,44 +218,44 @@ describe("paint", () => {
     expect(itemOf(partsOf(outline).edges.geometry.getAttribute("instanceColorStart"), 0)).toEqual(close(linear("#00ffcc")));
 
     const filled = createGlobe({ areas: [land] });
-    filled.paint(theme, noMark);
+    filled.paint(theme, noHighlight);
     expect(partsOf(filled).fills.visible).toBe(true);
     expect(partsOf(filled).edges.visible).toBe(false);
     expect(partsOf(filled).edges.geometry.instanceCount).toBe(0);
 
     const nothing = createGlobe({ areas: [area("zone", "nothing", square(0, 0, 10, 10))] });
-    nothing.paint(theme, noMark);
+    nothing.paint(theme, noHighlight);
     expect(partsOf(nothing).fills.visible).toBe(false);
     expect(partsOf(nothing).edges.visible).toBe(false);
   });
 
-  it("draws the edge of a record with a mark in the color of the mark, and adds opacity to its surface", () => {
+  it("draws the edge of a record with a highlight in the color of the highlight, and adds opacity to its surface", () => {
     const globe = createGlobe({ areas: [land, storm] });
-    const { fills, marked } = partsOf(globe);
+    const { fills, highlighted } = partsOf(globe);
     const last = fills.geometry.getAttribute("color").count - 1;
     globe.paint(theme, (record) => (record === "storm" ? 1 : 0));
-    expect(marked.visible).toBe(true);
-    expect(marked.geometry.instanceCount).toBe(40);
-    expect(itemOf(marked.geometry.getAttribute("instanceColorStart"), 0)).toEqual(close(linear("#ffff00")));
+    expect(highlighted.visible).toBe(true);
+    expect(highlighted.geometry.instanceCount).toBe(40);
+    expect(itemOf(highlighted.geometry.getAttribute("instanceColorStart"), 0)).toEqual(close(linear("#ffff00")));
     expect(itemOf(fills.geometry.getAttribute("color"), last)[3]).toBeCloseTo(0.56, 6);
 
     globe.paint(theme, (record) => (record === "storm" ? 2 : 0));
-    expect(itemOf(marked.geometry.getAttribute("instanceColorStart"), 0)).toEqual(close(linear("#ff00ff")));
+    expect(itemOf(highlighted.geometry.getAttribute("instanceColorStart"), 0)).toEqual(close(linear("#ff00ff")));
 
-    // An area with no line color gets an edge when it has a mark.
+    // An area with no line color gets an edge when it has a highlight.
     globe.paint(theme, (record) => (record === "land" ? 1 : 0));
-    expect(marked.geometry.instanceCount).toBe(40);
+    expect(highlighted.geometry.instanceCount).toBe(40);
     expect(itemOf(fills.geometry.getAttribute("color"), last)[3]).toBeCloseTo(0.4, 6);
     expect(itemOf(fills.geometry.getAttribute("color"), 0)[3]).toBe(1);
 
-    globe.paint(theme, noMark);
-    expect(marked.visible).toBe(false);
+    globe.paint(theme, noHighlight);
+    expect(highlighted.visible).toBe(false);
   });
 
   it("gives each area the colors of a new theme", () => {
     const globe = createGlobe({ areas: [land] });
-    globe.paint(theme, noMark);
-    globe.paint({ ...theme, styles: { land: { fill: "#ff0000", opacity: 0.25, line: "#0000ff" } } }, noMark);
+    globe.paint(theme, noHighlight);
+    globe.paint({ ...theme, styles: { land: { fill: "#ff0000", opacity: 0.25, line: "#0000ff" } } }, noHighlight);
     const { fills, edges } = partsOf(globe);
     expect(itemOf(fills.geometry.getAttribute("color"), 0)).toEqual(close([1, 0, 0, 0.25]));
     expect(edges.geometry.instanceCount).toBe(40);
@@ -282,14 +282,14 @@ describe("paint", () => {
     expect(sizes.getX(3)).toBeCloseTo(9 * 1.35, 5);
     expect(itemOf(dots.geometry.getAttribute("fill"), 0)).toEqual(close([1, 1, 1]));
     expect(itemOf(dots.geometry.getAttribute("ring"), 0)).toEqual(close([0, 0, 0]));
-    // A point with no line color has a ring of its own color. A point with a mark has a ring of the color of the mark.
+    // A point with no line color has a ring of its own color. A point with a highlight has a ring of the color of the highlight.
     expect(itemOf(dots.geometry.getAttribute("ring"), 1)).toEqual(close([0, 0, 1]));
     expect(itemOf(dots.geometry.getAttribute("ring"), 3)).toEqual(close(linear("#ff00ff")));
   });
 
   it("uses the size of the option for a point with no size", () => {
     const globe = createGlobe({ points: [point("city", "city", { lat: 5, lon: 5 })], pointSize: 14 });
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     expect(partsOf(globe).dots.geometry.getAttribute("size").getX(0)).toBe(14);
   });
 });
@@ -299,7 +299,7 @@ describe("pick", () => {
 
   it("finds the area under the pointer", () => {
     const globe = createGlobe({ areas: [land] });
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     expect(globe.pick(rayTo({ lat: 5, lon: 5 }))).toEqual({ record: "land", value: "value of land" });
     expect(globe.pick(rayTo({ lat: 9.5, lon: 0.5 }))).toEqual({ record: "land", value: "value of land" });
     expect(globe.pick(rayTo({ lat: 5, lon: 12 }))).toBeUndefined();
@@ -308,21 +308,21 @@ describe("pick", () => {
 
   it("finds an area on a globe of each radius", () => {
     const globe = createGlobe({ areas: [land], radius: 40 });
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     expect(globe.pick(rayTo({ lat: 5, lon: 5 }, { lat: 20, lon: -20 }, 40))?.record).toBe("land");
     expect(globe.pick(rayTo({ lat: 5, lon: 12 }, { lat: 20, lon: -20 }, 40))).toBeUndefined();
   });
 
   it("finds no area for a ray that does not find the Earth", () => {
     const globe = createGlobe({ areas: [land] });
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     expect(globe.pick(new Raycaster(new Vector3(0, 0, 4), new Vector3(0, 1, 0)))).toBeUndefined();
     expect(globe.pick(new Raycaster(new Vector3(0, 3, 4), new Vector3(0, 0, -1)))).toBeUndefined();
   });
 
   it("finds only the side of the Earth that the camera sees", () => {
     const globe = createGlobe({ areas: [area("far", "land", square(170, -10, 179, 10))] });
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     // This ray goes through the Earth to the area on the far side.
     expect(globe.pick(rayTo({ lat: 0, lon: 175 }))).toBeUndefined();
     expect(globe.pick(rayTo({ lat: 0, lon: 175 }, { lat: 0, lon: 150 }))?.record).toBe("far");
@@ -331,7 +331,7 @@ describe("pick", () => {
   it("finds the last area of the list first", () => {
     const storm = area("storm", "warning", square(5, 5, 15, 15));
     const globe = createGlobe({ areas: [land, storm] });
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     expect(globe.pick(rayTo({ lat: 7, lon: 7 }))?.record).toBe("storm");
     expect(globe.pick(rayTo({ lat: 2, lon: 2 }))?.record).toBe("land");
     expect(globe.pick(rayTo({ lat: 12, lon: 12 }))?.record).toBe("storm");
@@ -339,14 +339,14 @@ describe("pick", () => {
 
   it("finds the area below an area that the pointer does not find", () => {
     const globe = createGlobe({ areas: [land, area("shade", "warning", square(5, 5, 15, 15), false)] });
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     expect(globe.pick(rayTo({ lat: 7, lon: 7 }))?.record).toBe("land");
     expect(globe.pick(rayTo({ lat: 12, lon: 12 }))).toBeUndefined();
   });
 
   it("finds an area with only an edge, and no area of a kind with no color", () => {
     const globe = createGlobe({ areas: [area("zone", "outline", square(0, 0, 10, 10)), area("ghost", "nothing", square(20, 0, 30, 10))] });
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     expect(globe.pick(rayTo({ lat: 5, lon: 5 }))?.record).toBe("zone");
     expect(globe.pick(rayTo({ lat: 5, lon: 25 }))).toBeUndefined();
   });
@@ -356,14 +356,14 @@ describe("pick", () => {
     const hole = square(4, 4, 8, 8);
     const ring: Region = { type: "Polygon", coordinates: [...(outer.type === "Polygon" ? outer.coordinates : []), ...(hole.type === "Polygon" ? hole.coordinates : [])] };
     const globe = createGlobe({ areas: [area("ring", "land", ring)] });
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     expect(globe.pick(rayTo({ lat: 2, lon: 2 }))?.record).toBe("ring");
     expect(globe.pick(rayTo({ lat: 6, lon: 6 }))).toBeUndefined();
   });
 
   it("finds a point before an area, and the point nearest to the pointer", () => {
     const globe = createGlobe({ areas: [land], points: [point("south", "city", { lat: 5, lon: 5 }), point("north", "city", { lat: 6, lon: 5 })] });
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     globe.step?.(frameOf(600));
     expect(globe.pick(rayTo({ lat: 5.3, lon: 5 }))).toEqual({ record: "south", value: "value of south" });
     expect(globe.pick(rayTo({ lat: 5.7, lon: 5 }))?.record).toBe("north");
@@ -373,7 +373,7 @@ describe("pick", () => {
 
   it("finds a point in the distance of its size, in the pixels of the picture", () => {
     const globe = createGlobe({ points: [point("city", "city", { lat: 0, lon: 0 }, { size: 20 })] });
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     // One degree at the middle of this picture is 6 pixels in a picture of 600 pixels, and 1.2 pixels in a picture of 120 pixels.
     // The pointer finds this point at 14 pixels or less: a half of its size, and a margin of 4 pixels.
     const beside = rayTo({ lat: 0, lon: 3 });
@@ -389,7 +389,7 @@ describe("pick", () => {
       areas: [land],
       points: [point("far", "city", { lat: 5, lon: 175 }), point("ghost", "nothing", { lat: 5, lon: 5 }), point("label", "city", { lat: 5, lon: 5 }, { pick: false })],
     });
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     globe.step?.(frameOf(600));
     expect(globe.pick(rayTo({ lat: 5, lon: 5 }))?.record).toBe("land");
     // The ray to the point on the far side finds the near side of the Earth first, at 3 degrees north and 3 degrees east.
@@ -405,7 +405,7 @@ describe("show", () => {
 
   it("shows only the parts that the test accepts, and the pointer finds only them", () => {
     const globe = createGlobe({ areas: [land, storm], points: [city] });
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     globe.step?.(frameOf(600));
     const { fills, edges, dots } = partsOf(globe);
     const all = fills.geometry.drawRange.count;
@@ -430,7 +430,7 @@ describe("show", () => {
 
   it("draws the triangles of the shown areas only", () => {
     const globe = createGlobe({ areas: [land, storm] });
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     const { fills } = partsOf(globe);
     const index = fills.geometry.getIndex();
     const corners = fills.geometry.getAttribute("position").count;
@@ -440,21 +440,21 @@ describe("show", () => {
     expect(fills.geometry.drawRange.count).toBe((index?.count ?? 0) / 2);
   });
 
-  it("hides the edge of a record with a mark that the test refuses", () => {
+  it("hides the edge of a record with a highlight that the test refuses", () => {
     const globe = createGlobe({ areas: [land, storm] });
     globe.paint(theme, () => 1);
-    const { marked } = partsOf(globe);
-    expect(marked.geometry.instanceCount).toBe(80);
+    const { highlighted } = partsOf(globe);
+    expect(highlighted.geometry.instanceCount).toBe(80);
     globe.show((part) => part.record === "land");
-    expect(marked.geometry.instanceCount).toBe(40);
+    expect(highlighted.geometry.instanceCount).toBe(40);
     globe.show(() => false);
-    expect(marked.visible).toBe(false);
+    expect(highlighted.visible).toBe(false);
   });
 
   it("keeps the test for the first paint", () => {
     const globe = createGlobe({ areas: [land, storm] });
     globe.show((part) => part.record === "land");
-    globe.paint(theme, noMark);
+    globe.paint(theme, noHighlight);
     expect(globe.pick(rayTo({ lat: 12, lon: 12 }))).toBeUndefined();
     expect(globe.pick(rayTo({ lat: 7, lon: 7 }))?.record).toBe("land");
   });
@@ -477,7 +477,7 @@ describe("dispose", () => {
   it("releases each geometry and each material one time", () => {
     const globe = createGlobe({ areas: [area("land", "land", square(0, 0, 10, 10))], points: [point("city", "city", { lat: 5, lon: 5 })] });
     globe.paint(theme, () => 1);
-    const { ball, grid, fills, edges, shade, marked, dots } = partsOf(globe);
+    const { ball, grid, fills, edges, shade, highlighted, dots } = partsOf(globe);
     const released: string[] = [];
     const watch = (name: string, object: Mesh | LineSegments2 | Points): void => {
       object.geometry.addEventListener("dispose", () => void released.push(`${name} geometry`));
@@ -488,7 +488,7 @@ describe("dispose", () => {
     watch("grid", grid);
     watch("fills", fills);
     watch("edges", edges);
-    watch("marked", marked);
+    watch("highlighted", highlighted);
     watch("dots", dots);
     // The shade uses the geometry of the ball.
     const shadeMaterial = shade.material;
@@ -506,8 +506,8 @@ describe("dispose", () => {
         "fills material",
         "grid geometry",
         "grid material",
-        "marked geometry",
-        "marked material",
+        "highlighted geometry",
+        "highlighted material",
         "shade material",
       ].sort(),
     );

@@ -5,8 +5,8 @@ import { kindOf, nameOf, type SampleRecord } from "./sample.ts";
 /** A flat map of the Earth: the picture of the page in a browser with no WebGL 2. */
 export interface FlatMap {
   readonly element: SVGSVGElement;
-  /** This function marks the record under the pointer and the selected record, by their names. */
-  mark(hovered: string | undefined, selected: string | undefined): void;
+  /** This function highlights the record under the pointer and the selected record, by their names. */
+  highlight(hovered: string | undefined, selected: string | undefined): void;
   /** This function shows only the records that a test accepts. */
   show(test: (record: SampleRecord) => boolean): void;
 }
@@ -62,7 +62,7 @@ export function createFlatMap(land: MultiPolygon, records: readonly SampleRecord
   });
   return {
     element,
-    mark(hovered, selected) {
+    highlight(hovered, selected) {
       for (const [name, part] of shapes) {
         part.shape.classList.toggle("is-hovered", name === hovered);
         part.shape.classList.toggle("is-selected", name === selected);

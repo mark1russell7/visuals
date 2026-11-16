@@ -29,8 +29,8 @@ export function globeTheme(): GlobeTheme {
       quake: { fill: color("--quake"), line: ring },
     },
     other: { fill: color("--land") },
-    hovered: color("--mark"),
-    selected: color("--mark-strong"),
+    hovered: color("--highlight"),
+    selected: color("--highlight-strong"),
   };
 }
 

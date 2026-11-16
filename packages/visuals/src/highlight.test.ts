@@ -1,22 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { CLICK_DISTANCE, isClick, markOf, NO_MARKS, type Marks } from "./marks.ts";
+import { CLICK_DISTANCE, isClick, highlightOf, NO_HIGHLIGHTS, type Highlights } from "./highlight.ts";
 
-describe("markOf", () => {
-  const marks: Marks = { hovered: "desk", selected: "rack", marked: new Set(["lamp", "rack"]) };
+describe("highlightOf", () => {
+  const highlights: Highlights = { hovered: "desk", selected: "rack", highlighted: new Set(["lamp", "rack"]) };
 
-  it("gives 2 for the selected record, also when it has a different mark", () => {
-    expect(markOf(marks, "rack")).toBe(2);
-    expect(markOf({ ...marks, hovered: "rack" }, "rack")).toBe(2);
+  it("gives 2 for the selected record, also when it has a different highlight", () => {
+    expect(highlightOf(highlights, "rack")).toBe(2);
+    expect(highlightOf({ ...highlights, hovered: "rack" }, "rack")).toBe(2);
   });
 
-  it("gives 1 for the record under the pointer and for each marked record", () => {
-    expect(markOf(marks, "desk")).toBe(1);
-    expect(markOf(marks, "lamp")).toBe(1);
+  it("gives 1 for the record under the pointer and for each highlighted record", () => {
+    expect(highlightOf(highlights, "desk")).toBe(1);
+    expect(highlightOf(highlights, "lamp")).toBe(1);
   });
 
   it("gives 0 for each other record", () => {
-    expect(markOf(marks, "door")).toBe(0);
-    expect(markOf(NO_MARKS, "rack")).toBe(0);
+    expect(highlightOf(highlights, "door")).toBe(0);
+    expect(highlightOf(NO_HIGHLIGHTS, "rack")).toBe(0);
   });
 });
 

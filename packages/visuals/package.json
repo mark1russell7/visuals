@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/package",
   "name": "@mark1russell7/visuals",
-  "version": "0.1.1",
-  "description": "3D stages for data on three.js: a camera that a person moves, views by name, picking, marks and themes, and a globe of the Earth.",
+  "version": "0.2.0",
+  "description": "3D stages for data on three.js: a camera that a person moves, views by name, picking, highlights and themes, a globe of the Earth, and the shared marks of the viewers as data.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -21,7 +21,8 @@
     "orbit",
     "picking",
     "globe",
-    "webgl"
+    "webgl",
+    "marks"
   ],
   "type": "module",
   "sideEffects": false,
@@ -30,6 +31,7 @@
     ".": "./src/index.ts",
     "./three": "./src/three.ts",
     "./globe": "./src/globe.ts",
+    "./marks": "./src/marks.ts",
     "./package.json": "./package.json"
   },
   "files": [
@@ -86,6 +88,11 @@
         "types": "./build/globe.d.ts",
         "import": "./build/globe.js",
         "default": "./build/globe.js"
+      },
+      "./marks": {
+        "types": "./build/marks.d.ts",
+        "import": "./build/marks.js",
+        "default": "./build/marks.js"
       },
       "./package.json": "./package.json"
     }

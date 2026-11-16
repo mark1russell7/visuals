@@ -19,8 +19,8 @@
   --warning: #a3148f;
   --quake: #16323a;
   --quake-ring: #ffffff;
-  --mark: #16323a;
-  --mark-strong: #000000;
+  --highlight: #16323a;
+  --highlight-strong: #000000;
   --lettering: "Spectral", Georgia, "Times New Roman", serif;
   color-scheme: light dark;
 }
@@ -42,8 +42,8 @@
     --warning: #d45fbd;
     --quake: #e6f1f0;
     --quake-ring: #10262f;
-    --mark: #cfe0e0;
-    --mark-strong: #ffffff;
+    --highlight: #cfe0e0;
+    --highlight-strong: #ffffff;
   }
 }
 
@@ -63,8 +63,8 @@
   --warning: #d45fbd;
   --quake: #e6f1f0;
   --quake-ring: #10262f;
-  --mark: #cfe0e0;
-  --mark-strong: #ffffff;
+  --highlight: #cfe0e0;
+  --highlight-strong: #ffffff;
   color-scheme: dark;
 }
 
@@ -408,12 +408,12 @@ button {
 }
 
 .flat-record.is-hovered {
-  stroke: var(--mark);
+  stroke: var(--highlight);
   stroke-width: 2.5px;
 }
 
 .flat-record.is-selected {
-  stroke: var(--mark-strong);
+  stroke: var(--highlight-strong);
   stroke-width: 3px;
 }
 
