@@ -14,15 +14,22 @@ KEY_TURN: build/index.d.ts#KEY_TURN
 KEY_ZOOM: build/index.d.ts#KEY_ZOOM
 type KeyAction: build/index.d.ts#KeyAction
 type KeyOptions: build/index.d.ts#KeyOptions
+type Lifetime: build/replay.chunk.d.ts#Lifetime
 type Move: build/index.d.ts#Move
 type MoveStep: build/index.d.ts#MoveStep
 NO_HIGHLIGHTS: build/theme.chunk.d.ts#NO_HIGHLIGHTS
 type Place: build/theme.chunk.d.ts#Place
 type PlaceLimits: build/theme.chunk.d.ts#PlaceLimits
+REPLAY_DURATION: build/replay.chunk.d.ts#REPLAY_DURATION
+REPLAY_PAGE: build/replay.chunk.d.ts#REPLAY_PAGE
+REPLAY_SPEEDS: build/replay.chunk.d.ts#REPLAY_SPEEDS
+REPLAY_STEP: build/replay.chunk.d.ts#REPLAY_STEP
+type Replay: build/replay.chunk.d.ts#Replay
 type StageExtent: build/theme.chunk.d.ts#StageExtent
 type StageLimits: build/theme.chunk.d.ts#StageLimits
 type StageTheme: build/theme.chunk.d.ts#StageTheme
 type StageView: build/theme.chunk.d.ts#StageView
+type TimeSpan: build/replay.chunk.d.ts#TimeSpan
 type ViewAngles: build/theme.chunk.d.ts#ViewAngles
 type ViewAxes: build/theme.chunk.d.ts#ViewAxes
 type ViewFrame: build/theme.chunk.d.ts#ViewFrame
@@ -31,17 +38,34 @@ ballView: build/theme.chunk.d.ts#ballView
 cameraPosition: build/theme.chunk.d.ts#cameraPosition
 capDistance: build/theme.chunk.d.ts#capDistance
 capView: build/theme.chunk.d.ts#capView
+changeAfter: build/replay.chunk.d.ts#changeAfter
+changeBefore: build/replay.chunk.d.ts#changeBefore
+changeIndex: build/replay.chunk.d.ts#changeIndex
+changeTimes: build/replay.chunk.d.ts#changeTimes
 clampPlace: build/theme.chunk.d.ts#clampPlace
 easeInOut: build/index.d.ts#easeInOut
 fitDistance: build/theme.chunk.d.ts#fitDistance
 fitView: build/theme.chunk.d.ts#fitView
 highlightOf: build/theme.chunk.d.ts#highlightOf
 isClick: build/theme.chunk.d.ts#isClick
+isLive: build/replay.chunk.d.ts#isLive
 keyAction: build/index.d.ts#keyAction
 moveAt: build/index.d.ts#moveAt
 nearDepth: build/theme.chunk.d.ts#nearDepth
 placeBetween: build/theme.chunk.d.ts#placeBetween
 reachOf: build/theme.chunk.d.ts#reachOf
+replayAdvance: build/replay.chunk.d.ts#replayAdvance
+replayKey: build/replay.chunk.d.ts#replayKey
+replayNextSpeed: build/replay.chunk.d.ts#replayNextSpeed
+replayOf: build/replay.chunk.d.ts#replayOf
+replayPause: build/replay.chunk.d.ts#replayPause
+replayPlay: build/replay.chunk.d.ts#replayPlay
+replaySeek: build/replay.chunk.d.ts#replaySeek
+replaySpan: build/replay.chunk.d.ts#replaySpan
+replayToggle: build/replay.chunk.d.ts#replayToggle
+spanOfTimes: build/replay.chunk.d.ts#spanOfTimes
+spanPart: build/replay.chunk.d.ts#spanPart
+spanTime: build/replay.chunk.d.ts#spanTime
 speedAt: build/theme.chunk.d.ts#speedAt
 stageLimits: build/theme.chunk.d.ts#stageLimits
 surfaceOf: build/theme.chunk.d.ts#surfaceOf
@@ -116,6 +140,26 @@ fieldValue: build/marks.d.ts#fieldValue
 levelRank: build/marks.d.ts#levelRank
 levelShape: build/marks.d.ts#levelShape
 shapeRing: build/marks.d.ts#shapeRing
+
+## ./scrubber (build/scrubber.d.ts): names
+
+FRAME_LIMIT: build/scrubber.d.ts#FRAME_LIMIT
+LABEL_EDGE: build/scrubber.d.ts#LABEL_EDGE
+type LabelPlace: build/scrubber.d.ts#LabelPlace
+SCRUBBER_WORDS: build/scrubber.d.ts#SCRUBBER_WORDS
+type Scrubber: build/scrubber.d.ts#Scrubber
+type ScrubberLabel: build/scrubber.d.ts#ScrubberLabel
+type ScrubberOptions: build/scrubber.d.ts#ScrubberOptions
+type ScrubberWords: build/scrubber.d.ts#ScrubberWords
+TICK_BOX: build/scrubber.d.ts#TICK_BOX
+createScrubber: build/scrubber.d.ts#createScrubber
+labelPlaces: build/scrubber.d.ts#labelPlaces
+tickPath: build/scrubber.d.ts#tickPath
+tickPlaces: build/scrubber.d.ts#tickPlaces
+
+## ./scrubber.css: no declaration file for ./styles/scrubber.css
+
+file ./scrubber.css: styles/scrubber.css
 
 ## Declarations
 
@@ -414,6 +458,157 @@ export declare function levelShape(level: Level | undefined): LevelShape;
 
 ### build/marks.d.ts#shapeRing
 export declare function shapeRing(shape: LevelShape, radius?: number): Ring;
+
+### build/replay.chunk.d.ts#Lifetime
+interface Lifetime {
+  readonly from: number;
+  readonly to?: number | undefined;
+}
+
+### build/replay.chunk.d.ts#REPLAY_DURATION
+declare const REPLAY_DURATION = 2e4;
+
+### build/replay.chunk.d.ts#REPLAY_PAGE
+declare const REPLAY_PAGE = .1;
+
+### build/replay.chunk.d.ts#REPLAY_SPEEDS
+declare const REPLAY_SPEEDS: readonly number[];
+
+### build/replay.chunk.d.ts#REPLAY_STEP
+declare const REPLAY_STEP = .01;
+
+### build/replay.chunk.d.ts#Replay
+interface Replay {
+  readonly span: TimeSpan;
+  readonly at: number;
+  readonly playing: boolean;
+  readonly speed: number;
+}
+
+### build/replay.chunk.d.ts#TimeSpan
+interface TimeSpan {
+  readonly from: number;
+  readonly to: number;
+}
+
+### build/replay.chunk.d.ts#changeAfter
+declare function changeAfter(times: readonly number[], at: number): number | undefined;
+
+### build/replay.chunk.d.ts#changeBefore
+declare function changeBefore(times: readonly number[], at: number): number | undefined;
+
+### build/replay.chunk.d.ts#changeIndex
+declare function changeIndex(times: readonly number[], at: number): number;
+
+### build/replay.chunk.d.ts#changeTimes
+declare function changeTimes(lives: Iterable<Lifetime>): readonly number[];
+
+### build/replay.chunk.d.ts#isLive
+declare function isLive(life: Lifetime, at: number): boolean;
+
+### build/replay.chunk.d.ts#replayAdvance
+declare function replayAdvance(replay: Replay, elapsed: number, duration?: number): Replay;
+
+### build/replay.chunk.d.ts#replayKey
+declare function replayKey(key: string, replay: Replay, times?: readonly number[]): Replay | undefined;
+
+### build/replay.chunk.d.ts#replayNextSpeed
+declare function replayNextSpeed(replay: Replay, speeds?: readonly number[]): Replay;
+
+### build/replay.chunk.d.ts#replayOf
+declare function replayOf(span: TimeSpan, at?: number): Replay;
+
+### build/replay.chunk.d.ts#replayPause
+declare function replayPause(replay: Replay): Replay;
+
+### build/replay.chunk.d.ts#replayPlay
+declare function replayPlay(replay: Replay): Replay;
+
+### build/replay.chunk.d.ts#replaySeek
+declare function replaySeek(replay: Replay, at: number): Replay;
+
+### build/replay.chunk.d.ts#replaySpan
+declare function replaySpan(replay: Replay, span: TimeSpan): Replay;
+
+### build/replay.chunk.d.ts#replayToggle
+declare function replayToggle(replay: Replay): Replay;
+
+### build/replay.chunk.d.ts#spanOfTimes
+declare function spanOfTimes(times: readonly number[]): TimeSpan | undefined;
+
+### build/replay.chunk.d.ts#spanPart
+declare function spanPart(span: TimeSpan, at: number): number;
+
+### build/replay.chunk.d.ts#spanTime
+declare function spanTime(span: TimeSpan, part: number): number;
+
+### build/scrubber.d.ts#FRAME_LIMIT
+export declare const FRAME_LIMIT = 250;
+
+### build/scrubber.d.ts#LABEL_EDGE
+export declare const LABEL_EDGE = .08;
+
+### build/scrubber.d.ts#LabelPlace
+interface LabelPlace {
+  readonly text: string;
+  readonly part: number;
+  readonly align: "start" | "center" | "end";
+}
+
+### build/scrubber.d.ts#SCRUBBER_WORDS
+export declare const SCRUBBER_WORDS: ScrubberWords;
+
+### build/scrubber.d.ts#Scrubber
+interface Scrubber {
+  readonly element: HTMLElement;
+  replay(): Replay;
+  setReplay(replay: Replay): void;
+  setTimes(times: readonly number[]): void;
+  setLabels(labels: readonly ScrubberLabel[]): void;
+  dispose(): void;
+}
+
+### build/scrubber.d.ts#ScrubberLabel
+interface ScrubberLabel {
+  readonly at: number;
+  readonly text: string;
+}
+
+### build/scrubber.d.ts#ScrubberOptions
+interface ScrubberOptions {
+  readonly label: string;
+  readonly replay: Replay;
+  readonly format: (at: number, replay: Replay) => string;
+  readonly onChange: (replay: Replay) => void;
+  readonly times?: readonly number[] | undefined;
+  readonly labels?: readonly ScrubberLabel[] | undefined;
+  readonly duration?: number | undefined;
+  readonly speeds?: readonly number[] | undefined;
+  readonly words?: Partial<ScrubberWords> | undefined;
+}
+
+### build/scrubber.d.ts#ScrubberWords
+interface ScrubberWords {
+  readonly play: string;
+  readonly pause: string;
+  readonly speed: (speed: number) => string;
+  readonly speedName: (speed: number) => string;
+}
+
+### build/scrubber.d.ts#TICK_BOX
+export declare const TICK_BOX = 1e3;
+
+### build/scrubber.d.ts#createScrubber
+export declare function createScrubber(container: HTMLElement, options: ScrubberOptions): Scrubber;
+
+### build/scrubber.d.ts#labelPlaces
+export declare function labelPlaces(span: TimeSpan, labels: readonly ScrubberLabel[]): readonly LabelPlace[];
+
+### build/scrubber.d.ts#tickPath
+export declare function tickPath(places: readonly number[], top: number, bottom: number): string;
+
+### build/scrubber.d.ts#tickPlaces
+export declare function tickPlaces(span: TimeSpan, times: readonly number[]): readonly number[];
 
 ### build/stage.chunk.d.ts#FIELD_OF_VIEW
 declare const FIELD_OF_VIEW = 32;

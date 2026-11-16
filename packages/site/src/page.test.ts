@@ -18,8 +18,14 @@ describe("the home page", () => {
 
   it("has each element that the entry of the page uses", () => {
     const ids = [...entry.matchAll(/byId(?:<[^>]+>)?\("([^"]+)"\)/g)].map((match) => match[1]);
-    expect(ids.length).toBeGreaterThanOrEqual(9);
+    expect(ids.length).toBeGreaterThanOrEqual(10);
+    expect(ids).toContain("time");
     for (const id of ids) expect(page).toContain(`id="${id}"`);
+  });
+
+  it("shows how to put a scrubber in a page, with its style sheet", () => {
+    expect(page).toContain('import { createScrubber } from "@mark1russell7/visuals/scrubber";');
+    expect(page).toContain('import "@mark1russell7/visuals/scrubber.css";');
   });
 
   it("tells that the records are sample data, and names the source of the land", () => {
