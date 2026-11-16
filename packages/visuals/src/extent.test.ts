@@ -125,7 +125,7 @@ describe("stageLimits", () => {
         const extent: StageExtent = { center: origin, corners, surface };
         const frame = frameOf(extent, aspect);
         const limits = stageLimits(frame, [fitView(SIDE), capView(TOP, Math.PI / 2)], POLAR);
-        let reach = surface;
+        let reach: number = surface;
         for (const corner of corners) reach = Math.max(reach, Math.hypot(corner.x, corner.y, corner.z));
         expect(limits.minDistance).toBeGreaterThan(surface);
         expect(limits.maxDistance).toBeGreaterThanOrEqual(limits.minDistance);
