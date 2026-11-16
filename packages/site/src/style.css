@@ -2,6 +2,7 @@
 @import "@fontsource/spectral/latin-400-italic.css";
 @import "@fontsource/spectral/latin-600.css";
 @import "@mark1russell7/visuals/scrubber.css";
+@import "@mark1russell7/visuals/labels.css";
 
 /* The colors of the page, then the colors of the chart. The globe reads the colors of the chart from here. */
 :root {
@@ -208,9 +209,20 @@ button {
 
 /* The globe, the line of the name, the time, the views and the hint are all in view on a wide page. */
 .globe {
+  /* The names of the places: the layer of the labels of the package, with the colors of the page. It fills this box. */
+  --labels-ink: var(--ink);
+  --labels-halo: var(--page);
+  --labels-size: 0.9375rem;
+  position: relative;
   width: min(100%, max(62vh, 17rem));
   margin: 0 auto;
   aspect-ratio: 1;
+}
+
+/* A name on the globe has the lettering of the place of a record in the list. */
+.globe .visuals-labels {
+  font-family: var(--lettering);
+  font-style: italic;
 }
 
 .globe.is-flat {

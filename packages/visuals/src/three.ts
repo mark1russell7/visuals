@@ -9,3 +9,4 @@ export {
   type StageOptions,
   type StagePick,
 } from "./stage/stage.ts";
+export { stackContents } from "./stage/stack.ts";

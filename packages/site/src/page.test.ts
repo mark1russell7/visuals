@@ -28,6 +28,12 @@ describe("the home page", () => {
     expect(page).toContain('import "@mark1russell7/visuals/scrubber.css";');
   });
 
+  it("shows how to put labels on a stage, with their style sheet", () => {
+    expect(page).toContain('import { createLabels } from "@mark1russell7/visuals/labels";');
+    expect(page).toContain('import "@mark1russell7/visuals/labels.css";');
+    expect(page).toContain("stackContents([globe, labels])");
+  });
+
   it("tells that the records are sample data, and names the source of the land", () => {
     expect(page).toContain("Sample data. The warnings and the earthquakes are made up.");
     expect(page).toContain('href="https://www.naturalearthdata.com/"');

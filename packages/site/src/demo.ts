@@ -1,11 +1,12 @@
 import { h } from "@mark1russell7/site-pages/chrome";
 import { changeIndex, isLive, replayOf } from "@mark1russell7/visuals";
-import { GLOBE_POLAR, createGlobe, globeView, regionView, type GlobeArea, type GlobePoint } from "@mark1russell7/visuals/globe";
+import { GLOBE_POLAR, createGlobe, globePoint, globeView, inSight, pointRadius, regionView, type GlobeArea, type GlobePoint, type GlobeTheme } from "@mark1russell7/visuals/globe";
+import { createLabels, type StageLabel } from "@mark1russell7/visuals/labels";
 import { createScrubber } from "@mark1russell7/visuals/scrubber";
-import { createStage } from "@mark1russell7/visuals/three";
+import { createStage, stackContents } from "@mark1russell7/visuals/three";
 import { globeTheme, onThemeChange } from "./colors.ts";
 import { createFlatMap } from "./flat.ts";
-import { CHANGES, HISTORY, KINDS, RECORDS, TIME_LABELS, VERSIONS, landRegion, nameOf, recordsAt, timeText, versionAt, type Kind, type SampleRecord, type Version } from "./sample.ts";
+import { CHANGES, HISTORY, KINDS, RECORDS, TIME_LABELS, VERSIONS, landRegion, nameOf, recordsAt, timeText, versionAt, type Kind, type QuakeRecord, type SampleRecord, type Version } from "./sample.ts";
 
 /** The elements of the page that the demo uses. */
 export interface DemoElements {
@@ -44,6 +45,9 @@ const QUAKE_SIZE = 7;
 /** The width that one unit of magnitude adds to the dot of an earthquake, in CSS pixels. */
 const QUAKE_GROWTH = 4;
 
+/** The smallest distance between the name of a place and an edge of the picture, in CSS pixels. */
+const NAME_EDGE = 2;
+
 /** The space around a selected area in its view. The picture also shows the land and the sea around the area. */
 const AREA_MARGIN = 3.5;
 
@@ -52,6 +56,11 @@ const QUAKE_CAP = 20;
 
 /** The largest step of an edge of the globe, in degrees. The land has many corners, and this step keeps the picture fast. */
 const STEP = 2;
+
+/** This function gives the width of the dot of an earthquake, in CSS pixels. A larger earthquake has a larger dot. */
+function quakeSize(quake: QuakeRecord): number {
+  return QUAKE_SIZE + Math.max(quake.magnitude - 4.5, 0) * QUAKE_GROWTH;
+}
 
 /** This function makes the sign of a kind: a small shape with the color of the kind. The style sheet draws it. */
 function sign(kind: Kind): HTMLElement {
@@ -81,11 +90,21 @@ export function startDemo(elements: DemoElements): void {
   const points: GlobePoint<Version | undefined>[] = VERSIONS.flatMap((version) => {
     const { record } = version;
     if (record.type !== "quake") return [];
-    return [{ record: record.record, kind: version.kind, value: version, place: record.at, size: QUAKE_SIZE + Math.max(record.magnitude - 4.5, 0) * QUAKE_GROWTH }];
+    return [{ record: record.record, kind: version.kind, value: version, place: record.at, size: quakeSize(record) }];
   });
   const globe = createGlobe({ areas, points, step: STEP, grid: 15, lineWidth: 1.5, highlightWidth: 3 });
+  // The name of the place of each earthquake is next to its dot. When two names have one place, the larger earthquake keeps its name.
+  const named = new Map<StageLabel, Version>();
+  for (const version of VERSIONS) {
+    const { record } = version;
+    if (record.type !== "quake") continue;
+    named.set({ record: record.record, at: globePoint(record.at), text: record.place, kind: version.kind, rank: record.magnitude, clear: pointRadius(quakeSize(record)) }, version);
+  }
+  // A place on the far side of the Earth has no name in the picture.
+  const names = createLabels(elements.picture, { labels: [...named.keys()], visible: (point, eye) => inSight(point, eye, 1), edge: NAME_EDGE });
+  const content = stackContents<Version | undefined, GlobeTheme>([globe, names]);
   const stage = createStage(elements.picture, {
-    content: globe,
+    content,
     theme: globeTheme(),
     label: "The Earth as a globe, with sample warnings and earthquakes",
     views: {
@@ -103,7 +122,7 @@ export function startDemo(elements: DemoElements): void {
       select(pick?.record, false);
     },
   });
-  // The globe is in the stage only when the stage exists. Without a stage, the page shows a flat map of the same records.
+  // The globe and the names are in the stage only when the stage exists. Without a stage, the page shows a flat map of the same records.
   const flat =
     stage === undefined
       ? createFlatMap(land, VERSIONS, {
@@ -116,7 +135,7 @@ export function startDemo(elements: DemoElements): void {
         })
       : undefined;
   if (flat !== undefined) {
-    globe.dispose();
+    content.dispose();
     elements.picture.append(flat.element);
     elements.picture.classList.add("is-flat");
     elements.views.hidden = true;
@@ -232,7 +251,10 @@ export function startDemo(elements: DemoElements): void {
     const live = recordsAt(at);
     const versions = new Map(live.map((version) => [version.record, version]));
     // The land has no record, so it has no value. It stays in the picture.
-    if (stage !== undefined) globe.show((part) => part.value === undefined || shown(part.value));
+    if (stage !== undefined) {
+      globe.show((part) => part.value === undefined || shown(part.value));
+      names.show((label) => shown(named.get(label)));
+    }
     flat?.show(shown);
     for (const row of rows) {
       const version = versions.get(row.record);

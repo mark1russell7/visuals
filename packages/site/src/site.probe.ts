@@ -19,6 +19,8 @@ const GALE = '.record[data-record="gale-biscay"]';
 const SUMATRA = '.record[data-record="quake-sumatra"]';
 const SAHEL = '.record[data-record="dust-sahel"]';
 const QUAKES = '.kind[data-kind="quake"]';
+/** The names of the places that are in the picture. */
+const names = (): HTMLElement[] => $$("#globe .visuals-label").filter((name) => !name.classList.contains("visuals-label-off"));
 
 // The globe needs WebGL 2. A browser with no WebGL 2 gets a flat map.
 const picture = await until(() => $("#globe canvas") ?? $("#globe svg.flat"), 15000);
@@ -27,6 +29,20 @@ const height = (picture as Element | null)?.getBoundingClientRect().height ?? 0;
 check("the picture has a height of 150 pixels or more", height >= 150, height);
 
 check("the list has each sample record of the present", rows() === 16, rows());
+
+// The names of the places are HTML elements above the 3D picture. The flat map has no names.
+const globe = $("#globe canvas") === null ? null : $("#globe");
+if (globe !== null) {
+  check("the globe names the place of an earthquake", await until(() => names().length > 0, 8000), $$("#globe .visuals-label").length);
+  const frame = globe.getBoundingClientRect();
+  const boxes = names().map((name) => name.getBoundingClientRect());
+  const out = boxes.filter((box) => box.left < frame.left - 1 || box.top < frame.top - 1 || box.right > frame.right + 1 || box.bottom > frame.bottom + 1);
+  check("each name is in the picture", out.length === 0, out.map((box) => [box.left, box.top, box.right, box.bottom]));
+  const crossed = boxes.filter((box, at) => boxes.some((other, to) => to > at && box.left < other.right - 1 && other.left < box.right - 1 && box.top < other.bottom - 1 && other.top < box.bottom - 1));
+  check("no name is on a different name", crossed.length === 0, crossed.length);
+  const texts = names().map((name) => name.textContent);
+  check("a name is the place of its record", texts.every((name) => $$(".record-place").some((place) => place.textContent === name)), texts);
+}
 check("the legend has a button for each kind, and each kind is on", $$('.kind[aria-pressed="true"]').length === 4, $$(".kind").length);
 check("the line of the name is empty before a selection", text("#readout") === "", text("#readout"));
 
@@ -42,8 +58,10 @@ check("the text of the first record is not in view", !shown(`${GALE} .record-mor
 click(QUAKES);
 check("the legend hides the records of a kind", await until(() => rows() === 10 && pressed(QUAKES) === "false"), rows());
 check("a hidden record is not selected", $$('.record[aria-pressed="true"]').length === 0 && text("#readout") === "", text("#readout"));
+if (globe !== null) check("the legend also hides the names of the kind", await until(() => names().length === 0), names().length);
 click(QUAKES);
 check("the legend shows the records of the kind again", await until(() => rows() === 16 && pressed(QUAKES) === "true"), rows());
+if (globe !== null) check("the legend shows the names of the kind again", await until(() => names().length > 0), names().length);
 
 // The time of the picture. The sample has 72 hours, so the middle of the slider is 36 hours before the present.
 const slider = $("#time input[type=range]") as HTMLInputElement | null;

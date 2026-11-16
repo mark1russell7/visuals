@@ -63,6 +63,7 @@ replayPlay: build/replay.chunk.d.ts#replayPlay
 replaySeek: build/replay.chunk.d.ts#replaySeek
 replaySpan: build/replay.chunk.d.ts#replaySpan
 replayToggle: build/replay.chunk.d.ts#replayToggle
+screenPoint: build/index.d.ts#screenPoint
 spanOfTimes: build/replay.chunk.d.ts#spanOfTimes
 spanPart: build/replay.chunk.d.ts#spanPart
 spanTime: build/replay.chunk.d.ts#spanTime
@@ -84,6 +85,7 @@ type StageLights: build/stage.chunk.d.ts#StageLights
 type StageOptions: build/stage.chunk.d.ts#StageOptions
 type StagePick: build/stage.chunk.d.ts#StagePick
 createStage: build/stage.chunk.d.ts#createStage
+stackContents: build/three.d.ts#stackContents
 
 ## ./globe (build/globe.d.ts): names
 
@@ -103,6 +105,7 @@ globePoint: build/globe.d.ts#globePoint
 globeView: build/globe.d.ts#globeView
 gridLines: build/globe.d.ts#gridLines
 inSight: build/globe.d.ts#inSight
+pointRadius: build/globe.d.ts#pointRadius
 rayBall: build/globe.d.ts#rayBall
 regionEdges: build/globe.d.ts#regionEdges
 regionSurface: build/globe.d.ts#regionSurface
@@ -160,6 +163,25 @@ tickPlaces: build/scrubber.d.ts#tickPlaces
 ## ./scrubber.css: no declaration file for ./styles/scrubber.css
 
 file ./scrubber.css: styles/scrubber.css
+
+## ./labels (build/labels.d.ts): names
+
+LABEL_GAP: build/labels.d.ts#LABEL_GAP
+LABEL_SIDES: build/labels.d.ts#LABEL_SIDES
+type LabelAnchor: build/labels.d.ts#LabelAnchor
+type LabelFrame: build/labels.d.ts#LabelFrame
+type LabelPlace: build/labels.d.ts#LabelPlace
+type LabelSide: build/labels.d.ts#LabelSide
+type LabelsContent: build/labels.d.ts#LabelsContent
+type LabelsOptions: build/labels.d.ts#LabelsOptions
+type StageLabel: build/labels.d.ts#StageLabel
+createLabels: build/labels.d.ts#createLabels
+labelBox: build/labels.d.ts#labelBox
+placeLabels: build/labels.d.ts#placeLabels
+
+## ./labels.css: no declaration file for ./styles/labels.css
+
+file ./labels.css: styles/labels.css
 
 ## Declarations
 
@@ -257,6 +279,9 @@ export declare function gridLines(spacing: number, step: number): Float64Array[]
 ### build/globe.d.ts#inSight
 export declare function inSight(point: Point3, eye: Point3, radius: number): boolean;
 
+### build/globe.d.ts#pointRadius
+export declare function pointRadius(size: number): number;
+
 ### build/globe.d.ts#rayBall
 export declare function rayBall(origin: Point3, direction: Point3, radius: number): Point3 | undefined;
 
@@ -319,6 +344,76 @@ export declare function keyAction(key: string, now: Place, options: KeyOptions):
 
 ### build/index.d.ts#moveAt
 export declare function moveAt(move: Move, now: number, surface?: number): MoveStep;
+
+### build/index.d.ts#screenPoint
+export declare function screenPoint(point: Point3, view: ArrayLike<number>, projection: ArrayLike<number>, width: number, height: number): Point | undefined;
+
+### build/labels.d.ts#LABEL_GAP
+export declare const LABEL_GAP = 4;
+
+### build/labels.d.ts#LABEL_SIDES
+export declare const LABEL_SIDES: readonly LabelSide[];
+
+### build/labels.d.ts#LabelAnchor
+interface LabelAnchor {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly clear?: number | undefined;
+  readonly sides?: readonly LabelSide[] | undefined;
+}
+
+### build/labels.d.ts#LabelFrame
+interface LabelFrame {
+  readonly width: number;
+  readonly height: number;
+  readonly gap?: number | undefined;
+  readonly edge?: number | undefined;
+}
+
+### build/labels.d.ts#LabelPlace
+interface LabelPlace {
+  readonly side: LabelSide;
+  readonly box: Rect;
+}
+
+### build/labels.d.ts#LabelSide
+type LabelSide = "right" | "left" | "above" | "below" | "center";
+
+### build/labels.d.ts#LabelsContent
+interface LabelsContent extends StageContent<never> {
+  readonly element: HTMLElement;
+  show(test: (label: StageLabel) => boolean): void;
+}
+
+### build/labels.d.ts#LabelsOptions
+interface LabelsOptions {
+  readonly labels: readonly StageLabel[];
+  readonly visible?: ((at: Point3, eye: Point3) => boolean) | undefined;
+  readonly gap?: number | undefined;
+  readonly edge?: number | undefined;
+}
+
+### build/labels.d.ts#StageLabel
+interface StageLabel {
+  readonly record: string;
+  readonly at: Point3;
+  readonly text: string;
+  readonly kind?: string | undefined;
+  readonly rank?: number | undefined;
+  readonly clear?: number | undefined;
+  readonly sides?: readonly LabelSide[] | undefined;
+}
+
+### build/labels.d.ts#createLabels
+export declare function createLabels(container: HTMLElement, options: LabelsOptions): LabelsContent;
+
+### build/labels.d.ts#labelBox
+export declare function labelBox(label: LabelAnchor, side: LabelSide, gap?: number): Rect;
+
+### build/labels.d.ts#placeLabels
+export declare function placeLabels(labels: readonly LabelAnchor[], frame: LabelFrame): (LabelPlace | undefined)[];
 
 ### build/marks.d.ts#DIRECTION_TOLERANCE
 export declare const DIRECTION_TOLERANCE = 1e-6;
@@ -829,3 +924,6 @@ declare function viewAxes(view: ViewAngles): ViewAxes;
 declare function viewOf(camera: Point3, target: Point3): ViewAngles & {
   readonly distance: number;
 };
+
+### build/three.d.ts#stackContents
+export declare function stackContents<P, T extends StageTheme = StageTheme>(contents: readonly [StageContent<P, T>, ...StageContent<P, T>[]]): StageContent<P, T>;

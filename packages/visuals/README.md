@@ -2,7 +2,7 @@
 
 3D stages for data. A stage is one canvas of three.js with a camera that a person moves. The content of the stage is your data.
 
-The package has five entries and one style sheet:
+The package has six entries and two style sheets:
 
 - The entry `.` has the camera maths and the model of a replay. It needs no browser, and it does not need `three`.
 - The entry `/marks` has the marks that a viewer draws, as plain data. It needs no browser, and it does not need `three`.
@@ -10,6 +10,8 @@ The package has five entries and one style sheet:
 - The entry `/globe` has a content that shows the Earth as a globe, with areas and points on it. It also needs `three`.
 - The entry `/scrubber` has a control that sets the time of a picture. It needs a browser, and it does not need `three`.
 - The file `/scrubber.css` is the style sheet of the scrubber.
+- The entry `/labels` has the labels of a stage: a short text next to a point, as an element of the page. It needs a browser.
+- The file `/labels.css` is the style sheet of the labels.
 
 ## Install
 
@@ -79,6 +81,8 @@ A stage knows nothing about the data. The content gives it these parts:
 | `paint` | The colors of each part, from the theme and the highlight of its record. |
 | `step` | The parts that change with the camera or with the time, before each picture. It is optional. |
 | `dispose` | The release of the memory of the graphics card. |
+
+`stackContents` makes one content from a list of contents. The first content gives the extent, and a pick asks the last content first.
 
 A record has a name. The highlight of a record is 0, 1 or 2: no highlight, a record under the pointer, the selected record. `highlight` and `select` set the highlights from the page.
 
@@ -196,6 +200,7 @@ The functions of the globe maths have no state. A test in Node.js uses them:
 | `regionEdges` | The lines of the outline of a region. A cut on the antimeridian or at a pole gives no line. |
 | `gridLines` | The meridians and the parallels of a grid. |
 | `rayBall`, `inSight` | The first point of a ball on a ray, and if a camera sees a point of the ball. |
+| `pointRadius` | The radius of the mark of a point: a half of its dot, and its ring. A label uses it as its `clear`. |
 
 ```ts
 import { globePoint, regionSurface } from "@mark1russell7/visuals/globe";
@@ -206,6 +211,60 @@ const surface = regionSurface(storm.region, 2);
 surface.corners.length / 2; // => 43: the corners of the outline with a step of 2 degrees, and the corners in the surface
 surface.triangles.length / 3; // => 70
 ```
+
+## Labels
+
+The entry `/labels` has a layer of labels. A label is a short text next to a point of a stage, for example the name of a place.
+
+```ts
+import { globePoint, inSight, pointRadius } from "@mark1russell7/visuals/globe";
+import { createLabels } from "@mark1russell7/visuals/labels";
+import { createStage, stackContents } from "@mark1russell7/visuals/three";
+import "@mark1russell7/visuals/labels.css";
+
+const labels = createLabels(box, {
+  labels: [{ record: "city", at: globePoint({ lat: 32.8, lon: -96.8 }), text: "Dallas", rank: 1, clear: pointRadius(8) }],
+  visible: (point, eye) => inSight(point, eye, 1),
+});
+const stage = createStage(box, { content: stackContents([globe, labels]), theme, label: "The Earth with the name of one city" });
+
+labels.show((label) => label.record !== "city"); // The name of the city goes out of the picture.
+stage?.refresh();
+```
+
+- The layer is a content of a stage with no three.js object. `stackContents` shows it with the content that it names.
+- Give the container of the stage `position: relative`. The layer then fills the picture, above the canvas.
+- Each label is an HTML element. So its text is sharp at each size, and it has the font of the page.
+- No text is on a different text, on the mark of a different label, or out of the picture.
+- When two texts have one place, the label of a highlighted record stays. Then the label with the higher `rank` stays.
+- A label tries its sides in this sequence: right, left, above, below. The field `sides` gives a different sequence.
+- Use the side `center` for the name of an area: the middle of the text is then on the point.
+- `clear` is the radius of the mark at the point. The text stays off the mark, at the gap from it.
+- `visible` tells if the camera sees a point. For a globe, `inSight` removes each name on the far side of the Earth.
+- The places are a function of the picture. While the picture does not move, a highlight moves no text.
+- The pointer goes through the layer to the picture. A screen reader ignores the layer, so give the names in the page too.
+- The layer writes no inline style attribute, so it works under a strict content security policy.
+
+`placeLabels` is the pure function that gives each text its place. A test in Node.js and a different renderer use the same function.
+
+```ts
+import { placeLabels } from "@mark1russell7/visuals/labels";
+
+// Two labels at one point, each with a text of 60 by 16 pixels and a dot with a radius of 5 pixels.
+const label = { x: 100, y: 100, width: 60, height: 16, clear: 5 };
+placeLabels([label, label], { width: 400, height: 300 });
+// => [{ side: "right", box: { x: 109, y: 92, w: 60, h: 16 } }, { side: "left", box: { x: 31, y: 92, w: 60, h: 16 } }]
+```
+
+The style sheet is plain CSS. A label takes its font from the page.
+
+| Variable | What it sets | Default |
+| --- | --- | --- |
+| `--labels-ink` | The color of the text. | `CanvasText` |
+| `--labels-halo` | The color around each letter. Give it the color behind the picture. | `Canvas` |
+| `--labels-size` | The size of the text. | `0.8125rem` |
+
+Each text has the kind of its label in `data-kind` and its side in `data-side`. A style sheet of the page gives each kind a look.
 
 ## A scrubber
 
@@ -354,6 +413,7 @@ The entry `.` has pure functions. A page with no WebGL 2 and a test in Node.js u
 | `clampPlace`, `stageLimits` | A place in the limits of a stage, and the limits from the content. |
 | `reachOf`, `nearDepth` | The radius of the ball that holds the content, and the nearest depth that the camera draws. |
 | `keyAction` | The action of a key. |
+| `screenPoint` | The point of a picture that shows a point of the world, in CSS pixels. |
 | `highlightOf`, `isClick` | The highlight of a record, and the difference between a click and a drag. |
 | `approach` | One step of a value to its goal, for a part that changes with time. |
 
