@@ -1,7 +1,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { capView, FIT_MARGIN, fitView, stageLimits, surfaceOf, type StageExtent, type ViewFrame } from "./extent.ts";
-import { capDistance, fitDistance, type ViewAngles } from "./view.ts";
+import { ballView, capView, FIT_MARGIN, fitView, nearDepth, reachOf, stageLimits, surfaceOf, type StageExtent, type ViewFrame } from "./extent.ts";
+import { cameraPosition, capDistance, fitDistance, type ViewAngles } from "./view.ts";
 
 const origin = { x: 0, y: 0, z: 0 };
 const TOP: ViewAngles = { polar: 0, azimuth: 0 };
@@ -72,6 +72,134 @@ describe("capView", () => {
 
   it("gives the distance 1 for an extent with no ball", () => {
     expect(capView(TOP, 0.3)(frameOf(box)).distance).toBe(1);
+  });
+});
+
+describe("ballView", () => {
+  const FRONT: ViewAngles = { polar: Math.PI / 2, azimuth: 0 };
+  /** Four points of the ball around the axis z. The angle from the axis to each point is acos(sqrt(23) / 5). */
+  const deep = Math.sqrt(23);
+  const four = [-1, 1].flatMap((x) => [-1, 1].map((y) => ({ x, y, z: deep })));
+
+  it("puts the camera above the middle of the points, at the distance that shows the cap of the points", () => {
+    const place = ballView(four)(frameOf(ball));
+    const cap = capView(FRONT, Math.acos(deep / 5))(frameOf(ball));
+    expect(place.target).toBe(origin);
+    expect(place.polar).toBeCloseTo(FRONT.polar, 12);
+    expect(place.azimuth).toBeCloseTo(FRONT.azimuth, 12);
+    expect(place.distance).toBeCloseTo(cap.distance, 9);
+    expect(place.distance).toBeGreaterThan(5);
+  });
+
+  it("uses the margin that it gets", () => {
+    const near = ballView(four, 1)(frameOf(ball)).distance;
+    const far = ballView(four, 2)(frameOf(ball)).distance;
+    expect(far - 5).toBeCloseTo((near - 5) * 2, 9);
+  });
+
+  it("shows all of the ball from the front for a list with no points", () => {
+    expect(ballView([])(frameOf(ball))).toEqual(capView(FRONT, Math.PI / 2)(frameOf(ball)));
+  });
+
+  it("shows all of the ball from the front for points with their middle at the center", () => {
+    const opposite = [
+      { x: 5, y: 0, z: 0 },
+      { x: -5, y: 0, z: 0 },
+    ];
+    expect(ballView(opposite)(frameOf(ball))).toEqual(capView(FRONT, Math.PI / 2)(frameOf(ball)));
+    expect(ballView([{ x: Number.NaN, y: 0, z: 0 }])(frameOf(ball))).toEqual(capView(FRONT, Math.PI / 2)(frameOf(ball)));
+  });
+
+  it("ignores a point at the center of the ball", () => {
+    const place = ballView([...four, { x: 0, y: 0, z: 2 * deep }, origin])(frameOf(ball));
+    expect(Number.isFinite(place.distance)).toBe(true);
+    expect(place.distance).toBeGreaterThan(5);
+  });
+
+  it("measures the points from the center of each extent that it gets", () => {
+    const center = { x: 10, y: -4, z: 3 };
+    const moved: StageExtent = { center, corners: [], surface: 5 };
+    const view = ballView(four.map((point) => ({ x: point.x + center.x, y: point.y + center.y, z: point.z + center.z })));
+    const there = view(frameOf(moved));
+    expect(there.target).toBe(center);
+    expect(there.polar).toBeCloseTo(FRONT.polar, 12);
+    expect(there.azimuth).toBeCloseTo(FRONT.azimuth, 12);
+    expect(there.distance).toBeCloseTo(ballView(four)(frameOf(ball)).distance, 9);
+    // The same view gives a different place for an extent with a different center, and the first place again after it.
+    expect(view(frameOf(ball)).azimuth).not.toBeCloseTo(FRONT.azimuth, 3);
+    expect(view(frameOf(moved))).toEqual(there);
+  });
+
+  it("shows each point of a ball", () => {
+    const anyAngle = fc.record({ polar: fc.double({ min: 0.2, max: 2.9, noNaN: true }), azimuth: fc.double({ min: -3, max: 3, noNaN: true }) });
+    fc.assert(
+      fc.property(fc.array(anyAngle, { minLength: 1, maxLength: 12 }), fc.double({ min: 0.4, max: 2.5, noNaN: true }), (angles, aspect) => {
+        const points = angles.map((angle) => cameraPosition(origin, angle, 5));
+        const frame = frameOf(ball, aspect);
+        const place = ballView(points, 1)(frame);
+        // The camera at this distance shows each point, or the point is behind the outline of the ball.
+        expect(fitDistance(points, origin, place, frame.fieldOfView, aspect)).toBeLessThanOrEqual(place.distance * (1 + 1e-9));
+        expect(place.distance).toBeGreaterThanOrEqual(5);
+      }),
+    );
+  });
+});
+
+describe("reachOf", () => {
+  it("gives the distance from the center to the farthest corner", () => {
+    expect(reachOf(box)).toBeCloseTo(Math.sqrt(14), 12);
+    expect(reachOf({ center: { x: 2, y: 1, z: 3 }, corners: box.corners })).toBeCloseTo(Math.sqrt(56), 12);
+  });
+
+  it("gives the radius of the ball of an extent whose corners are in the ball", () => {
+    expect(reachOf(ball)).toBe(5);
+    expect(reachOf({ ...box, surface: 5 })).toBe(5);
+    expect(reachOf({ ...box, surface: 2 })).toBeCloseTo(Math.sqrt(14), 12);
+  });
+
+  it("gives 0 for an extent with no corners and no ball", () => {
+    expect(reachOf({ center: origin, corners: [] })).toBe(0);
+  });
+});
+
+describe("nearDepth", () => {
+  const limits = { minPolar: POLAR.min, maxPolar: POLAR.max, minDistance: 5.5, maxDistance: 2000, near: 0.1, far: 100 };
+
+  it("gives the nearest depth of the limits for a camera near the content", () => {
+    expect(nearDepth(limits, ball, 5.5)).toBe(0.1);
+    expect(nearDepth(limits, ball, 5.8)).toBe(0.1);
+    // A camera in the ball of the content gets the same depth.
+    expect(nearDepth(limits, ball, 2)).toBe(0.1);
+  });
+
+  it("gives an eighth of the free distance for a camera far from the content", () => {
+    expect(nearDepth(limits, ball, 45)).toBe(5);
+    expect(nearDepth(limits, box, 8 + Math.sqrt(14))).toBeCloseTo(1, 12);
+  });
+
+  it("gives a quarter of the farthest depth at most", () => {
+    expect(nearDepth(limits, ball, 1000)).toBe(25);
+  });
+
+  it("gives the nearest depth of the limits for a distance that is not a number", () => {
+    expect(nearDepth(limits, ball, Number.NaN)).toBe(0.1);
+  });
+
+  it("stays in front of the content and behind no depth of the limits, for each place in the limits of a stage", () => {
+    const anyCoordinate = fc.double({ min: -30, max: 30, noNaN: true });
+    const anyPoint = fc.record({ x: anyCoordinate, y: anyCoordinate, z: anyCoordinate });
+    fc.assert(
+      fc.property(fc.array(anyPoint, { maxLength: 8 }), fc.constantFrom(0, 2, 40), fc.double({ min: 0, max: 1, noNaN: true }), (corners, surface, part) => {
+        const extent: StageExtent = { center: origin, corners, surface };
+        const found = stageLimits(frameOf(extent), [fitView(SIDE), capView(TOP, Math.PI / 2)], POLAR);
+        const distance = found.minDistance + (found.maxDistance - found.minDistance) * part;
+        const near = nearDepth(found, extent, distance);
+        expect(near).toBeGreaterThanOrEqual(found.near);
+        expect(near).toBeLessThan(found.far);
+        // A depth above the depth of the limits is in front of each corner and of the ball.
+        if (near > found.near) expect(near).toBeLessThan(distance - reachOf(extent));
+      }),
+    );
   });
 });
 

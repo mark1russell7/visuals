@@ -27,6 +27,7 @@ type ViewAngles: build/theme.chunk.d.ts#ViewAngles
 type ViewAxes: build/theme.chunk.d.ts#ViewAxes
 type ViewFrame: build/theme.chunk.d.ts#ViewFrame
 approach: build/index.d.ts#approach
+ballView: build/theme.chunk.d.ts#ballView
 cameraPosition: build/theme.chunk.d.ts#cameraPosition
 capDistance: build/theme.chunk.d.ts#capDistance
 capView: build/theme.chunk.d.ts#capView
@@ -38,7 +39,9 @@ isClick: build/theme.chunk.d.ts#isClick
 keyAction: build/index.d.ts#keyAction
 markOf: build/theme.chunk.d.ts#markOf
 moveAt: build/index.d.ts#moveAt
+nearDepth: build/theme.chunk.d.ts#nearDepth
 placeBetween: build/theme.chunk.d.ts#placeBetween
+reachOf: build/theme.chunk.d.ts#reachOf
 speedAt: build/theme.chunk.d.ts#speedAt
 stageLimits: build/theme.chunk.d.ts#stageLimits
 surfaceOf: build/theme.chunk.d.ts#surfaceOf
@@ -48,17 +51,150 @@ viewOf: build/theme.chunk.d.ts#viewOf
 
 ## ./three (build/three.d.ts): names
 
-FIELD_OF_VIEW: build/three.d.ts#FIELD_OF_VIEW
-STAGE_LIGHTS: build/three.d.ts#STAGE_LIGHTS
-type Stage: build/three.d.ts#Stage
-type StageContent: build/three.d.ts#StageContent
-type StageFrame: build/three.d.ts#StageFrame
-type StageLights: build/three.d.ts#StageLights
-type StageOptions: build/three.d.ts#StageOptions
-type StagePick: build/three.d.ts#StagePick
-createStage: build/three.d.ts#createStage
+FIELD_OF_VIEW: build/stage.chunk.d.ts#FIELD_OF_VIEW
+STAGE_LIGHTS: build/stage.chunk.d.ts#STAGE_LIGHTS
+type Stage: build/stage.chunk.d.ts#Stage
+type StageContent: build/stage.chunk.d.ts#StageContent
+type StageFrame: build/stage.chunk.d.ts#StageFrame
+type StageLights: build/stage.chunk.d.ts#StageLights
+type StageOptions: build/stage.chunk.d.ts#StageOptions
+type StagePick: build/stage.chunk.d.ts#StagePick
+createStage: build/stage.chunk.d.ts#createStage
+
+## ./globe (build/globe.d.ts): names
+
+GLOBE_POLAR: build/globe.d.ts#GLOBE_POLAR
+type GlobeArea: build/globe.d.ts#GlobeArea
+type GlobeContent: build/globe.d.ts#GlobeContent
+type GlobeOptions: build/globe.d.ts#GlobeOptions
+type GlobePoint: build/globe.d.ts#GlobePoint
+type GlobeStyle: build/globe.d.ts#GlobeStyle
+type GlobeTheme: build/globe.d.ts#GlobeTheme
+MAX_SURFACE_CORNERS: build/globe.d.ts#MAX_SURFACE_CORNERS
+type RegionSurface: build/globe.d.ts#RegionSurface
+createGlobe: build/globe.d.ts#createGlobe
+globeAngles: build/globe.d.ts#globeAngles
+globePlace: build/globe.d.ts#globePlace
+globePoint: build/globe.d.ts#globePoint
+globeView: build/globe.d.ts#globeView
+gridLines: build/globe.d.ts#gridLines
+inSight: build/globe.d.ts#inSight
+rayBall: build/globe.d.ts#rayBall
+regionEdges: build/globe.d.ts#regionEdges
+regionSurface: build/globe.d.ts#regionSurface
+regionView: build/globe.d.ts#regionView
+surfaceSag: build/globe.d.ts#surfaceSag
 
 ## Declarations
+
+### build/globe.d.ts#GLOBE_POLAR
+export declare const GLOBE_POLAR: {
+  readonly min: number;
+  readonly max: number;
+};
+
+### build/globe.d.ts#GlobeArea
+interface GlobeArea<P> {
+  readonly record: string;
+  readonly region: Region;
+  readonly kind: string;
+  readonly value: P;
+  readonly pick?: boolean | undefined;
+}
+
+### build/globe.d.ts#GlobeContent
+interface GlobeContent<P> extends StageContent<P, GlobeTheme> {
+  show(test: (part: GlobeArea<P> | GlobePoint<P>) => boolean): void;
+  placeAt(ray: Raycaster): LatLon | undefined;
+}
+
+### build/globe.d.ts#GlobeOptions
+interface GlobeOptions<P> {
+  readonly areas?: readonly GlobeArea<P>[] | undefined;
+  readonly points?: readonly GlobePoint<P>[] | undefined;
+  readonly radius?: number | undefined;
+  readonly step?: number | undefined;
+  readonly grid?: number | undefined;
+  readonly nearest?: number | undefined;
+  readonly lineWidth?: number | undefined;
+  readonly markWidth?: number | undefined;
+  readonly gridWidth?: number | undefined;
+  readonly pointSize?: number | undefined;
+  readonly shade?: number | undefined;
+}
+
+### build/globe.d.ts#GlobePoint
+interface GlobePoint<P> {
+  readonly record: string;
+  readonly place: LatLon;
+  readonly kind: string;
+  readonly value: P;
+  readonly size?: number | undefined;
+  readonly pick?: boolean | undefined;
+}
+
+### build/globe.d.ts#GlobeStyle
+interface GlobeStyle {
+  readonly fill?: string | undefined;
+  readonly opacity?: number | undefined;
+  readonly line?: string | undefined;
+}
+
+### build/globe.d.ts#GlobeTheme
+interface GlobeTheme extends StageTheme {
+  readonly ball: string;
+  readonly grid: string;
+  readonly shade: string;
+  readonly styles: Readonly<Record<string, GlobeStyle>>;
+  readonly other: GlobeStyle;
+  readonly hovered: string;
+  readonly selected: string;
+}
+
+### build/globe.d.ts#MAX_SURFACE_CORNERS
+export declare const MAX_SURFACE_CORNERS = 2e6;
+
+### build/globe.d.ts#RegionSurface
+interface RegionSurface {
+  readonly corners: Float64Array;
+  readonly triangles: Uint32Array;
+}
+
+### build/globe.d.ts#createGlobe
+export declare function createGlobe<P>(options?: GlobeOptions<P>): GlobeContent<P>;
+
+### build/globe.d.ts#globeAngles
+export declare function globeAngles(place: LatLon): ViewAngles;
+
+### build/globe.d.ts#globePlace
+export declare function globePlace(point: Point3): LatLon | undefined;
+
+### build/globe.d.ts#globePoint
+export declare function globePoint(place: LatLon, radius?: number): Point3;
+
+### build/globe.d.ts#globeView
+export declare function globeView(place: LatLon, degrees?: number, margin?: number): StageView;
+
+### build/globe.d.ts#gridLines
+export declare function gridLines(spacing: number, step: number): Float64Array[];
+
+### build/globe.d.ts#inSight
+export declare function inSight(point: Point3, eye: Point3, radius: number): boolean;
+
+### build/globe.d.ts#rayBall
+export declare function rayBall(origin: Point3, direction: Point3, radius: number): Point3 | undefined;
+
+### build/globe.d.ts#regionEdges
+export declare function regionEdges(region: Region, step: number): Float64Array[];
+
+### build/globe.d.ts#regionSurface
+export declare function regionSurface(region: Region, step: number, maxCorners?: number): RegionSurface;
+
+### build/globe.d.ts#regionView
+export declare function regionView(regions: readonly Region[], margin?: number): StageView;
+
+### build/globe.d.ts#surfaceSag
+export declare function surfaceSag(step: number): number;
 
 ### build/index.d.ts#KEY_TURN
 export declare const KEY_TURN: number;
@@ -107,6 +243,84 @@ export declare function keyAction(key: string, now: Place, options: KeyOptions):
 
 ### build/index.d.ts#moveAt
 export declare function moveAt(move: Move, now: number, surface?: number): MoveStep;
+
+### build/stage.chunk.d.ts#FIELD_OF_VIEW
+declare const FIELD_OF_VIEW = 32;
+
+### build/stage.chunk.d.ts#STAGE_LIGHTS
+declare const STAGE_LIGHTS: StageLights;
+
+### build/stage.chunk.d.ts#Stage
+interface Stage<P, T extends StageTheme = StageTheme> {
+  readonly canvas: HTMLCanvasElement;
+  setContent(content: StageContent<P, T>): void;
+  setTheme(theme: T): void;
+  setView(view: string | StageView, animate?: boolean): void;
+  place(): Place;
+  highlight(records: readonly string[]): void;
+  select(record: string | undefined): void;
+  refresh(): void;
+  dispose(): void;
+}
+
+### build/stage.chunk.d.ts#StageContent
+interface StageContent<P, T extends StageTheme = StageTheme> {
+  readonly objects: readonly Object3D[];
+  readonly extent: StageExtent;
+  has(record: string): boolean;
+  pick(ray: Raycaster): StagePick<P> | undefined;
+  paint(theme: T, mark: (record: string) => Mark): void;
+  step?(frame: StageFrame): boolean;
+  dispose(): void;
+}
+
+### build/stage.chunk.d.ts#StageFrame
+interface StageFrame {
+  readonly camera: PerspectiveCamera;
+  readonly seconds: number;
+  readonly settle: boolean;
+  readonly height: number;
+  readonly fieldOfView: number;
+}
+
+### build/stage.chunk.d.ts#StageLights
+interface StageLights {
+  readonly sky: number;
+  readonly sun: number;
+  readonly from: {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+  };
+}
+
+### build/stage.chunk.d.ts#StageOptions
+interface StageOptions<P, T extends StageTheme = StageTheme> {
+  readonly content: StageContent<P, T>;
+  readonly theme: T;
+  readonly label: string;
+  readonly views: Readonly<Record<string, StageView>>;
+  readonly home: string;
+  readonly keys?: Readonly<Record<string, string>> | undefined;
+  readonly fieldOfView?: number | undefined;
+  readonly polar?: {
+    readonly min?: number | undefined;
+    readonly max?: number | undefined;
+  } | undefined;
+  readonly pan?: boolean | undefined;
+  readonly lights?: StageLights | undefined;
+  readonly onHover?: ((pick: P | undefined) => void) | undefined;
+  readonly onSelect?: ((pick: P | undefined) => void) | undefined;
+}
+
+### build/stage.chunk.d.ts#StagePick
+interface StagePick<P> {
+  readonly record: string;
+  readonly value: P;
+}
+
+### build/stage.chunk.d.ts#createStage
+declare function createStage<P, T extends StageTheme = StageTheme>(container: HTMLElement, options: StageOptions<P, T>): Stage<P, T> | undefined;
 
 ### build/theme.chunk.d.ts#CLICK_DISTANCE
 declare const CLICK_DISTANCE = 4;
@@ -185,6 +399,9 @@ interface ViewFrame {
   readonly aspect: number;
 }
 
+### build/theme.chunk.d.ts#ballView
+declare function ballView(points: readonly Point3[], margin?: number): StageView;
+
 ### build/theme.chunk.d.ts#cameraPosition
 declare function cameraPosition(target: Point3, view: ViewAngles, distance: number): Point3;
 
@@ -215,8 +432,14 @@ declare function isClick(down: {
 ### build/theme.chunk.d.ts#markOf
 declare function markOf(marks: Marks, record: string): Mark;
 
+### build/theme.chunk.d.ts#nearDepth
+declare function nearDepth(limits: StageLimits, extent: StageExtent, distance: number): number;
+
 ### build/theme.chunk.d.ts#placeBetween
 declare function placeBetween(from: Place, to: Place, part: number, surface?: number): Place;
+
+### build/theme.chunk.d.ts#reachOf
+declare function reachOf(extent: StageExtent): number;
 
 ### build/theme.chunk.d.ts#speedAt
 declare function speedAt(distance: number, surface: number): number;
@@ -240,81 +463,3 @@ declare function viewAxes(view: ViewAngles): ViewAxes;
 declare function viewOf(camera: Point3, target: Point3): ViewAngles & {
   readonly distance: number;
 };
-
-### build/three.d.ts#FIELD_OF_VIEW
-export declare const FIELD_OF_VIEW = 32;
-
-### build/three.d.ts#STAGE_LIGHTS
-export declare const STAGE_LIGHTS: StageLights;
-
-### build/three.d.ts#Stage
-interface Stage<P, T extends StageTheme = StageTheme> {
-  readonly canvas: HTMLCanvasElement;
-  setContent(content: StageContent<P, T>): void;
-  setTheme(theme: T): void;
-  setView(view: string | StageView, animate?: boolean): void;
-  place(): Place;
-  highlight(records: readonly string[]): void;
-  select(record: string | undefined): void;
-  refresh(): void;
-  dispose(): void;
-}
-
-### build/three.d.ts#StageContent
-interface StageContent<P, T extends StageTheme = StageTheme> {
-  readonly objects: readonly Object3D[];
-  readonly extent: StageExtent;
-  has(record: string): boolean;
-  pick(ray: Raycaster): StagePick<P> | undefined;
-  paint(theme: T, mark: (record: string) => Mark): void;
-  step?(frame: StageFrame): boolean;
-  dispose(): void;
-}
-
-### build/three.d.ts#StageFrame
-interface StageFrame {
-  readonly camera: PerspectiveCamera;
-  readonly seconds: number;
-  readonly settle: boolean;
-  readonly height: number;
-  readonly fieldOfView: number;
-}
-
-### build/three.d.ts#StageLights
-interface StageLights {
-  readonly sky: number;
-  readonly sun: number;
-  readonly from: {
-    readonly x: number;
-    readonly y: number;
-    readonly z: number;
-  };
-}
-
-### build/three.d.ts#StageOptions
-interface StageOptions<P, T extends StageTheme = StageTheme> {
-  readonly content: StageContent<P, T>;
-  readonly theme: T;
-  readonly label: string;
-  readonly views: Readonly<Record<string, StageView>>;
-  readonly home: string;
-  readonly keys?: Readonly<Record<string, string>> | undefined;
-  readonly fieldOfView?: number | undefined;
-  readonly polar?: {
-    readonly min?: number | undefined;
-    readonly max?: number | undefined;
-  } | undefined;
-  readonly pan?: boolean | undefined;
-  readonly lights?: StageLights | undefined;
-  readonly onHover?: ((pick: P | undefined) => void) | undefined;
-  readonly onSelect?: ((pick: P | undefined) => void) | undefined;
-}
-
-### build/three.d.ts#StagePick
-interface StagePick<P> {
-  readonly record: string;
-  readonly value: P;
-}
-
-### build/three.d.ts#createStage
-export declare function createStage<P, T extends StageTheme = StageTheme>(container: HTMLElement, options: StageOptions<P, T>): Stage<P, T> | undefined;

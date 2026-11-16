@@ -241,6 +241,9 @@ importers:
 
   packages/visuals:
     dependencies:
+      '@mark1russell7/geo':
+        specifier: ^0.5.0
+        version: 0.5.0
       '@mark1russell7/layout-contract':
         specifier: ^0.10.2
         version: 0.10.2
@@ -521,6 +524,10 @@ packages:
     resolution: {integrity: sha512-+EEUBpLrTBcJoMIOF3C5XMVpzO7eYrermtdleEvWLGNJK9/HGPT9o6GgbsW+Vl+s3/0QrXksc0qOIUlE70HI9Q==}
     engines: {node: '>=22'}
     hasBin: true
+
+  '@mark1russell7/geo@0.5.0':
+    resolution: {integrity: sha512-Wqabi1iiDcvkO4gVO0AzYEhiCl9PWyrQh0s+khHU7/7bM4ykPvxRS7YrxjBENl0qYVjSZ5rRMXyLqOxqn42clA==}
+    engines: {node: '>=22.12'}
 
   '@mark1russell7/layout-contract@0.10.2':
     resolution: {integrity: sha512-53xgUkaVtkGXEdRZesdxKl1bSel8NCIs/OyKyk56t7VhjgSIIinELGKei8prBL1/cHnjswXMkkDgu/eo6wqmYg==}
@@ -1892,6 +1899,11 @@ snapshots:
       yaml: 2.9.1
 
   '@mark1russell7/cue@2.1.4': {}
+
+  '@mark1russell7/geo@0.5.0':
+    dependencies:
+      '@mark1russell7/optional': 1.2.0
+      '@mark1russell7/predicates': 0.1.5
 
   '@mark1russell7/layout-contract@0.10.2':
     dependencies:
