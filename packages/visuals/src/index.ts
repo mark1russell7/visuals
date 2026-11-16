@@ -42,6 +42,7 @@ export {
   type TimeSpan,
 } from "./replay.ts";
 export { screenPoint } from "./screen.ts";
+export { stageSupported } from "./support.ts";
 export type { StageTheme } from "./theme.ts";
 export {
   FIELD_OF_VIEW,

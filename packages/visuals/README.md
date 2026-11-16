@@ -59,6 +59,8 @@ const stage = createStage(document.body, {
 
 `createStage` gives `undefined` for a browser with no WebGL 2. It does not throw. Then show a different picture of the same data.
 
+`stageSupported` of the entry `.` tells if the browser has WebGL 2. Use it before a dynamic `import()` of the module that makes the stage. Then a browser with no WebGL 2 does not load `three`.
+
 ## What a stage does
 
 - A drag turns the content. The wheel changes the distance after a click in the picture, so the page scrolls until then.
@@ -419,6 +421,7 @@ The entry `.` has pure functions. A page with no WebGL 2 and a test in Node.js u
 | `screenPoint` | The point of a picture that shows a point of the world, in CSS pixels. |
 | `highlightOf`, `isClick` | The highlight of a record, and the difference between a click and a drag. |
 | `approach` | One step of a value to its goal, for a part that changes with time. |
+| `stageSupported` | True when the browser can show a stage. It gives false in Node.js. |
 
 The space of a stage has the y axis up. A place has a target, a polar angle from the y axis, an azimuth around it and a distance.
 
