@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { KEY_TURN, KEY_ZOOM, keyAction, type KeyAction } from "./keys.ts";
-import type { Place } from "./view.ts";
+import { KEY_PART, KEY_TURN, KEY_ZOOM, keyAction, type KeyAction } from "./keys.ts";
+import { FIELD_OF_VIEW, turnAcross, type Place } from "./view.ts";
 
 const now: Place = { target: { x: 1, y: 2, z: 3 }, polar: 0.9, azimuth: 0.6, distance: 10 };
 const options = { home: "home", views: { t: "top" } };
@@ -41,12 +41,41 @@ describe("keyAction", () => {
     expect(place.distance).toBeGreaterThanOrEqual(9);
   });
 
-  it("turns in smaller steps near the surface", () => {
-    // At the distance 10 from the center of a ball of radius 9, the height is the part 0.1 of the distance.
-    const near = placeOf(keyAction("ArrowRight", now, { ...options, surface: 9 }));
-    expect(near.azimuth - now.azimuth).toBeCloseTo(KEY_TURN * 0.1, 12);
+  it("moves the surface of a ball by a part of the height of the picture, near the ball", () => {
+    // At the distance 9.09 from the center of a ball of radius 9, the picture shows a small part of the ball.
+    const from = { ...now, distance: 9.09 };
+    const near = placeOf(keyAction("ArrowRight", from, { ...options, surface: 9 }));
+    const step = near.azimuth - from.azimuth;
+    expect(step).toBeCloseTo(KEY_PART * turnAcross(9.09, 9, FIELD_OF_VIEW), 12);
+    expect(step).toBeLessThan(KEY_TURN / 10);
+    // The height of the picture shows this angle of the ball, to 2 parts in 100. A step is the part KEY_PART of it.
+    const shown = (2 * 0.09 * Math.tan((FIELD_OF_VIEW * Math.PI) / 360)) / 9;
+    expect(step / (KEY_PART * shown)).toBeGreaterThan(0.98);
+    expect(step / (KEY_PART * shown)).toBeLessThan(1.02);
+    for (const key of ["ArrowLeft", "ArrowUp", "ArrowDown"]) {
+      const next = placeOf(keyAction(key, from, { ...options, surface: 9 }));
+      expect(Math.abs(next.azimuth - from.azimuth) + Math.abs(next.polar - from.polar)).toBeCloseTo(step, 12);
+    }
+  });
+
+  it("turns by the largest step far from a ball", () => {
     const far = placeOf(keyAction("ArrowRight", { ...now, distance: 900 }, { ...options, surface: 9 }));
-    expect(far.azimuth - now.azimuth).toBeCloseTo(KEY_TURN * 0.99, 12);
+    expect(far.azimuth).toBe(now.azimuth + KEY_TURN);
+  });
+
+  it("uses the angle of the picture: a wider picture shows more of the ball, so a step is larger", () => {
+    const from = { ...now, distance: 9.09 };
+    const step = (fieldOfView: number): number => placeOf(keyAction("ArrowRight", from, { ...options, surface: 9, fieldOfView })).azimuth - from.azimuth;
+    expect(step(60)).toBeGreaterThan(step(32));
+    expect(step(32)).toBe(placeOf(keyAction("ArrowRight", from, { ...options, surface: 9 })).azimuth - from.azimuth);
+  });
+
+  it("never turns by more than the largest step", () => {
+    for (const distance of [8, 9, 9.0001, 9.5, 12, 40, 900]) {
+      const next = placeOf(keyAction("ArrowDown", { ...now, distance }, { ...options, surface: 9 }));
+      expect(next.polar - now.polar).toBeGreaterThan(0);
+      expect(next.polar - now.polar).toBeLessThanOrEqual(KEY_TURN + 1e-12);
+    }
   });
 
   it("shows the home view with the keys Home and 0", () => {

@@ -1,7 +1,22 @@
 import type { Point3 } from "@mark1russell7/layout-contract";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { cameraPosition, capDistance, clampPlace, fitDistance, placeBetween, speedAt, turnBetween, viewAxes, viewOf, type Place, type PlaceLimits, type ViewAngles } from "./view.ts";
+import {
+  cameraPosition,
+  capDistance,
+  clampPlace,
+  FIELD_OF_VIEW,
+  fitDistance,
+  placeBetween,
+  speedAt,
+  turnAcross,
+  turnBetween,
+  viewAxes,
+  viewOf,
+  type Place,
+  type PlaceLimits,
+  type ViewAngles,
+} from "./view.ts";
 
 const dot = (a: Point3, b: Point3): number => a.x * b.x + a.y * b.y + a.z * b.z;
 const cross = (a: Point3, b: Point3): Point3 => ({ x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x });
@@ -255,6 +270,106 @@ describe("speedAt", () => {
         expect(speed).toBeLessThanOrEqual(1);
       }),
     );
+  });
+});
+
+describe("turnAcross", () => {
+  const radians = (degrees: number): number => (degrees * Math.PI) / 180;
+  const anyAngle = fc.double({ min: 10, max: 100, noNaN: true });
+  const anyRadius = fc.double({ min: 0.5, max: 50, noNaN: true });
+  /** The distance of a camera, as a factor of the radius of the ball. */
+  const anyFactor = fc.double({ min: 1.0001, max: 40, noNaN: true });
+
+  /**
+   * This function gives the place of a point of a ball in the picture, as a part of the height of the picture from its middle.
+   * The camera is at `distance` from the center of the ball, and it looks at the center.
+   * The point is at the angle `turn` of the ball from the point in the middle of the picture.
+   */
+  const partOf = (distance: number, surface: number, angle: number, turn: number): number => {
+    const aside = surface * Math.sin(turn);
+    const depth = distance - surface * Math.cos(turn);
+    // At a depth, the picture shows this length in its height.
+    return aside / (2 * depth * Math.tan(radians(angle) / 2));
+  };
+
+  it("has the default angle of the picture of a stage", () => {
+    expect(FIELD_OF_VIEW).toBe(32);
+  });
+
+  it("gives no limit for a stage with no ball", () => {
+    expect(turnAcross(5, 0, 32)).toBe(Number.POSITIVE_INFINITY);
+    expect(turnAcross(5, -1, 32)).toBe(Number.POSITIVE_INFINITY);
+    expect(turnAcross(5, Number.NaN, 32)).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it("gives no limit for a distance or an angle that is not possible", () => {
+    expect(turnAcross(0, 1, 32)).toBe(Number.POSITIVE_INFINITY);
+    expect(turnAcross(Number.NaN, 1, 32)).toBe(Number.POSITIVE_INFINITY);
+    for (const angle of [0, -10, 180, 200, Number.NaN]) expect(turnAcross(2, 1, angle)).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it("moves the surface at the middle of the picture by the distance of the pointer, in a short drag", () => {
+    fc.assert(
+      fc.property(anyRadius, anyAngle, anyFactor, (surface, angle, factor) => {
+        const distance = surface * factor;
+        // A drag of this part of the height of the picture.
+        const drag = 1e-4;
+        const moved = partOf(distance, surface, angle, drag * turnAcross(distance, surface, angle));
+        expect(moved / drag).toBeGreaterThan(0.9999);
+        expect(moved / drag).toBeLessThanOrEqual(1 + 1e-12);
+      }),
+    );
+  });
+
+  it("does not move that surface before the pointer, in a drag of each length", () => {
+    fc.assert(
+      fc.property(anyRadius, anyAngle, anyFactor, fc.double({ min: 0.001, max: 0.999, noNaN: true }), (surface, angle, factor, part) => {
+        const distance = surface * factor;
+        // The camera sees the ball to this angle from the middle of the picture. The turn stays in it.
+        const turn = part * Math.acos(surface / distance);
+        const drag = turn / turnAcross(distance, surface, angle);
+        const moved = partOf(distance, surface, angle, turn);
+        expect(moved).toBeGreaterThan(0);
+        expect(moved).toBeLessThanOrEqual(drag * (1 + 1e-12));
+      }),
+    );
+  });
+
+  it("is in proportion to the height of the camera above the surface", () => {
+    fc.assert(
+      fc.property(anyRadius, anyAngle, fc.double({ min: 0.001, max: 20, noNaN: true }), (surface, angle, height) => {
+        const low = turnAcross(surface * (1 + height), surface, angle);
+        const high = turnAcross(surface * (1 + 2 * height), surface, angle);
+        expect(high / low).toBeCloseTo(2, 6);
+      }),
+    );
+  });
+
+  it("grows with the distance, and with the angle of the picture", () => {
+    fc.assert(
+      fc.property(anyRadius, anyAngle, fc.double({ min: 1.0001, max: 60, noNaN: true }), fc.double({ min: 1.0001, max: 3, noNaN: true }), (surface, angle, near, factor) => {
+        expect(turnAcross(surface * near * factor, surface, angle)).toBeGreaterThan(turnAcross(surface * near, surface, angle));
+        expect(turnAcross(surface * near, surface, Math.min(angle * factor, 170))).toBeGreaterThanOrEqual(turnAcross(surface * near, surface, angle));
+      }),
+    );
+  });
+
+  it("does not change with the size of the space", () => {
+    expect(turnAcross(30, 20, 32)).toBeCloseTo(turnAcross(1.5, 1, 32), 12);
+  });
+
+  it("gives a small turn for a camera on the ball or in it, so the camera can turn", () => {
+    for (const distance of [1, 0.999, 0.5]) {
+      expect(turnAcross(distance, 1, 32)).toBeGreaterThan(0);
+      expect(turnAcross(distance, 1, 32)).toBeLessThan(1e-5);
+    }
+  });
+
+  it("gives the known values of a globe with the default picture", () => {
+    // The Earth from 6 km: the height of the picture shows approximately 3.7 km of the surface.
+    expect(turnAcross(1.001, 1, 32) * 6371).toBeCloseTo(3.65, 1);
+    // The full globe from 4 radii: a drag across the height turns the globe by 0.27 of a full turn.
+    expect(turnAcross(4, 1, 32) / (2 * Math.PI)).toBeCloseTo(0.274, 2);
   });
 });
 

@@ -19,6 +19,17 @@ const GALE = '.record[data-record="gale-biscay"]';
 const SUMATRA = '.record[data-record="quake-sumatra"]';
 const SAHEL = '.record[data-record="dust-sahel"]';
 const QUAKES = '.kind[data-kind="quake"]';
+/** The number of frames after which the turn of a drag stopped. The stage decreases the turn that remains by 14 parts in 100 at each frame. */
+const TURN_FRAMES = 45;
+/** This function waits for `count` frames of the page. Thus a wait does not change with the speed of the browser. */
+const frames = (count: number): Promise<void> =>
+  new Promise((done) => {
+    const next = (left: number): void => {
+      if (left <= 0) done();
+      else requestAnimationFrame(() => next(left - 1));
+    };
+    next(count);
+  });
 /** The names of the places that are in the picture. */
 const names = (): HTMLElement[] => $$("#globe .visuals-label").filter((name) => !name.classList.contains("visuals-label-off"));
 
@@ -139,14 +150,25 @@ if (canvas !== null) {
   send("pointerup", x, y, 0);
   check("a click in the picture selects the record under the pointer", await until(() => pressed(SAHEL) === "true"), pressed(SAHEL));
 
-  // The turn of a drag is in proportion to the height of the picture.
-  const far = canvas.getBoundingClientRect().height * 0.3;
+  // The surface follows the pointer in a drag. So the area that was below the pointer at the start is below it at the end.
+  // The drag is longer than the way from the middle of the area to its edge. Thus a turn that is too fast moves the area away from the pointer.
+  const far = canvas.getBoundingClientRect().height * 0.2;
   send("pointerdown", x, y, 1);
   for (let step = 1; step <= 8; step += 1) send("pointermove", x + (far * step) / 8, y, 1);
   const cursor = canvas.style.cursor;
   send("pointerup", x + far, y, 0);
+  const grabbed = canvas.style.cursor;
+  // The pointer goes out of the picture, so no record is below it.
   send("pointerleave", 0, 0, 0);
-  check("the cursor shows a drag, and only during the drag", cursor === "grabbing" && canvas.style.cursor !== "grabbing", [cursor, canvas.style.cursor]);
+  const left = $(SAHEL)?.classList.contains("is-hovered") === false;
+  // The turn continues for some frames after the drag, and the area moves below the pointer during that time.
+  // So the pointer comes back to the end of the drag only after the turn stopped.
+  await frames(TURN_FRAMES);
+  send("pointermove", x + far, y, 0);
+  const followed = await until(() => $(SAHEL)?.classList.contains("is-hovered") === true, 2000);
+  send("pointerleave", 0, 0, 0);
+  check("the cursor shows a drag, and only during the drag", cursor === "grabbing" && grabbed !== "grabbing", [cursor, grabbed]);
+  check("the area below the pointer follows the pointer in a drag", left && followed, [left, followed]);
   check("a drag keeps the selected record", pressed(SAHEL) === "true" && text("#readout") === "Dust advisory, Western Sahel", text("#readout"));
 
   // The area is not at the center after the drag. The name of the selected record stays in the line.

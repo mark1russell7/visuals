@@ -105,7 +105,9 @@ const near: StageView = (frame) => ({ ...front(frame), distance: 4 });
 
 An extent with the field `surface` has a ball around its center, for example a globe. The camera stays out of the ball.
 
-- The turn and the zoom become slower near the surface. So a small region does not go out of the picture with one drag.
+- In a drag, the surface at the middle of the picture follows the pointer, at each height of the camera. So a small region does not go out of the picture with one drag.
+- Near the surface, an arrow key moves the surface by one eighth of the height of the picture.
+- The zoom becomes slower near the surface.
 - A move between two views changes the height above the surface by a constant factor in each step.
 - `capView` shows a cap of the ball. A cap of half of the ball shows all of the ball.
 
@@ -413,6 +415,7 @@ The entry `.` has pure functions. A page with no WebGL 2 and a test in Node.js u
 | `clampPlace`, `stageLimits` | A place in the limits of a stage, and the limits from the content. |
 | `reachOf`, `nearDepth` | The radius of the ball that holds the content, and the nearest depth that the camera draws. |
 | `keyAction` | The action of a key. |
+| `turnAcross`, `speedAt` | The turn that moves the surface of a ball by the height of the picture, and the zoom speed at a height. |
 | `screenPoint` | The point of a picture that shows a point of the world, in CSS pixels. |
 | `highlightOf`, `isClick` | The highlight of a record, and the difference between a click and a drag. |
 | `approach` | One step of a value to its goal, for a part that changes with time. |

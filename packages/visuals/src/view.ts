@@ -135,12 +135,39 @@ export function clampPlace(place: Place, limits: PlaceLimits): Place {
  * This function gives the height of a camera above the surface of a stage, as a part of its distance from the target.
  *
  * `surface` is the radius of the ball around the target that the camera stays out of. A stage with no ball has the value 0.
- * The result is the factor of the turn speed and the zoom speed of a camera: near the surface, a camera moves slowly.
+ * The result is the factor of the zoom speed of a camera: near the surface, a camera moves slowly.
  * The result is 0.02 at least, so a camera on the surface can move away.
  */
 export function speedAt(distance: number, surface: number): number {
   if (!(distance > 0)) return 1;
   return Math.min(Math.max((distance - surface) / distance, 0.02), 1);
+}
+
+/** The default vertical angle of the picture of a stage, in degrees. */
+export const FIELD_OF_VIEW = 32;
+
+/** The smallest result of `turnAcross`, in radians. A camera on a ball, or in it, can thus turn. */
+const SMALLEST_TURN = 1e-6;
+
+/**
+ * This function gives the turn of a camera around a ball that moves the surface by the height of the picture, in radians.
+ *
+ * `surface` is the radius of the ball around the target. `fieldOfView` is the vertical angle of the picture, in degrees.
+ *
+ * The result is exact for the surface at the middle of the picture. Thus that surface follows the pointer in a drag.
+ * The ball is round, so a long drag moves that surface by a smaller distance than the pointer.
+ * Thus the surface does not go before the pointer.
+ *
+ * The result is `Infinity` for a stage with no ball, because such a stage has no surface that follows the pointer.
+ * A turn about the up axis moves a point between the equator and a pole of the ball by a smaller distance.
+ */
+export function turnAcross(distance: number, surface: number, fieldOfView: number): number {
+  const half = (fieldOfView * Math.PI) / 360;
+  if (!(surface > 0) || !(distance > 0) || !(half > 0 && half < Math.PI / 2)) return Number.POSITIVE_INFINITY;
+  // The surface at the middle of the picture is at the distance `distance - surface` from the camera.
+  // There, the height of the picture shows this length of the surface. The turn is that length as an angle of the ball.
+  const shown = 2 * (distance - surface) * Math.tan(half);
+  return Math.max(shown / surface, SMALLEST_TURN);
 }
 
 /**
