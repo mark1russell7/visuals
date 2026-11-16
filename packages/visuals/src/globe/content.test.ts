@@ -4,7 +4,7 @@ import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
 import { describe, expect, it } from "vitest";
 import type { Highlight } from "../highlight.ts";
 import type { StageFrame } from "../stage/stage.ts";
-import { createGlobe, type GlobeArea, type GlobeContent, type GlobePoint, type GlobeTheme } from "./content.ts";
+import { createGlobe, pointRadius, type GlobeArea, type GlobeContent, type GlobePoint, type GlobeTheme } from "./content.ts";
 import { surfaceSag } from "./mesh.ts";
 import { globePoint } from "./space.ts";
 
@@ -511,5 +511,13 @@ describe("dispose", () => {
         "shade material",
       ].sort(),
     );
+  });
+});
+
+describe("pointRadius", () => {
+  it("gives a half of the dot and the ring around it", () => {
+    // The ring is 1.5 pixels wide on each side of the dot.
+    expect(pointRadius(8)).toBe(5.5);
+    expect(pointRadius(0)).toBe(1.5);
   });
 });

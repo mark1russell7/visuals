@@ -1,5 +1,6 @@
 export {
   createGlobe,
+  pointRadius,
   type GlobeArea,
   type GlobeContent,
   type GlobeOptions,

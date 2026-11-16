@@ -1,0 +1,88 @@
+/*
+ * The style sheet of the labels of @mark1russell7/visuals.
+ *
+ * The layer of the labels fills its container, above the picture of the stage. Give the container `position: relative`.
+ * A label takes its font from the page. A page changes a color or the size with these custom properties,
+ * on the layer or on an element around it:
+ *
+ *   --labels-ink   the text
+ *   --labels-halo  the color around the text: the color behind the picture
+ *   --labels-size  the size of the text
+ *
+ * Each label has its kind in `data-kind` and its side in `data-side`. A highlighted label has the class
+ * `visuals-label-hovered`, and the selected label has the class `visuals-label-selected`.
+ */
+.visuals-labels {
+  --_ink: var(--labels-ink, CanvasText);
+  --_halo: var(--labels-halo, Canvas);
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  contain: layout paint;
+  /* The pointer goes through the layer to the picture. */
+  pointer-events: none;
+  user-select: none;
+  /* The layer sets each position from the left. */
+  direction: ltr;
+}
+
+.visuals-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 0.0625rem 0.25rem;
+  border-radius: 0.25rem;
+  color: var(--_ink);
+  font-size: var(--labels-size, 0.8125rem);
+  line-height: 1.25;
+  white-space: nowrap;
+  /* A line of the halo color around each letter keeps the text clear above each color of the picture. */
+  text-shadow:
+    1px 0 0 var(--_halo),
+    -1px 0 0 var(--_halo),
+    0 1px 0 var(--_halo),
+    0 -1px 0 var(--_halo),
+    1px 1px 0 var(--_halo),
+    -1px 1px 0 var(--_halo),
+    1px -1px 0 var(--_halo),
+    -1px -1px 0 var(--_halo),
+    0 0 0.25rem var(--_halo);
+  transition: opacity 0.14s ease-out;
+}
+
+/* A label with no place in the picture. It goes out of view, then the browser ignores it. */
+.visuals-label-off {
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity 0.14s ease-in,
+    visibility 0s 0.14s;
+}
+
+/* A highlight changes no size, so a text does not move when the pointer goes to its record. */
+.visuals-label-hovered {
+  background: var(--_halo);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--_ink) 45%, transparent);
+  text-shadow: none;
+}
+
+.visuals-label-selected {
+  background: var(--_ink);
+  color: var(--_halo);
+  text-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .visuals-label,
+  .visuals-label-off {
+    transition: none;
+  }
+}
+
+/* The system colors have no halo. A plain surface keeps the text clear. */
+@media (forced-colors: active) {
+  .visuals-label {
+    background: Canvas;
+    text-shadow: none;
+  }
+}

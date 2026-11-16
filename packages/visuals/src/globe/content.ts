@@ -132,6 +132,14 @@ const HIGHLIGHT_SIZE = 1.35;
 /** The width of the ring around a point, in CSS pixels. */
 const RING_WIDTH = 1.5;
 
+/**
+ * This function gives the radius of the mark of a point of a globe, in CSS pixels. The mark is the dot, and the ring around it.
+ * `size` is the width of the dot. Give the result to the field `clear` of a label, so the text stays off the mark.
+ */
+export function pointRadius(size: number): number {
+  return size / 2 + RING_WIDTH;
+}
+
 /** The distance around a point where the pointer finds it, in CSS pixels. */
 const PICK_MARGIN = 4;
 

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package",
   "name": "@mark1russell7/visuals",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "3D stages for data on three.js: a camera that a person moves, views by name, picking, highlights and themes, a globe of the Earth, and the shared marks of the viewers as data.",
   "license": "MIT",
   "repository": {
@@ -22,7 +22,8 @@
     "picking",
     "globe",
     "webgl",
-    "marks"
+    "marks",
+    "labels"
   ],
   "type": "module",
   "sideEffects": [
@@ -36,6 +37,8 @@
     "./marks": "./src/marks.ts",
     "./scrubber": "./src/scrubber.ts",
     "./scrubber.css": "./styles/scrubber.css",
+    "./labels": "./src/labels.ts",
+    "./labels.css": "./styles/labels.css",
     "./package.json": "./package.json"
   },
   "files": [
@@ -105,6 +108,12 @@
         "default": "./build/scrubber.js"
       },
       "./scrubber.css": "./styles/scrubber.css",
+      "./labels": {
+        "types": "./build/labels.d.ts",
+        "import": "./build/labels.js",
+        "default": "./build/labels.js"
+      },
+      "./labels.css": "./styles/labels.css",
       "./package.json": "./package.json"
     }
   }

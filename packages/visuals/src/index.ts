@@ -41,6 +41,7 @@ export {
   type Replay,
   type TimeSpan,
 } from "./replay.ts";
+export { screenPoint } from "./screen.ts";
 export type { StageTheme } from "./theme.ts";
 export {
   cameraPosition,

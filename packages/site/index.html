@@ -111,6 +111,37 @@ createScrubber(document.querySelector("#time"), {
       <li>The arrow keys go from one change to the next change. The key Space starts and stops the replay.</li>
       <li>The replay is a model with no browser. A test and a server use the same functions.</li>
     </ul>
+    <h2>Name the places</h2>
+<pre><code>import { globePoint, inSight, pointRadius } from "@mark1russell7/visuals/globe";
+import { createLabels } from "@mark1russell7/visuals/labels";
+import { createStage, stackContents } from "@mark1russell7/visuals/three";
+import "@mark1russell7/visuals/labels.css";
+
+const box = document.querySelector("#globe");
+const labels = createLabels(box, {
+  labels: [
+    {
+      record: "city",
+      at: globePoint({ lat: 32.8, lon: -96.8 }),
+      text: "Dallas",
+      clear: pointRadius(8),
+    },
+  ],
+  // A place on the far side of the Earth has no name.
+  visible: (point, eye) => inSight(point, eye, 1),
+});
+
+const stage = createStage(box, {
+  content: stackContents([globe, labels]),
+  theme,
+  label: "The Earth with the name of one city",
+});</code></pre>
+    <ul class="points">
+      <li>A label is a short text next to a point of a stage. It moves with the camera.</li>
+      <li>No text is on a different text or on a mark. When two texts have one place, the label with the higher rank stays.</li>
+      <li>Each label is an HTML element. So the text is sharp, and it has the font of the page.</li>
+      <li>The label of a highlighted record is first, and it gets the look of the highlight.</li>
+    </ul>
     <p class="note">The <a href="https://github.com/mark1russell7/visuals/tree/main/packages/visuals#readme">README</a> tells each option. <a href="./releases/">Releases</a> shows each version, and <a href="./status/">Status</a> shows the open work.</p>
   </section>
 </main>
