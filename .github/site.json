@@ -7,5 +7,6 @@
   "site-name": "visuals",
   "roadmap": "docs/ROADMAP.md",
   "site-check": true,
-  "site-check-pages": "/,/releases/,/status/"
+  "site-check-pages": "/,/releases/,/status/",
+  "site-check-probe": "packages/site/src/site.probe.ts"
 }
