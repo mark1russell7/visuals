@@ -59,6 +59,8 @@ const stage = createStage(document.body, {
 
 `createStage` gives `undefined` for a browser with no WebGL 2. It does not throw. Then show a different picture of the same data.
 
+`stageSupported` of the entry `.` tells if the browser has WebGL 2. Use it before a dynamic `import()` of the module that makes the stage. Then a browser with no WebGL 2 does not load `three`.
+
 ## What a stage does
 
 - A drag turns the content. The wheel changes the distance after a click in the picture, so the page scrolls until then.
@@ -191,7 +193,7 @@ const stage = createStage(document.body, {
 The views of a globe:
 
 - `globeView(place, degrees)` shows the cap of the Earth around a place. The default shows a half of the Earth.
-- `regionView(regions)` shows each region of a list, from above their middle.
+- `regionView(regions)` shows each region of a list, from above their middle. The regions fill the width or the height of the picture.
 
 The functions of the globe maths have no state. A test in Node.js uses them:
 
@@ -411,7 +413,7 @@ The entry `.` has pure functions. A page with no WebGL 2 and a test in Node.js u
 | `fitDistance`, `capDistance` | The distance at which the camera shows points, or a cap of a ball. |
 | `cameraPosition`, `viewOf` | The position of a camera from its place, and the place from its position. |
 | `placeBetween`, `moveAt`, `easeInOut` | A place on the way between two places, and the place at a time of a move. |
-| `ballView` | A view that shows points on a ball, from above their middle. |
+| `ballView` | A view that shows points on a ball, from above their middle. The points fill the width or the height of the picture. |
 | `clampPlace`, `stageLimits` | A place in the limits of a stage, and the limits from the content. |
 | `reachOf`, `nearDepth` | The radius of the ball that holds the content, and the nearest depth that the camera draws. |
 | `keyAction` | The action of a key. |
@@ -419,6 +421,7 @@ The entry `.` has pure functions. A page with no WebGL 2 and a test in Node.js u
 | `screenPoint` | The point of a picture that shows a point of the world, in CSS pixels. |
 | `highlightOf`, `isClick` | The highlight of a record, and the difference between a click and a drag. |
 | `approach` | One step of a value to its goal, for a part that changes with time. |
+| `stageSupported` | True when the browser can show a stage. It gives false in Node.js. |
 
 The space of a stage has the y axis up. A place has a target, a polar angle from the y axis, an azimuth around it and a distance.
 

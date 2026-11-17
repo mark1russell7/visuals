@@ -49,6 +49,7 @@ export function globeView(place: LatLon, degrees: number = 90, margin: number = 
 
 /**
  * This function makes a view that shows each region of a list. The camera is above the middle of the regions.
+ * The regions fill the width or the height of the picture, so a wide region is large in a wide picture.
  * A list with no regions gives a view of a half of the Earth. `margin` is the space around the regions, as a factor of the height above the surface.
  */
 export function regionView(regions: readonly Region[], margin: number = FIT_MARGIN): StageView {

@@ -71,6 +71,7 @@ spanPart: build/replay.chunk.d.ts#spanPart
 spanTime: build/replay.chunk.d.ts#spanTime
 speedAt: build/theme.chunk.d.ts#speedAt
 stageLimits: build/theme.chunk.d.ts#stageLimits
+stageSupported: build/index.d.ts#stageSupported
 surfaceOf: build/theme.chunk.d.ts#surfaceOf
 turnAcross: build/theme.chunk.d.ts#turnAcross
 turnBetween: build/theme.chunk.d.ts#turnBetween
@@ -354,6 +355,9 @@ export declare function moveAt(move: Move, now: number, surface?: number): MoveS
 
 ### build/index.d.ts#screenPoint
 export declare function screenPoint(point: Point3, view: ArrayLike<number>, projection: ArrayLike<number>, width: number, height: number): Point | undefined;
+
+### build/index.d.ts#stageSupported
+export declare function stageSupported(page?: Document | undefined): boolean;
 
 ### build/labels.d.ts#LABEL_GAP
 export declare const LABEL_GAP = 4;

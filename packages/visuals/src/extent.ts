@@ -73,23 +73,30 @@ export function capView(angles: ViewAngles, angle: number, margin: number = FIT_
 /**
  * This function makes a view of points on the ball of the content. The camera is above the middle of the points, and the picture shows each point.
  *
- * The middle is the center of the box of the points. `margin` is the space around the points, as a factor of the height above the ball.
+ * The middle is the center of the box of the points. The camera is at the smallest distance that shows each point in the width and in the height of the picture.
+ * Thus wide points fill a wide picture. `margin` is the space around the points, as a factor of the height above the ball.
  * A list with no points gives a view of all of the ball from the front. Points with their middle at the center of the ball give the same view.
  */
 export function ballView(points: readonly Point3[], margin: number = FIT_MARGIN): StageView {
-  let found: { readonly center: Point3; readonly view: StageView } | undefined;
+  let found: { readonly center: Point3; readonly angles: ViewAngles | undefined } | undefined;
   return (frame) => {
-    const { center } = frame.extent;
-    // The middle and the cap are the same for each picture of one content. So the function calculates them one time for each center.
+    const { extent } = frame;
+    const { center } = extent;
+    // The middle is the same for each picture of one content. So the function calculates it one time for each center.
     if (found === undefined || found.center.x !== center.x || found.center.y !== center.y || found.center.z !== center.z) {
-      found = { center, view: capOf(points, center, margin) };
+      found = { center, angles: middleOf(points, center) };
     }
-    return found.view(frame);
+    const { angles } = found;
+    if (angles === undefined) return capView({ polar: Math.PI / 2, azimuth: 0 }, Math.PI / 2, margin)(frame);
+    const surface = surfaceOf(extent);
+    // A point of the ball needs no more distance than the outline of the ball. Thus the camera is not farther than a view of all of the ball.
+    const height = Math.max(fitDistance(points, center, angles, frame.fieldOfView, frame.aspect) - surface, 0);
+    return { target: center, polar: angles.polar, azimuth: angles.azimuth, distance: surface > 0 ? surface + height * margin : 1 };
   };
 }
 
-/** This function makes the view of the cap of a ball around `center` that holds each point. */
-function capOf(points: readonly Point3[], center: Point3, margin: number): StageView {
+/** This function gives the direction from `center` to the middle of the box of the points. It gives `undefined` when the middle has no direction. */
+function middleOf(points: readonly Point3[], center: Point3): ViewAngles | undefined {
   const low = { x: Infinity, y: Infinity, z: Infinity };
   const high = { x: -Infinity, y: -Infinity, z: -Infinity };
   for (const point of points) {
@@ -102,19 +109,9 @@ function capOf(points: readonly Point3[], center: Point3, margin: number): Stage
   }
   const middle = { x: (low.x + high.x) / 2 - center.x, y: (low.y + high.y) / 2 - center.y, z: (low.z + high.z) / 2 - center.z };
   const length = Math.hypot(middle.x, middle.y, middle.z);
-  if (!(length > 0) || !Number.isFinite(length)) return capView({ polar: Math.PI / 2, azimuth: 0 }, Math.PI / 2, margin);
-  let angle = 0;
-  for (const point of points) {
-    const x = point.x - center.x;
-    const y = point.y - center.y;
-    const z = point.z - center.z;
-    const distance = Math.hypot(x, y, z);
-    if (!(distance > 0)) continue;
-    const cosine = (x * middle.x + y * middle.y + z * middle.z) / (distance * length);
-    angle = Math.max(angle, Math.acos(Math.min(Math.max(cosine, -1), 1)));
-  }
+  if (!(length > 0) || !Number.isFinite(length)) return undefined;
   const { polar, azimuth } = viewOf(middle, { x: 0, y: 0, z: 0 });
-  return capView({ polar, azimuth }, angle, margin);
+  return { polar, azimuth };
 }
 
 /** This function gives the radius of the ball around the center of an extent that holds the ball of the extent and each corner. */
