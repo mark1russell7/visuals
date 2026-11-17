@@ -2,7 +2,7 @@
 
 3D stages for data. A stage is one canvas of three.js with a camera that a person moves. The content of the stage is your data.
 
-The package has seven entries and two style sheets:
+The package has eight entries and two style sheets:
 
 - The entry `.` has the camera maths and the model of a replay. It needs no browser, and it does not need `three`.
 - The entry `/marks` has the marks that a viewer draws, as plain data. It needs no browser, and it does not need `three`.
@@ -13,6 +13,7 @@ The package has seven entries and two style sheets:
 - The file `/scrubber.css` is the style sheet of the scrubber.
 - The entry `/labels` has the labels of a stage: a short text next to a point, as an element of the page. It needs a browser.
 - The file `/labels.css` is the style sheet of the labels.
+- The entry `/graph` has the camera of a flat picture, for example a graph of boxes and edges. It does not need `three`.
 
 ## Install
 
@@ -20,7 +21,7 @@ The package has seven entries and two style sheets:
 npm install @mark1russell7/visuals three
 ```
 
-A package that uses only the entries `.`, `/marks` and `/scrubber` does not install `three`.
+A package that uses only the entries `.`, `/marks`, `/scrubber` and `/graph` does not install `three`.
 
 ## A stage
 
@@ -469,6 +470,43 @@ stage?.refresh();
 - `signReach` gives the radius of a sign with its line. Give it to the field `clear` of a label.
 - The pick of a field gives the mark. `fieldValue` reads the value of a cell.
 - The content draws the marks in the space of the stage. `transformMarks` moves the marks of a different space into it.
+
+## A flat picture
+
+The entry `/graph` is for a flat picture that a person moves and zooms, for example a graph of boxes and edges.
+This version has the maths of its camera. Each function is pure, so a test in Node.js uses it.
+
+```ts
+import { fitRect, freeArea, toPicture, viewBetween, zoomView } from "@mark1russell7/visuals/graph";
+
+// A panel of the page covers 300 pixels at the right of a picture of 1000 by 600 pixels.
+const area = freeArea({ width: 1000, height: 600 }, { right: 300 }); // => { x: 0, y: 0, w: 700, h: 600 }
+const all = fitRect({ x: 0, y: 0, w: 1304, h: 400 }, area); // => { x: 24, y: 200, k: 0.5 }
+
+// A zoom at the middle of the free area: the point of the picture there stays there.
+const near = zoomView(all, { x: 350, y: 300 }, 2); // => { x: -302, y: 100, k: 1 }
+toPicture(near, { x: 350, y: 300 }); // => { x: 652, y: 200 }
+viewBetween(all, near, 0.5).k; // => 0.707: a half of the way is a half of the factor of the zoom
+```
+
+A view has the zoom `k` and the screen position of the origin of the picture. A point `p` shows at `p * k + (x, y)`.
+
+| Function | What it gives |
+| --- | --- |
+| `toPicture`, `toScreen`, `rectToScreen` | The point of the picture at a screen point, and the screen position of a point or a rectangle. |
+| `viewAt`, `panView`, `zoomView` | The view that shows a point at a screen point, the view after a move, and the view after a zoom at a screen point. |
+| `wheelFactor` | The factor of the zoom for one event of a wheel, also for a pinch on a touch pad. |
+| `pinchView` | The view after the two pointers of a pinch move. Each pointer keeps its point of the picture. |
+| `freeArea` | The part of a picture that the page does not cover. A camera shows a selection there. |
+| `fitRect` | The view that shows a rectangle in an area, as large as the area permits. |
+| `frameRects` | The view for the first rectangle of a list that the area shows at a least zoom or more. |
+| `showsRect` | True when a view shows all of a rectangle in an area. Thus a camera moves only for a selection that is not in view. |
+| `viewBetween`, `pictureMoveAt` | A view on the way between two views, and the view at a time of a move. |
+
+- A move between two views is a zoom at one screen point. Each point of the picture moves along a straight line, in one direction.
+- The zoom of a move changes by an equal factor for each equal step, so it has one speed in the picture.
+- `frameRects` gets the bounds of groups of boxes, the largest group first. It takes the first group that a person can read.
+- The zoom stays in `ZOOM_LIMITS`. Each function with a zoom takes different limits as a parameter.
 
 ## The camera maths
 

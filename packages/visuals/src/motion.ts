@@ -27,11 +27,19 @@ export function easeInOut(part: number): number {
 }
 
 /**
+ * This function gives the part of a move that is complete at the time `now`, from 0 to 1.
+ * `start` is the time of the start of the move, and `duration` is the time that it takes. A move with no duration is complete.
+ */
+export function partAt(start: number, duration: number, now: number): number {
+  return duration > 0 ? Math.min(Math.max((now - start) / duration, 0), 1) : 1;
+}
+
+/**
  * This function gives the place of a camera at the time `now` of a move, in milliseconds.
  * A move with no duration is at its end immediately. `surface` is the radius of the ball around the target, or 0 for no ball.
  */
 export function moveAt(move: Move, now: number, surface: number = 0): MoveStep {
-  const part = move.duration > 0 ? Math.min(Math.max((now - move.start) / move.duration, 0), 1) : 1;
+  const part = partAt(move.start, move.duration, now);
   if (part >= 1) return { place: move.to, done: true };
   return { place: placeBetween(move.from, move.to, easeInOut(part), surface), done: false };
 }
