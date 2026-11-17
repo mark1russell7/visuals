@@ -5,6 +5,7 @@ import {
   BufferGeometry,
   Color,
   FrontSide,
+  Group,
   InstancedInterleavedBuffer,
   InterleavedBufferAttribute,
   Mesh,
@@ -34,6 +35,13 @@ export interface GlobeStyle {
   readonly opacity?: number | undefined;
   /** The color of the edge of an area, or of the ring around a point. An area with no color has no edge. */
   readonly line?: string | undefined;
+  /**
+   * The lengths of a dash and of a gap of the edge of an area, in CSS pixels. An edge with no `dash` is a solid line.
+   * The lengths are correct on the surface below the camera, at each distance of the camera. Near the rim of the Earth, a dash is shorter in the picture.
+   * A length that is not more than 0 gives a solid line.
+   * The edge of a record with a highlight keeps the dash, and the ring of a point has no dash.
+   */
+  readonly dash?: readonly [dash: number, gap: number] | undefined;
 }
 
 /** The colors of a globe. Each color is a CSS hex color. */
@@ -209,6 +217,23 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
+/** The lengths of a dash and of a gap of a line, in CSS pixels. */
+type Dash = readonly [dash: number, gap: number];
+
+/** This function gives the dash of a style. A style with no dash gives `undefined`, and so does a length that is not more than 0. */
+function dashOf(style: GlobeStyle): Dash | undefined {
+  const [dash, gap] = style.dash ?? [0, 0];
+  return Number.isFinite(dash) && Number.isFinite(gap) && dash > 0 && gap > 0 ? [dash, gap] : undefined;
+}
+
+/** This function adds an area to the areas with the same pattern of a dash. */
+function addPattern<T>(patterns: Map<string, T[]>, dash: Dash, part: T): void {
+  const pattern = dash.join(" ");
+  const same = patterns.get(pattern);
+  if (same === undefined) patterns.set(pattern, [part]);
+  else same.push(part);
+}
+
 /** An area with the place of its data in the buffers of the globe. */
 interface AreaPart<P> {
   readonly area: GlobeArea<P>;
@@ -222,6 +247,8 @@ interface AreaPart<P> {
   shown: boolean;
   filled: boolean;
   lined: boolean;
+  /** The dash of the edge, or `undefined` for a solid line. */
+  dash: Dash | undefined;
   highlight: Highlight;
 }
 
@@ -240,15 +267,24 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** This function writes the points of lines into a list of segments on a ball: six numbers for each segment. It gives the count of the segments. */
-function addSegments(lines: readonly Float64Array[], radius: number, to: number[]): number {
+/**
+ * This function writes the points of lines into a list of segments on a ball: six numbers for each segment. It gives the count of the segments.
+ * With `lengths`, it also writes two numbers for each segment: the length of the line to the start of the segment, and to its end.
+ */
+function addSegments(lines: readonly Float64Array[], radius: number, to: number[], lengths?: number[]): number {
   let count = 0;
   for (const line of lines) {
     let from: Point3 | undefined;
+    let length = 0;
     for (let index = 0; index + 1 < line.length; index += 2) {
       const next = globePoint({ lat: line[index + 1] ?? 0, lon: line[index] ?? 0 }, radius);
       if (from !== undefined) {
         to.push(from.x, from.y, from.z, next.x, next.y, next.z);
+        if (lengths !== undefined) {
+          const end = length + Math.hypot(next.x - from.x, next.y - from.y, next.z - from.z);
+          lengths.push(length, end);
+          length = end;
+        }
         count += 1;
       }
       from = next;
@@ -313,6 +349,7 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
   // The areas: one surface and one list of segments for all of them.
   const surfaces: { readonly corners: Float64Array; readonly triangles: Uint32Array }[] = [];
   const segmentList: number[] = [];
+  const lengthList: number[] = [];
   const areaParts: AreaPart<P>[] = [];
   let cornerTotal = 0;
   let indexTotal = 0;
@@ -320,7 +357,7 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
   for (const area of options.areas ?? []) {
     try {
       const surface = regionSurface(area.region, step);
-      const segmentCount = addSegments(regionEdges(area.region, step), layer, segmentList);
+      const segmentCount = addSegments(regionEdges(area.region, step), layer, segmentList, lengthList);
       areaParts.push({
         area,
         locate: area.pick === false ? undefined : pointLocator(area.region),
@@ -333,6 +370,7 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
         shown: true,
         filled: false,
         lined: false,
+        dash: undefined,
         highlight: 0,
       });
       surfaces.push(surface);
@@ -377,7 +415,19 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
   edges.renderOrder = 3;
   edges.frustumCulled = false;
 
-  // The edges of the records with a highlight, above the other edges.
+  // The edges with dashes. A line material has one pattern, so each pattern of the theme gets an object of its own in this group.
+  // The group keeps the order 0. Thus three.js sorts its objects with the other objects of the globe, by their own order.
+  // The areas with a dash and a highlight get one more object for each pattern, with the order and the width of the highlight.
+  const allLengths = Float32Array.from(lengthList);
+  const dashed = new Group();
+  let dashedLines: LineSegments2[] = [];
+  let litLines: LineSegments2[] = [];
+  /** The text of the dashed edges of the last picture. The globe makes the objects again only for a different text. */
+  let dashedText = "[]";
+  /** The count of CSS pixels of one unit of the stage, on the surface below the camera. */
+  let dashScale = 1;
+
+  // The solid edges of the records with a highlight, above the other edges.
   const highlightMaterial = new LineMaterial({ linewidth: options.highlightWidth ?? 2.5, vertexColors: true, transparent: true, depthWrite: false });
   const highlighted = new LineSegments2(new LineSegmentsGeometry(), highlightMaterial);
   highlighted.renderOrder = 5;
@@ -436,6 +486,7 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
     const style = styleOf(theme, part.area.kind);
     part.filled = style.fill !== undefined;
     part.lined = style.line !== undefined;
+    part.dash = dashOf(style);
     if (style.fill !== undefined) {
       color.set(style.fill);
       const opacity = Math.min(Math.max(style.opacity ?? 1, 0), 1);
@@ -451,25 +502,104 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
     }
   };
 
+  /** This function releases objects of the edges with dashes, and removes them from the picture. */
+  const release = (lines: readonly LineSegments2[]): void => {
+    for (const line of lines) {
+      line.geometry.dispose();
+      line.material.dispose();
+      dashed.remove(line);
+    }
+  };
+
+  /**
+   * This function makes one object of edges with dashes for each pattern, from the segments of the areas of the pattern.
+   * `paint` writes the colors of the segments of an area into a list, from a position of the list.
+   */
+  const dashedObjects = (
+    patterns: ReadonlyMap<string, readonly AreaPart<P>[]>,
+    width: number,
+    order: number,
+    paint: (part: AreaPart<P>, colors: Float32Array, at: number) => void,
+  ): LineSegments2[] => {
+    const lines: LineSegments2[] = [];
+    for (const parts of patterns.values()) {
+      const dash = parts[0]?.dash;
+      if (dash === undefined) continue;
+      const count = parts.reduce((sum, part) => sum + part.segmentCount, 0);
+      const positions = new Float32Array(count * 6);
+      const colors = new Float32Array(count * 6);
+      const lengths = new Float32Array(count * 2);
+      let at = 0;
+      for (const part of parts) {
+        const to = part.firstSegment + part.segmentCount;
+        positions.set(allSegments.subarray(part.firstSegment * 6, to * 6), at * 6);
+        paint(part, colors, at * 6);
+        lengths.set(allLengths.subarray(part.firstSegment * 2, to * 2), at * 2);
+        at += part.segmentCount;
+      }
+      const geometry = segmentGeometry(new InstancedInterleavedBuffer(positions, 6, 1), new InstancedInterleavedBuffer(colors, 6, 1), count, bounds);
+      const distances = new InstancedInterleavedBuffer(lengths, 2, 1);
+      geometry.setAttribute("instanceDistanceStart", new InterleavedBufferAttribute(distances, 1, 0));
+      geometry.setAttribute("instanceDistanceEnd", new InterleavedBufferAttribute(distances, 1, 1));
+      const material = new LineMaterial({ linewidth: width, vertexColors: true, transparent: true, depthWrite: false, dashed: true, dashSize: dash[0], gapSize: dash[1], dashScale });
+      const line = new LineSegments2(geometry, material);
+      line.renderOrder = order;
+      line.frustumCulled = false;
+      dashed.add(line);
+      lines.push(line);
+    }
+    return lines;
+  };
+
+  /** This function makes the objects of the edges with dashes: one object for each pattern, with the segments of its areas. */
+  const syncDashed = (patterns: ReadonlyMap<string, readonly AreaPart<P>[]>, theme: GlobeTheme): void => {
+    const text = JSON.stringify([...patterns].map(([pattern, parts]) => [pattern, parts.map((part) => [part.firstSegment, styleOf(theme, part.area.kind).line])]));
+    if (text === dashedText) return;
+    dashedText = text;
+    release(dashedLines);
+    dashedLines = dashedObjects(patterns, options.lineWidth ?? 1.25, 3, (part, colors, at) => {
+      colors.set(allSegmentColors.subarray(part.firstSegment * 6, (part.firstSegment + part.segmentCount) * 6), at);
+    });
+  };
+
+  /**
+   * This function makes the dashed edges of the records with a highlight: one object for each pattern, above the other edges.
+   * They are few, and a record changes its highlight only on an act of a person. So the globe makes them again at each change.
+   */
+  const syncLit = (patterns: ReadonlyMap<string, readonly AreaPart<P>[]>, theme: GlobeTheme): void => {
+    release(litLines);
+    litLines = dashedObjects(patterns, options.highlightWidth ?? 2.5, 5, (part, colors, at) => {
+      color.set(highlightColor(theme, part.highlight));
+      const values = [color.r, color.g, color.b, color.r, color.g, color.b];
+      for (let segment = 0; segment < part.segmentCount; segment++) colors.set(values, at + segment * 6);
+    });
+  };
+
   /** This function puts the data of the shown parts at the start of the buffers that the picture draws. */
   const sync = (theme: GlobeTheme): void => {
     let indexCount = 0;
     let segmentCount = 0;
     let highlightCount = 0;
+    const patterns = new Map<string, AreaPart<P>[]>();
+    const lit = new Map<string, AreaPart<P>[]>();
     for (const part of areaParts) {
       if (!part.shown) continue;
       if (part.filled) {
         fillIndices.array.set(allIndices.subarray(part.firstIndex, part.firstIndex + part.indexCount), indexCount);
         indexCount += part.indexCount;
       }
-      if (part.lined) {
+      if (part.lined && part.dash !== undefined) {
+        addPattern(patterns, part.dash, part);
+      } else if (part.lined) {
         const from = part.firstSegment * 6;
         const to = from + part.segmentCount * 6;
         edgePositions.array.set(allSegments.subarray(from, to), segmentCount * 6);
         edgeColors.array.set(allSegmentColors.subarray(from, to), segmentCount * 6);
         segmentCount += part.segmentCount;
       }
-      if (part.highlight !== 0) highlightCount += part.segmentCount;
+      // The edge of a highlight keeps the dash of its area.
+      if (part.highlight !== 0 && part.dash !== undefined) addPattern(lit, part.dash, part);
+      else if (part.highlight !== 0) highlightCount += part.segmentCount;
     }
     fillIndices.needsUpdate = true;
     fillGeometry.setDrawRange(0, indexCount);
@@ -478,13 +608,15 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
     edgeColors.needsUpdate = true;
     edgeGeometry.instanceCount = segmentCount;
     edges.visible = segmentCount > 0;
+    syncDashed(patterns, theme);
+    syncLit(lit, theme);
 
-    // The edges of the records with a highlight get a new geometry. They are few, and a record changes its highlight only on an act of a person.
+    // The solid edges of the records with a highlight get a new geometry. They are few, and a record changes its highlight only on an act of a person.
     const highlightPositions = new Float32Array(highlightCount * 6);
     const highlightColors = new Float32Array(highlightCount * 6);
     let at = 0;
     for (const part of areaParts) {
-      if (!part.shown || part.highlight === 0) continue;
+      if (!part.shown || part.highlight === 0 || part.dash !== undefined) continue;
       color.set(highlightColor(theme, part.highlight));
       const values = [color.r, color.g, color.b, color.r, color.g, color.b];
       highlightPositions.set(allSegments.subarray(part.firstSegment * 6, (part.firstSegment + part.segmentCount) * 6), at * 6);
@@ -513,7 +645,7 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
   };
 
   return {
-    objects: [ball, grid, fills, edges, shade, highlighted, dots] satisfies Object3D[],
+    objects: [ball, grid, fills, edges, dashed, shade, highlighted, dots] satisfies Object3D[],
     extent: { center: { x: 0, y: 0, z: 0 }, corners: [], surface: radius, minDistance: radius * (1 + Math.max(options.nearest ?? 0.005, 1e-6)) },
     has: (record) => records.has(record),
     pick(ray): StagePick<P> | undefined {
@@ -561,6 +693,11 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
     },
     step(frame: StageFrame): boolean {
       pixelAngle = (2 * Math.tan((frame.fieldOfView * Math.PI) / 360)) / Math.max(frame.height, 1);
+      // A dash has a constant length in the picture. So its scale follows the height of the camera above the surface.
+      const height = Math.max(frame.camera.position.length() - radius, radius * 1e-6);
+      dashScale = 1 / (pixelAngle * height);
+      for (const line of dashedLines) line.material.dashScale = dashScale;
+      for (const line of litLines) line.material.dashScale = dashScale;
       return false;
     },
     show(test): void {
@@ -582,6 +719,10 @@ export function createGlobe<P>(options: GlobeOptions<P> = {}): GlobeContent<P> {
       fillMaterial.dispose();
       edgeGeometry.dispose();
       edgeMaterial.dispose();
+      release(dashedLines);
+      release(litLines);
+      dashedLines = [];
+      litLines = [];
       highlighted.geometry.dispose();
       highlightMaterial.dispose();
       pointGeometry.dispose();

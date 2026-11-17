@@ -1,5 +1,5 @@
 import { GeoError, type LatLon, type Position, type Region } from "@mark1russell7/geo";
-import { Mesh, MeshBasicMaterial, PerspectiveCamera, Points, Raycaster, Vector3, type BufferAttribute, type InterleavedBufferAttribute, type Object3D } from "three";
+import { Group, Mesh, MeshBasicMaterial, PerspectiveCamera, Points, Raycaster, Vector3, type BufferAttribute, type InterleavedBufferAttribute, type Object3D } from "three";
 import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
 import { describe, expect, it } from "vitest";
 import type { Highlight } from "../highlight.ts";
@@ -21,6 +21,9 @@ const theme: GlobeTheme = {
     nothing: {},
     city: { fill: "#ffffff", line: "#000000" },
     plain: { fill: "#0000ff" },
+    test: { line: "#00ffcc", dash: [6, 4] },
+    drill: { fill: "#ff8000", opacity: 0.2, line: "#ff0000", dash: [6, 4] },
+    draft: { line: "#ffffff", dash: [2, 3] },
   },
   other: { fill: "#808080", opacity: 0.5 },
   hovered: "#ffff00",
@@ -58,8 +61,12 @@ function rayTo(place: LatLon, above: LatLon = { lat: 0, lon: 0 }, radius: number
   return new Raycaster(new Vector3(eye.x, eye.y, eye.z), direction);
 }
 
-/** This function gives the frame of a picture with a height, in CSS pixels. */
-const frameOf = (height: number): StageFrame => ({ camera: new PerspectiveCamera(), seconds: 0, settle: true, height, fieldOfView: 32 });
+/** This function gives the frame of a picture with a height, in CSS pixels. The camera is at a distance from the center of the stage. */
+const frameOf = (height: number, distance: number = 0): StageFrame => {
+  const camera = new PerspectiveCamera();
+  camera.position.set(0, 0, distance);
+  return { camera, seconds: 0, settle: true, height, fieldOfView: 32 };
+};
 
 /** The objects of a globe, each with its type. */
 interface Parts {
@@ -67,6 +74,7 @@ interface Parts {
   readonly grid: LineSegments2;
   readonly fills: Mesh;
   readonly edges: LineSegments2;
+  readonly dashed: Group;
   readonly shade: Mesh;
   readonly highlighted: LineSegments2;
   readonly dots: Points;
@@ -83,9 +91,29 @@ function linesOf(object: Object3D | undefined): LineSegments2 {
 }
 
 function partsOf(globe: GlobeContent<string>): Parts {
-  const [ball, grid, fills, edges, shade, highlighted, dots] = globe.objects;
+  const [ball, grid, fills, edges, dashed, shade, highlighted, dots] = globe.objects;
+  if (!(dashed instanceof Group)) throw new Error("The object of the edges with dashes is not a group.");
   if (!(dots instanceof Points)) throw new Error("The last object is not a list of points.");
-  return { ball: meshOf(ball), grid: linesOf(grid), fills: meshOf(fills), edges: linesOf(edges), shade: meshOf(shade), highlighted: linesOf(highlighted), dots };
+  return { ball: meshOf(ball), grid: linesOf(grid), fills: meshOf(fills), edges: linesOf(edges), dashed, shade: meshOf(shade), highlighted: linesOf(highlighted), dots };
+}
+
+/** This function gives the objects of the edges with dashes: one object for each pattern. They have the order of the solid edges. */
+const dashedOf = (globe: GlobeContent<string>): LineSegments2[] =>
+  partsOf(globe)
+    .dashed.children.map(linesOf)
+    .filter((line) => line.renderOrder === 3);
+
+/** This function gives the objects of the dashed edges with a highlight: one object for each pattern. They have the order of the highlight. */
+const litOf = (globe: GlobeContent<string>): LineSegments2[] =>
+  partsOf(globe)
+    .dashed.children.map(linesOf)
+    .filter((line) => line.renderOrder === 5);
+
+/** This function gives the first object of the edges with dashes. */
+function dashedLine(globe: GlobeContent<string>): LineSegments2 {
+  const [line] = dashedOf(globe);
+  if (line === undefined) throw new Error("The globe has no edge with dashes.");
+  return line;
 }
 
 /** This function gives the numbers of one item of an attribute. */
@@ -112,8 +140,9 @@ const close = (values: readonly number[]): unknown[] => values.map((value) => ex
 describe("createGlobe", () => {
   it("gives the objects in the sequence of the picture", () => {
     const globe = createGlobe<string>();
-    expect(globe.objects).toHaveLength(7);
-    expect(globe.objects.map((object) => object.renderOrder)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(globe.objects).toHaveLength(8);
+    // The group of the edges with dashes has no order of its own. Each of its objects has the order of the solid edges.
+    expect(globe.objects.map((object) => object.renderOrder)).toEqual([0, 1, 2, 3, 0, 4, 5, 6]);
     partsOf(globe);
   });
 
@@ -139,6 +168,7 @@ describe("createGlobe", () => {
     expect(grid.visible).toBe(true);
     expect(fills.visible).toBe(false);
     expect(edges.visible).toBe(false);
+    expect(dashedOf(globe)).toHaveLength(0);
     expect(highlighted.visible).toBe(false);
     expect(dots.visible).toBe(false);
     expect(globe.pick(rayTo({ lat: 5, lon: 5 }))).toBeUndefined();
@@ -291,6 +321,235 @@ describe("paint", () => {
     const globe = createGlobe({ points: [point("city", "city", { lat: 5, lon: 5 })], pointSize: 14 });
     globe.paint(theme, noHighlight);
     expect(partsOf(globe).dots.geometry.getAttribute("size").getX(0)).toBe(14);
+  });
+});
+
+describe("dash", () => {
+  const drill = area("drill", "drill", square(0, 0, 10, 10));
+  const test = area("test", "test", square(20, 0, 30, 10));
+  const draft = area("draft", "draft", square(40, 0, 50, 10));
+
+  it("draws the edge of a kind with a dash as a dashed line, and not as a solid line", () => {
+    const globe = createGlobe({ areas: [test] });
+    globe.paint(theme, noHighlight);
+    expect(partsOf(globe).edges.visible).toBe(false);
+    expect(partsOf(globe).edges.geometry.instanceCount).toBe(0);
+    expect(dashedOf(globe)).toHaveLength(1);
+    const line = dashedLine(globe);
+    expect(line.renderOrder).toBe(3);
+    // A square of 10 degrees has 40 segments at a step of 1 degree.
+    expect(line.geometry.instanceCount).toBe(40);
+    expect(line.material.dashed).toBe(true);
+    expect([line.material.dashSize, line.material.gapSize, line.material.linewidth]).toEqual([6, 4, 1.25]);
+    expect(itemOf(line.geometry.getAttribute("instanceColorStart"), 0)).toEqual(close(linear("#00ffcc")));
+    // The pointer finds an area with only a dashed edge.
+    expect(globe.pick(rayTo({ lat: 5, lon: 25 }))?.record).toBe("test");
+  });
+
+  it("gives each segment the length of its line to its start and to its end, and starts each line at 0", () => {
+    const outer = square(0, 0, 10, 10);
+    const hole = square(2, 2, 8, 8);
+    const ring: Region = { type: "Polygon", coordinates: [...(outer.type === "Polygon" ? outer.coordinates : []), ...(hole.type === "Polygon" ? hole.coordinates : [])] };
+    const globe = createGlobe({ areas: [area("ring", "test", ring)] });
+    globe.paint(theme, noHighlight);
+    const { geometry } = dashedLine(globe);
+    const from = geometry.getAttribute("instanceStart");
+    const to = geometry.getAttribute("instanceEnd");
+    const starts = geometry.getAttribute("instanceDistanceStart");
+    const ends = geometry.getAttribute("instanceDistanceEnd");
+    // The outer line has 40 segments, and the line of the hole has 24 segments.
+    expect(geometry.instanceCount).toBe(64);
+    let sum = 0;
+    for (let index = 0; index < 64; index++) {
+      if (index === 40) sum = 0;
+      expect(starts.getX(index)).toBeCloseTo(sum, 4);
+      const [x = 0, y = 0, z = 0] = itemOf(from, index);
+      const [nextX = 0, nextY = 0, nextZ = 0] = itemOf(to, index);
+      sum += Math.hypot(nextX - x, nextY - y, nextZ - z);
+      expect(ends.getX(index)).toBeCloseTo(sum, 4);
+    }
+    expect(starts.getX(40)).toBe(0);
+    // The four sides of the outer line are approximately 0.7 units long: 40 degrees of a ball with the radius 1.
+    expect(ends.getX(39)).toBeCloseTo(0.695, 2);
+  });
+
+  it("gives each pattern one object, with the edge of each area of that pattern", () => {
+    const globe = createGlobe({ areas: [drill, test, draft, area("zone", "outline", square(60, 0, 70, 10))] });
+    globe.paint(theme, noHighlight);
+    const [first, second, ...more] = dashedOf(globe);
+    if (first === undefined || second === undefined) throw new Error("The globe has less than two edges with dashes.");
+    expect(more).toHaveLength(0);
+    expect([first.material.dashSize, first.material.gapSize, first.geometry.instanceCount]).toEqual([6, 4, 80]);
+    expect([second.material.dashSize, second.material.gapSize, second.geometry.instanceCount]).toEqual([2, 3, 40]);
+    expect(itemOf(first.geometry.getAttribute("instanceColorStart"), 0)).toEqual(close(linear("#ff0000")));
+    expect(itemOf(first.geometry.getAttribute("instanceColorStart"), 40)).toEqual(close(linear("#00ffcc")));
+    expect(itemOf(second.geometry.getAttribute("instanceColorStart"), 0)).toEqual(close(linear("#ffffff")));
+    // The length of a line starts at 0 for each area.
+    expect(first.geometry.getAttribute("instanceDistanceStart").getX(40)).toBe(0);
+    // The area with a solid edge stays in the list of the solid edges, and a kind with a color and a dash keeps its surface.
+    expect(partsOf(globe).edges.geometry.instanceCount).toBe(40);
+    expect(partsOf(globe).fills.visible).toBe(true);
+  });
+
+  it("keeps the lengths of a dash in the pixels of the picture at each distance of the camera", () => {
+    const globe = createGlobe({ areas: [test] });
+    globe.paint(theme, noHighlight);
+    const scale = (): number => dashedLine(globe).material.dashScale;
+    // This is the angle of one pixel of a picture with a height of 600 pixels and an angle of 32 degrees, in radians.
+    const pixel = (2 * Math.tan((16 * Math.PI) / 180)) / 600;
+    // The camera is 3 units above the surface. Thus one unit of the surface below it has this count of pixels.
+    globe.step?.(frameOf(600, 4));
+    expect(scale()).toBeCloseTo(1 / (pixel * 3), 6);
+    globe.step?.(frameOf(600, 7));
+    expect(scale()).toBeCloseTo(1 / (pixel * 6), 6);
+    globe.step?.(frameOf(300, 7));
+    expect(scale()).toBeCloseTo(1 / (pixel * 12), 6);
+    // An object that the globe makes after a picture has the scale of that picture.
+    globe.paint({ ...theme, styles: { test: { line: "#123456", dash: [1, 1] } } }, noHighlight);
+    expect(dashedLine(globe).material.dashSize).toBe(1);
+    expect(scale()).toBeCloseTo(1 / (pixel * 12), 6);
+    // A camera on the surface gives a scale that is a number.
+    globe.step?.(frameOf(600, 1));
+    expect(Number.isFinite(scale())).toBe(true);
+    expect(scale()).toBeGreaterThan(0);
+  });
+
+  it("makes the objects of the dashed edges again only for a change of these edges", () => {
+    const globe = createGlobe({ areas: [test, draft] });
+    globe.paint(theme, noHighlight);
+    const first = dashedOf(globe);
+    const released: string[] = [];
+    first.forEach((line, index) => {
+      line.geometry.addEventListener("dispose", () => void released.push(`geometry ${String(index)}`));
+      line.material.addEventListener("dispose", () => void released.push(`material ${String(index)}`));
+    });
+    const same = (): boolean => {
+      const lines = dashedOf(globe);
+      return lines.length === first.length && lines.every((line, index) => line === first[index]);
+    };
+
+    // A highlight changes no dashed edge. The edge of the highlight is one more object, above the dashed edge.
+    globe.paint(theme, (record) => (record === "test" ? 2 : 0));
+    expect(same()).toBe(true);
+    expect(released).toEqual([]);
+    expect(litOf(globe)).toHaveLength(1);
+    expect(partsOf(globe).dashed.children).toHaveLength(3);
+
+    // A new color makes the objects again, and the globe releases the old objects.
+    globe.paint({ ...theme, styles: { ...theme.styles, test: { line: "#123456", dash: [6, 4] } } }, noHighlight);
+    expect(same()).toBe(false);
+    expect(released.sort()).toEqual(["geometry 0", "geometry 1", "material 0", "material 1"]);
+    expect(itemOf(dashedLine(globe).geometry.getAttribute("instanceColorStart"), 0)).toEqual(close(linear("#123456")));
+
+    // The test of the shown parts hides a dashed edge, and shows it again.
+    globe.show((part) => part.record === "draft");
+    expect(dashedOf(globe).map((line) => line.material.gapSize)).toEqual([3]);
+    globe.show(() => false);
+    expect(dashedOf(globe)).toHaveLength(0);
+    globe.show(() => true);
+    expect(dashedOf(globe).map((line) => line.geometry.instanceCount)).toEqual([40, 40]);
+  });
+
+  it("keeps the dash of an area in the edge of its highlight", () => {
+    const globe = createGlobe({ areas: [test, draft, drill, area("zone", "outline", square(60, 0, 70, 10))], highlightWidth: 3 });
+    globe.paint(theme, noHighlight);
+    expect(litOf(globe)).toHaveLength(0);
+    const thin = dashedOf(globe);
+
+    // The test is selected. The drill and the zone are below the pointer. The test and the drill have one pattern.
+    globe.paint(theme, (record) => (record === "test" ? 2 : record === "draft" ? 0 : 1));
+    const [lit, ...more] = litOf(globe);
+    if (lit === undefined) throw new Error("The globe has no dashed edge with a highlight.");
+    expect(more).toHaveLength(0);
+    expect([lit.material.dashed, lit.material.dashSize, lit.material.gapSize, lit.material.linewidth, lit.renderOrder]).toEqual([true, 6, 4, 3, 5]);
+    expect(lit.geometry.instanceCount).toBe(80);
+    expect(itemOf(lit.geometry.getAttribute("instanceColorStart"), 0)).toEqual(close(linear("#ff00ff")));
+    expect(itemOf(lit.geometry.getAttribute("instanceColorEnd"), 39)).toEqual(close(linear("#ff00ff")));
+    expect(itemOf(lit.geometry.getAttribute("instanceColorStart"), 40)).toEqual(close(linear("#ffff00")));
+    // The wide dashes are on the thin dashes: the two edges have the same points and the same lengths.
+    const under = dashedLine(globe).geometry;
+    for (const name of ["instanceStart", "instanceEnd", "instanceDistanceStart", "instanceDistanceEnd"]) {
+      for (const index of [0, 39, 40, 79]) expect(itemOf(lit.geometry.getAttribute(name), index)).toEqual(itemOf(under.getAttribute(name), index));
+    }
+    // The thin edges stay, with their own colors.
+    expect(dashedOf(globe).every((line, index) => line === thin[index])).toBe(true);
+    expect(itemOf(under.getAttribute("instanceColorStart"), 0)).toEqual(close(linear("#00ffcc")));
+    // The area with a solid edge keeps the solid edge of the highlight. No area with a dash is in that list.
+    const { highlighted } = partsOf(globe);
+    expect(highlighted.visible).toBe(true);
+    expect(highlighted.geometry.instanceCount).toBe(40);
+    expect(highlighted.material.dashed).toBe(false);
+
+    // The scale of the pattern follows the camera, as the scale of the thin edge.
+    globe.step?.(frameOf(600, 4));
+    expect(lit.material.dashScale).toBe(dashedLine(globe).material.dashScale);
+    expect(lit.material.dashScale).not.toBe(1);
+
+    // A different highlight makes a new object, and the globe releases the old object. The new object has the scale of the last picture.
+    const released: string[] = [];
+    lit.geometry.addEventListener("dispose", () => void released.push("geometry"));
+    lit.material.addEventListener("dispose", () => void released.push("material"));
+    globe.paint(theme, (record) => (record === "draft" ? 1 : 0));
+    expect(released.sort()).toEqual(["geometry", "material"]);
+    const [next] = litOf(globe);
+    expect(litOf(globe)).toHaveLength(1);
+    expect([next?.material.dashSize, next?.material.gapSize, next?.geometry.instanceCount]).toEqual([2, 3, 40]);
+    expect(next?.material.dashScale).toBe(dashedLine(globe).material.dashScale);
+    expect(partsOf(globe).highlighted.visible).toBe(false);
+
+    // The test of the shown parts hides the edge of a highlight with its area.
+    globe.show((part) => part.record !== "draft");
+    expect(litOf(globe)).toHaveLength(0);
+    globe.show(() => true);
+    expect(litOf(globe)).toHaveLength(1);
+
+    // The end of the highlight removes its edge and changes no thin edge. The filter made the thin edges again.
+    const shown = dashedOf(globe);
+    expect(shown).toHaveLength(2);
+    globe.paint(theme, noHighlight);
+    expect(litOf(globe)).toHaveLength(0);
+    expect(dashedOf(globe).every((line, index) => line === shown[index])).toBe(true);
+  });
+
+  it("gives a dashed edge to the highlight of an area with a dash and no line color", () => {
+    const globe = createGlobe({ areas: [test] });
+    const bare: GlobeTheme = { ...theme, styles: { test: { fill: "#336644", dash: [6, 4] } } };
+    globe.paint(bare, noHighlight);
+    expect(partsOf(globe).dashed.children).toHaveLength(0);
+    globe.paint(bare, () => 1);
+    expect(dashedOf(globe)).toHaveLength(0);
+    expect(litOf(globe).map((line) => [line.material.dashSize, line.material.gapSize, line.material.linewidth])).toEqual([[6, 4, 2.5]]);
+    expect(partsOf(globe).highlighted.visible).toBe(false);
+  });
+
+  it("draws a solid edge for a dash that is not correct", () => {
+    const wrong = [
+      [0, 4],
+      [6, 0],
+      [-2, 4],
+      [Number.NaN, 4],
+      [6, Number.POSITIVE_INFINITY],
+    ] as const;
+    for (const dash of wrong) {
+      const globe = createGlobe({ areas: [test] });
+      globe.paint({ ...theme, styles: { test: { line: "#00ffcc", dash } } }, noHighlight);
+      expect(dashedOf(globe)).toHaveLength(0);
+      expect(partsOf(globe).edges.geometry.instanceCount).toBe(40);
+    }
+  });
+
+  it("releases the objects of the dashed edges one time", () => {
+    const globe = createGlobe({ areas: [test, draft] });
+    // The test has a highlight, so the globe has two thin edges and one edge of a highlight.
+    globe.paint(theme, (record) => (record === "test" ? 1 : 0));
+    const released: string[] = [];
+    [...dashedOf(globe), ...litOf(globe)].forEach((line, index) => {
+      line.geometry.addEventListener("dispose", () => void released.push(`geometry ${String(index)}`));
+      line.material.addEventListener("dispose", () => void released.push(`material ${String(index)}`));
+    });
+    globe.dispose();
+    expect(released.sort()).toEqual(["geometry 0", "geometry 1", "geometry 2", "material 0", "material 1", "material 2"]);
+    expect(partsOf(globe).dashed.children).toHaveLength(0);
   });
 });
 
