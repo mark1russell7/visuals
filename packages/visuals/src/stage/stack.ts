@@ -6,7 +6,9 @@ import type { StageContent, StagePick } from "./stage.ts";
  * An example is a globe with a layer of labels, or a room with its marks.
  *
  * - The first content gives the extent: the views and the limits of the camera come from it.
- * - The last content is on top. A pick asks the last content first, and it stops at the first record.
+ * - The last content is on top. A pick asks the last content first.
+ * - A pick with no distance ends the search, if no earlier pick has a distance. That pick is the record.
+ * - A pick with a distance does not end the search. The record is then the pick with the smallest distance.
  * - A record that two contents have is one record: each of them gets its highlight.
  * - The stage disposes the stack, and the stack disposes each content.
  */
@@ -19,11 +21,16 @@ export function stackContents<P, T extends StageTheme = StageTheme>(contents: re
     },
     has: (record) => contents.some((content) => content.has(record)),
     pick(ray): StagePick<P> | undefined {
+      // The nearest of the picks that have a distance. A content on top gets the pick when two distances are equal.
+      let nearest: StagePick<P> | undefined;
       for (let at = contents.length - 1; at >= 0; at -= 1) {
         const pick = contents[at]?.pick(ray);
-        if (pick !== undefined) return pick;
+        if (pick === undefined) continue;
+        // A pick with no distance tells nothing of its depth, so the search stops: a nearer pick of a content on top stays the record.
+        if (pick.distance === undefined) return nearest ?? pick;
+        if (nearest?.distance === undefined || pick.distance < nearest.distance) nearest = pick;
       }
-      return undefined;
+      return nearest;
     },
     paint(theme, highlight): void {
       for (const content of contents) content.paint(theme, highlight);

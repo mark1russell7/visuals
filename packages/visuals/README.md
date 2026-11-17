@@ -2,12 +2,13 @@
 
 3D stages for data. A stage is one canvas of three.js with a camera that a person moves. The content of the stage is your data.
 
-The package has six entries and two style sheets:
+The package has seven entries and two style sheets:
 
 - The entry `.` has the camera maths and the model of a replay. It needs no browser, and it does not need `three`.
 - The entry `/marks` has the marks that a viewer draws, as plain data. It needs no browser, and it does not need `three`.
 - The entry `/three` has the stage. It needs the package `three`, version 0.187.0 or later.
 - The entry `/globe` has a content that shows the Earth as a globe, with areas and points on it. It also needs `three`.
+- The entry `/markers` has a content that draws the marks on a stage. It also needs `three`.
 - The entry `/scrubber` has a control that sets the time of a picture. It needs a browser, and it does not need `three`.
 - The file `/scrubber.css` is the style sheet of the scrubber.
 - The entry `/labels` has the labels of a stage: a short text next to a point, as an element of the page. It needs a browser.
@@ -85,6 +86,8 @@ A stage knows nothing about the data. The content gives it these parts:
 | `dispose` | The release of the memory of the graphics card. |
 
 `stackContents` makes one content from a list of contents. The first content gives the extent, and a pick asks the last content first.
+
+A pick can have a `distance` from the start of the ray. The stack then also asks the earlier contents, and the nearest pick is the record. A pick with no distance is above each record of the earlier contents.
 
 A record has a name. The highlight of a record is 0, 1 or 2: no highlight, a record under the pointer, the selected record. `highlight` and `select` set the highlights from the page.
 
@@ -404,6 +407,57 @@ shapeRing("triangle").length; // => 3: the corners of the sign, counter-clockwis
 - An empty name, an empty label, and a level or a type that is not known.
 
 Use it as a gate in the tests of a producer. A viewer uses it on a list that it did not make. It does not examine the form of a mark, so read a list from JSON through a schema first.
+
+## The marks on a stage
+
+The entry `/markers` has a content that draws a list of marks. Put it after the content of the solids in `stackContents`.
+
+```ts
+import { fitView } from "@mark1russell7/visuals";
+import { createMarkers, type MarkersTheme } from "@mark1russell7/visuals/markers";
+import { createStage, stackContents } from "@mark1russell7/visuals/three";
+
+const theme: MarkersTheme = {
+  sky: "#ffffff",
+  ground: "#ffffff",
+  levels: { unknown: "#55677a", ok: "#1f5fa8", near: "#c9740a", over: "#b81d3a" },
+  halo: "#ffffff",
+  accent: "#111111",
+  field: ["#eef4f1", "#8fcab7", "#1d7f69"],
+};
+
+const markers = createMarkers(marks);
+const stage = createStage(box, {
+  // The content `room` has the solids. The marks are on top of them.
+  content: stackContents([room, markers]),
+  theme,
+  label: "A room with its marks",
+  views: { corner: fitView({ polar: 1, azimuth: 0.7 }) },
+  home: "corner",
+  onHover: (mark) => console.log(mark?.label),
+});
+
+// The legend of a page shows only the marks of some kinds.
+markers.show((mark) => mark.kind !== "cable");
+stage?.refresh();
+```
+
+| Mark | Picture |
+| --- | --- |
+| `point` | A sign with the shape and the color of its level. The sign looks at the camera. |
+| `run` | A round line with its width in the space, and a thin line of the color `halo` around it. |
+| `link` | A dashed line. It is in the picture while its record, or the record of one of its ends, has a highlight. |
+| `field` | A grid of colors on its plane. A cell with no value is clear. |
+| `meter` | No picture, because a meter has no place. |
+
+- A point with no `size` has a sign with a radius of `SIGN_RADIUS` pixels at each distance. A size is in the unit of the space.
+- A mark behind a solid stays in the picture with less color. A mark with a highlight stays solid.
+- A sign gets the pick before each solid, also behind a solid. Thus the pointer finds an outlet behind a desk.
+- A run and a field give the distance of their pick, so a solid in front of them gets the pick. A run gets the pick before a field.
+- The theme gives the color of each level, the colors of a field from `min` to `max`, and the color `halo` around a mark.
+- A record with a highlight gets a larger sign, and a line of the color `accent` around it.
+- `signReach` gives the radius of a sign with its line. Give it to the field `clear` of a label.
+- The pick of a field gives the mark. `fieldValue` reads the value of a cell.
 
 ## The camera maths
 

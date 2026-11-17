@@ -15,6 +15,11 @@ export interface StagePick<P> {
   readonly record: string;
   /** The value of the record for the page, for example its kind and its source. */
   readonly value: P;
+  /**
+   * The distance from the start of the ray to the record, in the unit of the space.
+   * A stack of contents uses it to find the nearest record. A pick with no distance is above each other record.
+   */
+  readonly distance?: number | undefined;
 }
 
 /** One picture of a stage, for the step of its content. */

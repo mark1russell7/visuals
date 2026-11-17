@@ -34,6 +34,17 @@ describe("the home page", () => {
     expect(page).toContain("stackContents([globe, labels])");
   });
 
+  it("shows how to put marks on a scene", () => {
+    expect(page).toContain('import { createMarkers } from "@mark1russell7/visuals/markers";');
+    expect(page).toContain("stackContents([room, markers])");
+  });
+
+  it("has the room, and tells that the room is sample data", () => {
+    const ids = [...entry.matchAll(/byId(?:<[^>]+>)?\("(room[^"]*)"\)/g)].map((match) => match[1]);
+    expect(ids).toHaveLength(8);
+    expect(page).toContain("Sample data. The room and each value are made up.");
+  });
+
   it("tells that the records are sample data, and names the source of the land", () => {
     expect(page).toContain("Sample data. The warnings and the earthquakes are made up.");
     expect(page).toContain('href="https://www.naturalearthdata.com/"');

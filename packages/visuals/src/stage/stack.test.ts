@@ -11,7 +11,7 @@ interface Fake extends StageContent<string> {
 }
 
 /** This function makes a content that writes each call of the stage in a list. */
-function fake(name: string, calls: string[], options: { readonly records?: readonly string[]; readonly pick?: string; readonly step?: boolean } = {}): Fake {
+function fake(name: string, calls: string[], options: { readonly records?: readonly string[]; readonly pick?: string; readonly distance?: number; readonly step?: boolean } = {}): Fake {
   const content: Fake = {
     calls,
     objects: [new Object3D()],
@@ -19,7 +19,8 @@ function fake(name: string, calls: string[], options: { readonly records?: reado
     has: (record) => options.records?.includes(record) ?? false,
     pick: () => {
       calls.push(`${name}.pick`);
-      return options.pick === undefined ? undefined : { record: options.pick, value: name };
+      if (options.pick === undefined) return undefined;
+      return options.distance === undefined ? { record: options.pick, value: name } : { record: options.pick, value: name, distance: options.distance };
     },
     paint: (_theme, highlight) => void calls.push(`${name}.paint:${String(highlight("a"))}`),
     dispose: () => void calls.push(`${name}.dispose`),
@@ -64,10 +65,38 @@ describe("stackContents", () => {
     expect(stack.has("c")).toBe(false);
   });
 
-  it("asks the last content for a pick first, and stops at the first record", () => {
+  it("asks the last content for a pick first, and stops at the first record with no distance", () => {
     const calls: string[] = [];
     const stack = stackContents([fake("first", calls, { pick: "below" }), fake("second", calls, { pick: "above" }), fake("third", calls)]);
     expect(stack.pick(ray)).toEqual({ record: "above", value: "second" });
+    expect(calls).toEqual(["third.pick", "second.pick"]);
+  });
+
+  it("gives the nearest record when each pick has a distance", () => {
+    const calls: string[] = [];
+    const stack = stackContents([fake("first", calls, { pick: "near", distance: 2 }), fake("second", calls, { pick: "far", distance: 5 }), fake("third", calls, { pick: "middle", distance: 3 })]);
+    expect(stack.pick(ray)).toEqual({ record: "near", value: "first", distance: 2 });
+    expect(calls).toEqual(["third.pick", "second.pick", "first.pick"]);
+  });
+
+  it("gives the content on top the pick when two distances are equal", () => {
+    const calls: string[] = [];
+    const stack = stackContents([fake("first", calls, { pick: "below", distance: 4 }), fake("second", calls, { pick: "above", distance: 4 })]);
+    expect(stack.pick(ray)?.record).toBe("above");
+  });
+
+  it("keeps a pick with a distance when a content below it has a pick with no distance", () => {
+    const calls: string[] = [];
+    const stack = stackContents([fake("first", calls, { pick: "skipped", distance: 1 }), fake("second", calls, { pick: "solid" }), fake("third", calls, { pick: "mark", distance: 9 })]);
+    expect(stack.pick(ray)).toEqual({ record: "mark", value: "third", distance: 9 });
+    // The pick with no distance ends the search.
+    expect(calls).toEqual(["third.pick", "second.pick"]);
+  });
+
+  it("gives a pick with no distance when no content above it has a record", () => {
+    const calls: string[] = [];
+    const stack = stackContents([fake("first", calls, { pick: "skipped", distance: 1 }), fake("second", calls, { pick: "solid" }), fake("third", calls)]);
+    expect(stack.pick(ray)).toEqual({ record: "solid", value: "second" });
     expect(calls).toEqual(["third.pick", "second.pick"]);
   });
 
