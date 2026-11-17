@@ -197,6 +197,53 @@ placeLabels: build/labels.d.ts#placeLabels
 
 file ./labels.css: styles/labels.css
 
+## ./graph (build/graph.d.ts): names
+
+FIT_PADDING: build/graph.d.ts#FIT_PADDING
+type FitOptions: build/graph.d.ts#FitOptions
+type FrameOptions: build/graph.d.ts#FrameOptions
+type Insets: build/graph.d.ts#Insets
+NO_POINTERS: build/graph.d.ts#NO_POINTERS
+type PictureKeyAction: build/graph.d.ts#PictureKeyAction
+type PictureKeyOptions: build/graph.d.ts#PictureKeyOptions
+type PictureMove: build/graph.d.ts#PictureMove
+type PictureMoveStep: build/graph.d.ts#PictureMoveStep
+type PictureView: build/graph.d.ts#PictureView
+type PointerMoveResult: build/graph.d.ts#PointerMoveResult
+type PointerPair: build/graph.d.ts#PointerPair
+type PointerUpResult: build/graph.d.ts#PointerUpResult
+type Pointers: build/graph.d.ts#Pointers
+type RevealOptions: build/graph.d.ts#RevealOptions
+SMALLEST_AREA: build/graph.d.ts#SMALLEST_AREA
+TOUCH_CLICK_DISTANCE: build/graph.d.ts#TOUCH_CLICK_DISTANCE
+UNIT_VIEW: build/graph.d.ts#UNIT_VIEW
+WHEEL_LINE: build/graph.d.ts#WHEEL_LINE
+WHEEL_PINCH: build/graph.d.ts#WHEEL_PINCH
+WHEEL_SPEED: build/graph.d.ts#WHEEL_SPEED
+ZOOM_LIMITS: build/graph.d.ts#ZOOM_LIMITS
+type ZoomLimits: build/graph.d.ts#ZoomLimits
+clampZoom: build/graph.d.ts#clampZoom
+fitRect: build/graph.d.ts#fitRect
+frameRects: build/graph.d.ts#frameRects
+freeArea: build/graph.d.ts#freeArea
+panView: build/graph.d.ts#panView
+pictureKeyAction: build/graph.d.ts#pictureKeyAction
+pictureMoveAt: build/graph.d.ts#pictureMoveAt
+pinchView: build/graph.d.ts#pinchView
+pointerCancel: build/graph.d.ts#pointerCancel
+pointerDown: build/graph.d.ts#pointerDown
+pointerMove: build/graph.d.ts#pointerMove
+pointerUp: build/graph.d.ts#pointerUp
+rectToScreen: build/graph.d.ts#rectToScreen
+revealRects: build/graph.d.ts#revealRects
+showsRect: build/graph.d.ts#showsRect
+toPicture: build/graph.d.ts#toPicture
+toScreen: build/graph.d.ts#toScreen
+viewAt: build/graph.d.ts#viewAt
+viewBetween: build/graph.d.ts#viewBetween
+wheelFactor: build/graph.d.ts#wheelFactor
+zoomView: build/graph.d.ts#zoomView
+
 ## Declarations
 
 ### build/globe.d.ts#GLOBE_POLAR
@@ -311,6 +358,189 @@ export declare function regionView(regions: readonly Region[], margin?: number):
 
 ### build/globe.d.ts#surfaceSag
 export declare function surfaceSag(step: number): number;
+
+### build/graph.d.ts#FIT_PADDING
+export declare const FIT_PADDING = 24;
+
+### build/graph.d.ts#FitOptions
+interface FitOptions {
+  readonly padding?: number | undefined;
+  readonly most?: number | undefined;
+  readonly limits?: ZoomLimits | undefined;
+}
+
+### build/graph.d.ts#FrameOptions
+interface FrameOptions extends FitOptions {
+  readonly least: number;
+}
+
+### build/graph.d.ts#Insets
+interface Insets {
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+  readonly left: number;
+}
+
+### build/graph.d.ts#NO_POINTERS
+export declare const NO_POINTERS: Pointers;
+
+### build/graph.d.ts#PictureKeyAction
+type PictureKeyAction = {
+  readonly type: "move";
+  readonly to: PictureView;
+} | {
+  readonly type: "view";
+  readonly view: string;
+};
+
+### build/graph.d.ts#PictureKeyOptions
+interface PictureKeyOptions {
+  readonly home: string;
+  readonly views?: Readonly<Record<string, string>> | undefined;
+  readonly limits?: ZoomLimits | undefined;
+}
+
+### build/graph.d.ts#PictureMove
+interface PictureMove {
+  readonly from: PictureView;
+  readonly to: PictureView;
+  readonly start: number;
+  readonly duration: number;
+}
+
+### build/graph.d.ts#PictureMoveStep
+interface PictureMoveStep {
+  readonly view: PictureView;
+  readonly done: boolean;
+}
+
+### build/graph.d.ts#PictureView
+interface PictureView {
+  readonly x: number;
+  readonly y: number;
+  readonly k: number;
+}
+
+### build/graph.d.ts#PointerMoveResult
+interface PointerMoveResult {
+  readonly pointers: Pointers;
+  readonly view: PictureView;
+}
+
+### build/graph.d.ts#PointerPair
+type PointerPair = readonly [Point, Point];
+
+### build/graph.d.ts#PointerUpResult
+interface PointerUpResult {
+  readonly pointers: Pointers;
+  readonly click: boolean;
+}
+
+### build/graph.d.ts#Pointers
+interface Pointers {
+  readonly at: ReadonlyMap<number, Point>;
+  readonly start: Point | undefined;
+  readonly many: boolean;
+}
+
+### build/graph.d.ts#RevealOptions
+interface RevealOptions extends FrameOptions {
+  readonly margin?: number | undefined;
+}
+
+### build/graph.d.ts#SMALLEST_AREA
+export declare const SMALLEST_AREA = 80;
+
+### build/graph.d.ts#TOUCH_CLICK_DISTANCE
+export declare const TOUCH_CLICK_DISTANCE = 10;
+
+### build/graph.d.ts#UNIT_VIEW
+export declare const UNIT_VIEW: PictureView;
+
+### build/graph.d.ts#WHEEL_LINE
+export declare const WHEEL_LINE = 16;
+
+### build/graph.d.ts#WHEEL_PINCH
+export declare const WHEEL_PINCH = 10;
+
+### build/graph.d.ts#WHEEL_SPEED
+export declare const WHEEL_SPEED = .0015;
+
+### build/graph.d.ts#ZOOM_LIMITS
+export declare const ZOOM_LIMITS: ZoomLimits;
+
+### build/graph.d.ts#ZoomLimits
+interface ZoomLimits {
+  readonly min: number;
+  readonly max: number;
+}
+
+### build/graph.d.ts#clampZoom
+export declare function clampZoom(k: number, limits?: ZoomLimits): number;
+
+### build/graph.d.ts#fitRect
+export declare function fitRect(rect: Rect, area: Rect, options?: FitOptions): PictureView;
+
+### build/graph.d.ts#frameRects
+export declare function frameRects(rects: readonly Rect[], area: Rect, options: FrameOptions): PictureView | undefined;
+
+### build/graph.d.ts#freeArea
+export declare function freeArea(size: {
+  readonly width: number;
+  readonly height: number;
+}, insets?: Partial<Insets>): Rect;
+
+### build/graph.d.ts#panView
+export declare function panView(view: PictureView, dx: number, dy: number): PictureView;
+
+### build/graph.d.ts#pictureKeyAction
+export declare function pictureKeyAction(key: string, now: PictureView, area: Rect, options: PictureKeyOptions): PictureKeyAction | undefined;
+
+### build/graph.d.ts#pictureMoveAt
+export declare function pictureMoveAt(move: PictureMove, now: number): PictureMoveStep;
+
+### build/graph.d.ts#pinchView
+export declare function pinchView(view: PictureView, before: PointerPair, after: PointerPair, limits?: ZoomLimits): PictureView;
+
+### build/graph.d.ts#pointerCancel
+export declare function pointerCancel(pointers: Pointers, id: number): Pointers;
+
+### build/graph.d.ts#pointerDown
+export declare function pointerDown(pointers: Pointers, id: number, at: Point): Pointers;
+
+### build/graph.d.ts#pointerMove
+export declare function pointerMove(pointers: Pointers, id: number, at: Point, view: PictureView, limits?: ZoomLimits): PointerMoveResult;
+
+### build/graph.d.ts#pointerUp
+export declare function pointerUp(pointers: Pointers, id: number, at: Point, limit?: number): PointerUpResult;
+
+### build/graph.d.ts#rectToScreen
+export declare function rectToScreen(view: PictureView, rect: Rect): Rect;
+
+### build/graph.d.ts#revealRects
+export declare function revealRects(view: PictureView, rects: readonly Rect[], area: Rect, options: RevealOptions): PictureView;
+
+### build/graph.d.ts#showsRect
+export declare function showsRect(view: PictureView, rect: Rect, area: Rect, margin?: number): boolean;
+
+### build/graph.d.ts#toPicture
+export declare function toPicture(view: PictureView, screen: Point): Point;
+
+### build/graph.d.ts#toScreen
+export declare function toScreen(view: PictureView, point: Point): Point;
+
+### build/graph.d.ts#viewAt
+export declare function viewAt(point: Point, at: Point, k: number): PictureView;
+
+### build/graph.d.ts#viewBetween
+export declare function viewBetween(from: PictureView, to: PictureView, part: number): PictureView;
+
+### build/graph.d.ts#wheelFactor
+export declare function wheelFactor(deltaY: number, deltaMode?: number, pinch?: boolean): number;
+
+### build/graph.d.ts#zoomView
+export declare function zoomView(view: PictureView, at: Point, factor: number, limits?: ZoomLimits): PictureView;
 
 ### build/index.d.ts#KEY_PART
 export declare const KEY_PART = .125;

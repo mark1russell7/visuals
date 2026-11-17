@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package",
   "name": "@mark1russell7/visuals",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "3D stages for data on three.js: a camera that a person moves, views by name, picking, highlights and themes, a globe of the Earth, and the shared marks of the viewers as data.",
   "license": "MIT",
   "repository": {
@@ -40,6 +40,7 @@
     "./scrubber.css": "./styles/scrubber.css",
     "./labels": "./src/labels.ts",
     "./labels.css": "./styles/labels.css",
+    "./graph": "./src/graph.ts",
     "./package.json": "./package.json"
   },
   "files": [
@@ -120,6 +121,11 @@
         "default": "./build/labels.js"
       },
       "./labels.css": "./styles/labels.css",
+      "./graph": {
+        "types": "./build/graph.d.ts",
+        "import": "./build/graph.js",
+        "default": "./build/graph.js"
+      },
       "./package.json": "./package.json"
     }
   }

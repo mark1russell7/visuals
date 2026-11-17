@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { approach, easeInOut, moveAt, type Move } from "./motion.ts";
+import { approach, easeInOut, moveAt, partAt, type Move } from "./motion.ts";
 import type { Place } from "./view.ts";
 
 const anyPart = fc.double({ min: 0, max: 1, noNaN: true });
@@ -34,6 +34,25 @@ describe("easeInOut", () => {
         expect(easeInOut(1 - first)).toBeCloseTo(1 - easeInOut(first), 12);
       }),
     );
+  });
+});
+
+describe("partAt", () => {
+  it("goes from 0 at the start of a move to 1 at its end", () => {
+    expect(partAt(1000, 400, 1000)).toBe(0);
+    expect(partAt(1000, 400, 1100)).toBe(0.25);
+    expect(partAt(1000, 400, 1400)).toBe(1);
+  });
+
+  it("stays at its ends before the start and after the end", () => {
+    expect(partAt(1000, 400, 0)).toBe(0);
+    expect(partAt(1000, 400, 99_999)).toBe(1);
+  });
+
+  it("is 1 for a move with no duration", () => {
+    expect(partAt(1000, 0, 0)).toBe(1);
+    expect(partAt(1000, -5, 1000)).toBe(1);
+    expect(partAt(1000, Number.NaN, 1000)).toBe(1);
   });
 });
 
