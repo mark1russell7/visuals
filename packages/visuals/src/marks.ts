@@ -6,6 +6,7 @@ export {
   fieldCellCenter,
   fieldRowStep,
   fieldValue,
+  transformMarks,
   type FieldMark,
   type FieldScale,
   type Frame,

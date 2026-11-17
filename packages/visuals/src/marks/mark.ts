@@ -1,4 +1,4 @@
-import { addPoints3, cross3, scalePoint3, type Point3 } from "@mark1russell7/layout-contract";
+import { addPoints3, cross3, rotatePoint3, scalePoint3, transformPoint3, type Point3, type Transform3 } from "@mark1russell7/layout-contract";
 import type { Level } from "./levels.ts";
 
 /** A point of a surface, and the direction out of the surface. */
@@ -132,4 +132,28 @@ export function fieldCellCenter(field: FieldMark, column: number, row: number): 
 export function fieldValue(field: FieldMark, column: number, row: number): number | null {
   if (!Number.isInteger(column) || !Number.isInteger(row) || column < 0 || row < 0 || column >= field.columns || row >= field.rows) return null;
   return field.values[row * field.columns + column] ?? null;
+}
+
+/** This function gives a frame after a transform. The point gets the transform, and the direction gets only its rotation. */
+function transformFrame(frame: Frame, transform: Transform3): Frame {
+  return { at: transformPoint3(transform, frame.at), out: rotatePoint3(transform.rotation, frame.out) };
+}
+
+/**
+ * This function gives the marks in a different space. Each point gets the transform, and each direction gets only its rotation.
+ * An example is the marks of a room with the z axis up, for a stage with the y axis up.
+ *
+ * A transform has no scale, so each length stays: the size of a point, the width of a run and the cell of a field.
+ * A meter has no place, so it stays. Each other part of a mark stays, and the function changes no mark of the list.
+ */
+export function transformMarks(marks: readonly Mark[], transform: Transform3): readonly Mark[] {
+  return marks.map((mark): Mark => {
+    if (mark.type === "point") return { ...mark, frame: transformFrame(mark.frame, transform) };
+    if (mark.type === "run") return { ...mark, path: mark.path.map((frame) => transformFrame(frame, transform)) };
+    if (mark.type === "link") {
+      return { ...mark, from: { ...mark.from, at: transformPoint3(transform, mark.from.at) }, to: { ...mark.to, at: transformPoint3(transform, mark.to.at) } };
+    }
+    if (mark.type === "field") return { ...mark, frame: transformFrame(mark.frame, transform), across: rotatePoint3(transform.rotation, mark.across) };
+    return mark;
+  });
 }
