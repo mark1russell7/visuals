@@ -382,7 +382,7 @@ shapeRing("triangle").length; // => 3: the corners of the sign, counter-clockwis
 | `run` | A list of frames and a width | A cable, a pipe, a duct |
 | `link` | Two ends, each with a record name and a point | A power line from an outlet to a computer |
 | `field` | A grid of values on a plane, and a scale | Light in lux, sound in decibels, heat |
-| `meter` | A value, a limit and the text of the unit | The load of a circuit against its limit |
+| `meter` | A value, the text of the unit, and a limit when there is one | The load of a circuit against its limit |
 
 - Each mark has a record name, a kind, a level and a label. The kind is a word of the producer for the legend and the filter.
 - A frame is a point of a surface and the unit vector out of the surface.
@@ -392,6 +392,7 @@ shapeRing("triangle").length; // => 3: the corners of the sign, counter-clockwis
 - A viewer draws the marks in the sequence of `levelRank`, so the worst level is always in view.
 - A field has its values row by row, with `null` for a cell with no value. `fieldValue` and `fieldCellCenter` read a cell.
 - A meter has no place. A page draws it in a panel, and a 3D view ignores it.
+- A meter with no limit has no `limit`. A page shows only its value and its unit.
 - Each point of a list of marks is in one space. The producer tells the unit and the axes of that space.
 
 `checkMarks` gives the faults of a list, each with a code, the index of its mark and the part with the fault. It examines the values that the types do not hold:

@@ -151,7 +151,8 @@ export function checkMarks(marks: readonly Mark[]): readonly MarkFault[] {
       }
       case "meter":
         finite("value", mark.value);
-        finite("limit", mark.limit);
+        // A meter with no limit is correct. A list from JSON can have `null` there, and `null` is not a number.
+        if (mark.limit !== undefined) finite("limit", mark.limit);
         break;
       default:
         fault("type", "type", `the type is not known: ${String((mark as { readonly type: unknown }).type)}`);

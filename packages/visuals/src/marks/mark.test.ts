@@ -2,7 +2,7 @@ import { cross3, dot3, length3, subtractPoints3 } from "@mark1russell7/layout-co
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { MARK_TYPES, fieldCellCenter, fieldRowStep, fieldValue, type FieldMark, type Mark } from "./mark.ts";
-import { FIELD, SAMPLE_MARKS } from "./sample.ts";
+import { FIELD, METER_NO_LIMIT, SAMPLE_MARKS } from "./sample.ts";
 
 describe("Mark", () => {
   it("has one sample for each type", () => {
@@ -12,6 +12,12 @@ describe("Mark", () => {
   it("goes through JSON with no change", () => {
     const text = JSON.stringify(SAMPLE_MARKS);
     expect(JSON.parse(text) as Mark[]).toEqual(SAMPLE_MARKS);
+  });
+
+  it("keeps a meter with no limit through JSON: the text has no limit, and the mark has each other part", () => {
+    const text = JSON.stringify(METER_NO_LIMIT);
+    expect(text).not.toContain("limit");
+    expect(JSON.parse(text) as Mark).toStrictEqual(METER_NO_LIMIT);
   });
 });
 
