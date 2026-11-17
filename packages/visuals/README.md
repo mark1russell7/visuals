@@ -185,6 +185,7 @@ const stage = createStage(document.body, {
 - An area is a region of `@mark1russell7/geo`: a `Polygon` or a `MultiPolygon` of GeoJSON. A point is a place with a latitude and a longitude.
 - The surface of an area follows the curve of the Earth. The option `step` sets the largest step of an edge, in degrees.
 - A kind names the style of an area or a point in the theme. A new theme changes each color, and the geometry stays.
+- A style with `dash` draws the edge of its areas as a dashed line. `dash` has the length of a dash and of a gap, in CSS pixels.
 - The pointer finds a point first, then the last area of the list. The pointer ignores a part with `pick: false`.
 - `show` hides each part that a test refuses, for example the records that are not active at a time.
 - `placeAt` gives the place on the Earth under the pointer.
