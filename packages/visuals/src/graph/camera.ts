@@ -196,6 +196,29 @@ export function showsRect(view: PictureView, rect: Rect, area: Rect, margin: num
   return shown.x >= area.x + margin && shown.y >= area.y + margin && shown.x + shown.w <= area.x + area.w - margin && shown.y + shown.h <= area.y + area.h - margin;
 }
 
+/** The options of `revealRects`. */
+export interface RevealOptions extends FrameOptions {
+  /** The smallest distance between a rectangle in view and each edge of the area, in CSS pixels. The default is 0. */
+  readonly margin?: number | undefined;
+}
+
+/**
+ * This function gives the view that shows a selection, and it keeps the view `view` when the selection is in view.
+ *
+ * The rectangles are the bounds of the groups of the selection, as for `frameRects`, the largest group first.
+ * The selection is in view when `view` has the zoom `least` or more, and shows all of the rectangle that `frameRects` selects.
+ * The result is then `view` itself, so a camera does not move for a click on a box that a person reads.
+ * In each other case, the result is the view of `frameRects`. An empty list gives `view`.
+ */
+export function revealRects(view: PictureView, rects: readonly Rect[], area: Rect, options: RevealOptions): PictureView {
+  for (const rect of rects) {
+    const framed = fitRect(rect, area, options);
+    if (framed.k < options.least) continue;
+    return view.k >= options.least && showsRect(view, rect, area, options.margin ?? 0) ? view : framed;
+  }
+  return frameRects(rects.slice(-1), area, options) ?? view;
+}
+
 /**
  * This function gives the view at a part of the way between two views. `part` goes from 0 to 1.
  *

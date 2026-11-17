@@ -474,7 +474,7 @@ stage?.refresh();
 ## A flat picture
 
 The entry `/graph` is for a flat picture that a person moves and zooms, for example a graph of boxes and edges.
-This version has the maths of its camera. Each function is pure, so a test in Node.js uses it.
+This version has the maths of its camera, its pointers and its keys. Each function is pure, so a test in Node.js uses it.
 
 ```ts
 import { fitRect, freeArea, toPicture, viewBetween, zoomView } from "@mark1russell7/visuals/graph";
@@ -500,9 +500,39 @@ A view has the zoom `k` and the screen position of the origin of the picture. A 
 | `freeArea` | The part of a picture that the page does not cover. A camera shows a selection there. |
 | `fitRect` | The view that shows a rectangle in an area, as large as the area permits. |
 | `frameRects` | The view for the first rectangle of a list that the area shows at a least zoom or more. |
-| `showsRect` | True when a view shows all of a rectangle in an area. Thus a camera moves only for a selection that is not in view. |
+| `showsRect` | True when a view shows all of a rectangle in an area. |
+| `revealRects` | The view that shows a selection. It is the view of the camera when the selection is in view, so the camera stays. |
 | `viewBetween`, `pictureMoveAt` | A view on the way between two views, and the view at a time of a move. |
+| `pointerDown`, `pointerMove`, `pointerUp`, `pointerCancel` | The pointers that are down on a picture, the view after a pointer moved, and the answer if a pointer made a click. |
+| `pictureKeyAction` | The action of a key: a move of the camera, or a view by its name. |
 
+The pointers of a picture are a value. Each event of a pointer gives the next value:
+
+```ts
+import { NO_POINTERS, UNIT_VIEW, pointerDown, pointerMove, pointerUp, toPicture } from "@mark1russell7/visuals/graph";
+
+let pointers = NO_POINTERS;
+let view = UNIT_VIEW;
+const at = (event: PointerEvent) => ({ x: event.offsetX, y: event.offsetY });
+
+canvas.addEventListener("pointerdown", (event) => {
+  pointers = pointerDown(pointers, event.pointerId, at(event));
+});
+canvas.addEventListener("pointermove", (event) => {
+  // One pointer moves the picture. Two pointers make a pinch.
+  ({ pointers, view } = pointerMove(pointers, event.pointerId, at(event), view));
+});
+canvas.addEventListener("pointerup", (event) => {
+  const up = pointerUp(pointers, event.pointerId, at(event));
+  pointers = up.pointers;
+  if (up.click) select(toPicture(view, at(event)));
+});
+```
+
+- One pointer moves the picture, and the point of the picture below the pointer stays there. Two pointers make a pinch.
+- A click is one pointer that goes up near its start. A drag and a pinch make no click.
+- A finger moves more than a mouse. Give `TOUCH_CLICK_DISTANCE` to `pointerUp` for an event with the pointer type `touch`.
+- An arrow key moves the camera. The keys `+` and `-` zoom at the middle of the free area, and `Home` shows the home view.
 - A move between two views is a zoom at one screen point. Each point of the picture moves along a straight line, in one direction.
 - The zoom of a move changes by an equal factor for each equal step, so it has one speed in the picture.
 - `frameRects` gets the bounds of groups of boxes, the largest group first. It takes the first group that a person can read.

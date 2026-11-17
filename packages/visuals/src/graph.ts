@@ -14,6 +14,7 @@ export {
   pictureMoveAt,
   pinchView,
   rectToScreen,
+  revealRects,
   showsRect,
   toPicture,
   toScreen,
@@ -28,5 +29,18 @@ export {
   type PictureMoveStep,
   type PictureView,
   type PointerPair,
+  type RevealOptions,
   type ZoomLimits,
 } from "./graph/camera.ts";
+export { pictureKeyAction, type PictureKeyAction, type PictureKeyOptions } from "./graph/keys.ts";
+export {
+  NO_POINTERS,
+  TOUCH_CLICK_DISTANCE,
+  pointerCancel,
+  pointerDown,
+  pointerMove,
+  pointerUp,
+  type PointerMoveResult,
+  type PointerUpResult,
+  type Pointers,
+} from "./graph/pointers.ts";

@@ -15,6 +15,7 @@ import {
   pictureMoveAt,
   pinchView,
   rectToScreen,
+  revealRects,
   showsRect,
   toPicture,
   toScreen,
@@ -307,6 +308,62 @@ describe("showsRect", () => {
     expect(showsRect({ x: 104, y: 50, k: 1 }, rect, area)).toBe(true);
     expect(showsRect({ x: 104, y: 50, k: 1 }, rect, area, 8)).toBe(false);
     expect(showsRect({ x: 108, y: 50, k: 1 }, rect, area, 8)).toBe(true);
+  });
+});
+
+describe("revealRects", () => {
+  const area = { x: 0, y: 0, w: 1000, h: 800 };
+  const options = { least: 0.7, most: 1, padding: 36, margin: 8 };
+  const all = { x: 0, y: 0, w: 4000, h: 3000 };
+  const group = { x: 0, y: 0, w: 1200, h: 600 };
+  const box = { x: 100, y: 100, w: 300, h: 200 };
+
+  it("keeps a view that shows the selection at the least zoom or more", () => {
+    const view: PictureView = { x: 100, y: 100, k: 1 };
+    expect(revealRects(view, [box], area, options)).toBe(view);
+    const onGroup = fitRect(group, area, options);
+    expect(revealRects(onGroup, [all, group, box], area, options)).toBe(onGroup);
+  });
+
+  it("moves to the selection when a part of it is out of the area", () => {
+    expect(revealRects({ x: -300, y: 100, k: 1 }, [box], area, options)).toEqual(fitRect(box, area, options));
+    // The view shows the box, and the first group that the area can show is larger.
+    expect(revealRects({ x: 100, y: 100, k: 1 }, [all, group, box], area, options)).toEqual(fitRect(group, area, options));
+  });
+
+  it("moves to the selection when the zoom is too small to read it", () => {
+    expect(revealRects({ x: 100, y: 100, k: 0.5 }, [box], area, options)).toEqual(fitRect(box, area, options));
+  });
+
+  it("keeps a margin to each edge of the area", () => {
+    const view: PictureView = { x: -96, y: 100, k: 1 };
+    expect(revealRects(view, [box], area, { ...options, margin: 0 })).toBe(view);
+    expect(revealRects(view, [box], area, options)).toEqual(fitRect(box, area, options));
+  });
+
+  it("gives the view of frameRects when no rectangle is small enough", () => {
+    const large = [all, { x: 0, y: 0, w: 2000, h: 2000 }];
+    expect(revealRects({ x: 100, y: 100, k: 1 }, large, area, options)).toEqual({ x: 500 - 1000 * 0.7, y: 400 - 1000 * 0.7, k: 0.7 });
+    expect(revealRects({ x: 100, y: 100, k: 1 }, large, area, options)).toEqual(frameRects(large, area, options));
+  });
+
+  it("keeps the view for an empty list", () => {
+    const view: PictureView = { x: 3, y: 4, k: 2 };
+    expect(revealRects(view, [], area, options)).toBe(view);
+  });
+
+  it("gives a view that shows the first rectangle at the least zoom or more", () => {
+    const size = fc.double({ min: 1, max: 600, noNaN: true });
+    const rects = fc.array(fc.record({ x: coordinate, y: coordinate, w: size, h: size }), { minLength: 1, maxLength: 4 });
+    fc.assert(
+      fc.property(anyView, rects, (view, list) => {
+        const first = list[0];
+        if (first === undefined) return;
+        const result = revealRects(view, list, area, { least: 0.7 });
+        expect(result.k).toBeGreaterThanOrEqual(0.7);
+        expect(showsRect(result, first, area)).toBe(true);
+      }),
+    );
   });
 });
 
