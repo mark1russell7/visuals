@@ -1,6 +1,6 @@
 // The probe of the home page for the command `site-pages check`. The check runs this code in the page, at each width.
 // It tests the interactive core: the list selects a record, the legend filters the records, the scrubber sets the time,
-// and the pointer finds a record in the picture.
+// and the pointer finds a record in the picture. Then it tests the room: its list, its legend and the marks under the pointer.
 declare const check: (name: string, ok: unknown, detail?: unknown) => boolean;
 declare const $: (selector: string) => HTMLElement | null;
 declare const $$: (selector: string) => HTMLElement[];
@@ -15,10 +15,13 @@ const shown = (selector: string): boolean => {
   return element !== null && getComputedStyle(element).display !== "none";
 };
 const rows = (): number => $$("#records li").filter((item) => !item.hidden).length;
-const GALE = '.record[data-record="gale-biscay"]';
-const SUMATRA = '.record[data-record="quake-sumatra"]';
-const SAHEL = '.record[data-record="dust-sahel"]';
-const QUAKES = '.kind[data-kind="quake"]';
+// The globe checks name their own list and legend, because the room has a list and a legend too.
+const GALE = '#records .record[data-record="gale-biscay"]';
+const SUMATRA = '#records .record[data-record="quake-sumatra"]';
+const SAHEL = '#records .record[data-record="dust-sahel"]';
+const QUAKES = '#legend .kind[data-kind="quake"]';
+const WARNINGS = '#legend .kind[data-kind="warning"]';
+const SELECTED = '#records .record[aria-pressed="true"]';
 /** The number of frames after which the turn of a drag stopped. The stage decreases the turn that remains by 14 parts in 100 at each frame. */
 const TURN_FRAMES = 45;
 /** This function waits for `count` frames of the page. Thus a wait does not change with the speed of the browser. */
@@ -54,7 +57,7 @@ if (globe !== null) {
   const texts = names().map((name) => name.textContent);
   check("a name is the place of its record", texts.every((name) => $$(".record-place").some((place) => place.textContent === name)), texts);
 }
-check("the legend has a button for each kind, and each kind is on", $$('.kind[aria-pressed="true"]').length === 4, $$(".kind").length);
+check("the legend has a button for each kind, and each kind is on", $$('#legend .kind[aria-pressed="true"]').length === 4, $$("#legend .kind").length);
 check("the line of the name is empty before a selection", text("#readout") === "", text("#readout"));
 
 click(GALE);
@@ -63,12 +66,12 @@ check("the picture names the selected record", text("#readout") === "Gale warnin
 
 click(SUMATRA);
 check("a second record replaces the first record", await until(() => pressed(SUMATRA) === "true" && pressed(GALE) === "false"), [pressed(SUMATRA), pressed(GALE)]);
-check("only one record is selected", $$('.record[aria-pressed="true"]').length === 1, $$('.record[aria-pressed="true"]').length);
+check("only one record is selected", $$(SELECTED).length === 1, $$(SELECTED).length);
 check("the text of the first record is not in view", !shown(`${GALE} .record-more`), shown(`${GALE} .record-more`));
 
 click(QUAKES);
 check("the legend hides the records of a kind", await until(() => rows() === 10 && pressed(QUAKES) === "false"), rows());
-check("a hidden record is not selected", $$('.record[aria-pressed="true"]').length === 0 && text("#readout") === "", text("#readout"));
+check("a hidden record is not selected", $$(SELECTED).length === 0 && text("#readout") === "", text("#readout"));
 if (globe !== null) check("the legend also hides the names of the kind", await until(() => names().length === 0), names().length);
 click(QUAKES);
 check("the legend shows the records of the kind again", await until(() => rows() === 16 && pressed(QUAKES) === "true"), rows());
@@ -92,7 +95,7 @@ if (slider !== null) {
 check("the slider sets the time of the picture", await until(() => time() === "36 hours ago" && rows() === 8), [time(), rows()]);
 check("the slider tells its time to a screen reader", slider?.getAttribute("aria-valuetext") === "36 hours ago", slider?.getAttribute("aria-valuetext"));
 check("a record of the list has its level at that time", text(`${GALE} .record-name`) === "Gale watch", text(`${GALE} .record-name`));
-check("the legend counts the records of that time", text('.kind[data-kind="warning"] .count') === "3" && text(`${QUAKES} .count`) === "3", [text('.kind[data-kind="warning"] .count'), text(`${QUAKES} .count`)]);
+check("the legend counts the records of that time", text(`${WARNINGS} .count`) === "3" && text(`${QUAKES} .count`) === "3", [text(`${WARNINGS} .count`), text(`${QUAKES} .count`)]);
 
 key("ArrowRight");
 check("an arrow key goes to the next change", await until(() => time() === "35 hours ago" && rows() === 7), [time(), rows()]);
@@ -175,6 +178,67 @@ if (canvas !== null) {
   click('#views button[data-view="atlantic"]');
   click(SAHEL);
   check("a second click on the record removes the selection", await until(() => pressed(SAHEL) === "false" && text("#readout") === ""), text("#readout"));
+}
+
+// The room. Its picture needs WebGL 2. A browser with no WebGL 2 gets the list of the marks and no picture.
+const roomRows = (): number => $$("#room-records li").filter((item) => !item.hidden).length;
+const OUTLET = '#room-records .record[data-record="outlet-3"]';
+const OUTLETS = '#room-legend .kind[data-kind="outlet"]';
+/** The names of the outlets that are in the picture of the room. */
+const outletNames = (): HTMLElement[] => $$("#room .visuals-label").filter((name) => !name.classList.contains("visuals-label-off"));
+
+const room = $("#room canvas");
+check("the page shows the room, or it tells why it does not", room !== null || text("#room-hint").includes("WebGL 2"), text("#room-hint"));
+check("the list of the room has each sample mark", roomRows() === 8, roomRows());
+check("the legend of the room has a button for each kind, and each kind is on", $$('#room-legend .kind[aria-pressed="true"]').length === 5, $$("#room-legend .kind").length);
+check("the key of the room has the shape of each level", $$("#room-levels .mark-sign").length === 4, $$("#room-levels .mark-sign").length);
+check("the key of the room has the two ends of the scale of the light", text("#room-scale") === "0 lx500 lx", text("#room-scale"));
+check("the line of the mark is empty before a selection", text("#room-readout") === "", text("#room-readout"));
+if (room !== null) {
+  const height = room.getBoundingClientRect().height;
+  check("the picture of the room has a height of 150 pixels or more", height >= 150, height);
+  check("the room names its outlets", await until(() => outletNames().length > 0, 8000), $$("#room .visuals-label").length);
+}
+
+click(OUTLET);
+check("a mark of the list is selected", await until(() => pressed(OUTLET) === "true"), pressed(OUTLET));
+check("the room names the selected mark", text("#room-readout") === "Outlet 3: 1900 W of 1440 W", text("#room-readout"));
+check("a selection in the room keeps the line of the globe", text("#readout") === "", text("#readout"));
+
+click(OUTLETS);
+check("the legend of the room hides the marks of a kind", await until(() => roomRows() === 4 && pressed(OUTLETS) === "false"), roomRows());
+check("a hidden mark is not selected", $$('#room-records .record[aria-pressed="true"]').length === 0 && text("#room-readout") === "", text("#room-readout"));
+if (room !== null) check("the legend of the room also hides the names of the outlets", await until(() => outletNames().length === 0), outletNames().length);
+click(OUTLETS);
+check("the legend of the room shows the marks of the kind again", await until(() => roomRows() === 8 && pressed(OUTLETS) === "true"), roomRows());
+
+// The pointer in the picture of the room. The probe moves the pointer across all of the picture, and the page names each record that it finds.
+if (room !== null) {
+  await until(() => outletNames().length > 0, 8000);
+  await frames(2);
+  const box = room.getBoundingClientRect();
+  const found = new Set<string>();
+  /** The distance between two positions of the pointer, in CSS pixels. It is less than the width of the smallest sign. */
+  const STEP = 6;
+  const move = (type: string, x: number, y: number): void => {
+    room.dispatchEvent(new PointerEvent(type, { pointerId: 1, pointerType: "mouse", isPrimary: true, bubbles: true, cancelable: true, clientX: x, clientY: y, button: -1, buttons: 0 }));
+  };
+  for (let y = box.top + STEP / 2; y < box.bottom; y += STEP) {
+    for (let x = box.left + STEP / 2; x < box.right; x += STEP) {
+      move("pointermove", x, y);
+      found.add(text("#room-readout"));
+    }
+  }
+  move("pointerleave", 0, 0);
+  const marks = [...found].sort();
+  check("the pointer finds the sign of an outlet", found.has("Outlet 3: 1900 W of 1440 W") && found.has("Outlet 1: 310 W of 1440 W"), marks);
+  check("the pointer finds the sign of the outlet behind the desk", found.has("Outlet 2: 1210 W of 1440 W"), marks);
+  check("the pointer finds the sign with a size", found.has("Wall lamp: 12 W"), marks);
+  check("the pointer finds the cable", found.has("Cable of outlet 3: 1900 W of 1800 W"), marks);
+  check("the pointer finds the light on the floor", marks.some((mark) => mark.startsWith("Light on the floor: ")), marks);
+  check("the pointer finds a box of the room", found.has("Computer") && found.has("Desk"), marks);
+  check("the pointer finds no link", !found.has("Feed of the computer: from outlet 2"), marks);
+  check("the line of the mark is empty after the pointer goes out of the picture", text("#room-readout") === "", text("#room-readout"));
 }
 
 export {};

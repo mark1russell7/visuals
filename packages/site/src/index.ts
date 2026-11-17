@@ -1,5 +1,6 @@
 import { byId, copyText, setupTheme } from "@mark1russell7/site-pages/chrome";
 import { startDemo } from "./demo.ts";
+import { startRoom } from "./room.ts";
 
 setupTheme(byId<HTMLButtonElement>("theme"), "theme");
 
@@ -16,4 +17,15 @@ startDemo({
   hint: byId("hint"),
   legend: byId("legend"),
   records: byId("records"),
+});
+
+startRoom({
+  picture: byId("room"),
+  readout: byId("room-readout"),
+  levels: byId("room-levels"),
+  scale: byId("room-scale"),
+  views: byId("room-views"),
+  hint: byId("room-hint"),
+  legend: byId("room-legend"),
+  records: byId("room-records"),
 });

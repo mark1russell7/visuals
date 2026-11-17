@@ -119,34 +119,43 @@ surfaceSag: build/globe.d.ts#surfaceSag
 ## ./marks (build/marks.d.ts): names
 
 DIRECTION_TOLERANCE: build/marks.d.ts#DIRECTION_TOLERANCE
-type FieldMark: build/marks.d.ts#FieldMark
-type FieldScale: build/marks.d.ts#FieldScale
-type Frame: build/marks.d.ts#Frame
-LEVELS: build/marks.d.ts#LEVELS
-LEVEL_SHAPES: build/marks.d.ts#LEVEL_SHAPES
-type Level: build/marks.d.ts#Level
-type LevelShape: build/marks.d.ts#LevelShape
-type LinkEnd: build/marks.d.ts#LinkEnd
-type LinkMark: build/marks.d.ts#LinkMark
+type FieldMark: build/mark.chunk.d.ts#FieldMark
+type FieldScale: build/mark.chunk.d.ts#FieldScale
+type Frame: build/mark.chunk.d.ts#Frame
+LEVELS: build/mark.chunk.d.ts#LEVELS
+LEVEL_SHAPES: build/mark.chunk.d.ts#LEVEL_SHAPES
+type Level: build/mark.chunk.d.ts#Level
+type LevelShape: build/mark.chunk.d.ts#LevelShape
+type LinkEnd: build/mark.chunk.d.ts#LinkEnd
+type LinkMark: build/mark.chunk.d.ts#LinkMark
 MARK_FAULT_CODES: build/marks.d.ts#MARK_FAULT_CODES
-MARK_TYPES: build/marks.d.ts#MARK_TYPES
-type Mark: build/marks.d.ts#Mark
-type MarkBase: build/marks.d.ts#MarkBase
+MARK_TYPES: build/mark.chunk.d.ts#MARK_TYPES
+type Mark: build/mark.chunk.d.ts#Mark
+type MarkBase: build/mark.chunk.d.ts#MarkBase
 type MarkFault: build/marks.d.ts#MarkFault
 type MarkFaultCode: build/marks.d.ts#MarkFaultCode
-type MarkType: build/marks.d.ts#MarkType
-type MeterMark: build/marks.d.ts#MeterMark
-type PointMark: build/marks.d.ts#PointMark
-type RunMark: build/marks.d.ts#RunMark
-SHAPE_OUTLINES: build/marks.d.ts#SHAPE_OUTLINES
-type ShapeOutline: build/marks.d.ts#ShapeOutline
+type MarkType: build/mark.chunk.d.ts#MarkType
+type MeterMark: build/mark.chunk.d.ts#MeterMark
+type PointMark: build/mark.chunk.d.ts#PointMark
+type RunMark: build/mark.chunk.d.ts#RunMark
+SHAPE_OUTLINES: build/mark.chunk.d.ts#SHAPE_OUTLINES
+type ShapeOutline: build/mark.chunk.d.ts#ShapeOutline
 checkMarks: build/marks.d.ts#checkMarks
-fieldCellCenter: build/marks.d.ts#fieldCellCenter
-fieldRowStep: build/marks.d.ts#fieldRowStep
-fieldValue: build/marks.d.ts#fieldValue
-levelRank: build/marks.d.ts#levelRank
-levelShape: build/marks.d.ts#levelShape
-shapeRing: build/marks.d.ts#shapeRing
+fieldCellCenter: build/mark.chunk.d.ts#fieldCellCenter
+fieldRowStep: build/mark.chunk.d.ts#fieldRowStep
+fieldValue: build/mark.chunk.d.ts#fieldValue
+levelRank: build/mark.chunk.d.ts#levelRank
+levelShape: build/mark.chunk.d.ts#levelShape
+shapeRing: build/mark.chunk.d.ts#shapeRing
+
+## ./markers (build/markers.d.ts): names
+
+type MarkersContent: build/markers.d.ts#MarkersContent
+type MarkersOptions: build/markers.d.ts#MarkersOptions
+type MarkersTheme: build/markers.d.ts#MarkersTheme
+SIGN_RADIUS: build/markers.d.ts#SIGN_RADIUS
+createMarkers: build/markers.d.ts#createMarkers
+signReach: build/markers.d.ts#signReach
 
 ## ./scrubber (build/scrubber.d.ts): names
 
@@ -427,10 +436,7 @@ export declare function labelBox(label: LabelAnchor, side: LabelSide, gap?: numb
 ### build/labels.d.ts#placeLabels
 export declare function placeLabels(labels: readonly LabelAnchor[], frame: LabelFrame): (LabelPlace | undefined)[];
 
-### build/marks.d.ts#DIRECTION_TOLERANCE
-export declare const DIRECTION_TOLERANCE = 1e-6;
-
-### build/marks.d.ts#FieldMark
+### build/mark.chunk.d.ts#FieldMark
 interface FieldMark extends MarkBase {
   readonly type: "field";
   readonly frame: Frame;
@@ -442,60 +448,148 @@ interface FieldMark extends MarkBase {
   readonly scale: FieldScale;
 }
 
-### build/marks.d.ts#FieldScale
+### build/mark.chunk.d.ts#FieldScale
 interface FieldScale {
   readonly min: number;
   readonly max: number;
   readonly unit: string;
 }
 
-### build/marks.d.ts#Frame
+### build/mark.chunk.d.ts#Frame
 interface Frame {
   readonly at: Point3;
   readonly out: Point3;
 }
 
-### build/marks.d.ts#LEVELS
-export declare const LEVELS: readonly ["unknown", "ok", "near", "over"];
+### build/mark.chunk.d.ts#LEVELS
+declare const LEVELS: readonly ["unknown", "ok", "near", "over"];
 
-### build/marks.d.ts#LEVEL_SHAPES
-export declare const LEVEL_SHAPES: readonly ["ring", "disc", "triangle", "square"];
+### build/mark.chunk.d.ts#LEVEL_SHAPES
+declare const LEVEL_SHAPES: readonly ["ring", "disc", "triangle", "square"];
 
-### build/marks.d.ts#Level
+### build/mark.chunk.d.ts#Level
 type Level = (typeof LEVELS)[number];
 
-### build/marks.d.ts#LevelShape
+### build/mark.chunk.d.ts#LevelShape
 type LevelShape = (typeof LEVEL_SHAPES)[number];
 
-### build/marks.d.ts#LinkEnd
+### build/mark.chunk.d.ts#LinkEnd
 interface LinkEnd {
   readonly record: string;
   readonly at: Point3;
 }
 
-### build/marks.d.ts#LinkMark
+### build/mark.chunk.d.ts#LinkMark
 interface LinkMark extends MarkBase {
   readonly type: "link";
   readonly from: LinkEnd;
   readonly to: LinkEnd;
 }
 
-### build/marks.d.ts#MARK_FAULT_CODES
-export declare const MARK_FAULT_CODES: readonly ["type", "level", "name", "label", "number", "direction", "angle", "size", "grid", "values", "scale", "path"];
+### build/mark.chunk.d.ts#MARK_TYPES
+declare const MARK_TYPES: readonly ["point", "run", "link", "field", "meter"];
 
-### build/marks.d.ts#MARK_TYPES
-export declare const MARK_TYPES: readonly ["point", "run", "link", "field", "meter"];
-
-### build/marks.d.ts#Mark
+### build/mark.chunk.d.ts#Mark
 type Mark = PointMark | RunMark | LinkMark | FieldMark | MeterMark;
 
-### build/marks.d.ts#MarkBase
+### build/mark.chunk.d.ts#MarkBase
 interface MarkBase {
   readonly record: string;
   readonly kind: string;
   readonly level: Level;
   readonly label: string;
 }
+
+### build/mark.chunk.d.ts#MarkType
+type MarkType = (typeof MARK_TYPES)[number];
+
+### build/mark.chunk.d.ts#MeterMark
+interface MeterMark extends MarkBase {
+  readonly type: "meter";
+  readonly value: number;
+  readonly limit?: number | undefined;
+  readonly unit: string;
+}
+
+### build/mark.chunk.d.ts#PointMark
+interface PointMark extends MarkBase {
+  readonly type: "point";
+  readonly frame: Frame;
+  readonly size?: number | undefined;
+}
+
+### build/mark.chunk.d.ts#RunMark
+interface RunMark extends MarkBase {
+  readonly type: "run";
+  readonly path: readonly Frame[];
+  readonly width: number;
+}
+
+### build/mark.chunk.d.ts#SHAPE_OUTLINES
+declare const SHAPE_OUTLINES: Readonly<Record<LevelShape, ShapeOutline>>;
+
+### build/mark.chunk.d.ts#ShapeOutline
+interface ShapeOutline {
+  readonly radius: number;
+  readonly sides: number;
+  readonly start: number;
+  readonly hole: number;
+}
+
+### build/mark.chunk.d.ts#fieldCellCenter
+declare function fieldCellCenter(field: FieldMark, column: number, row: number): Point3;
+
+### build/mark.chunk.d.ts#fieldRowStep
+declare function fieldRowStep(field: FieldMark): Point3;
+
+### build/mark.chunk.d.ts#fieldValue
+declare function fieldValue(field: FieldMark, column: number, row: number): number | null;
+
+### build/mark.chunk.d.ts#levelRank
+declare function levelRank(level: Level): number;
+
+### build/mark.chunk.d.ts#levelShape
+declare function levelShape(level: Level | undefined): LevelShape;
+
+### build/mark.chunk.d.ts#shapeRing
+declare function shapeRing(shape: LevelShape, radius?: number): Ring;
+
+### build/markers.d.ts#MarkersContent
+interface MarkersContent extends StageContent<Mark, MarkersTheme> {
+  show(test: (mark: Mark) => boolean): void;
+}
+
+### build/markers.d.ts#MarkersOptions
+interface MarkersOptions {
+  readonly signRadius?: number | undefined;
+  readonly linkWidth?: number | undefined;
+  readonly linkDash?: readonly [dash: number, gap: number] | undefined;
+  readonly lift?: number | undefined;
+}
+
+### build/markers.d.ts#MarkersTheme
+interface MarkersTheme extends StageTheme {
+  readonly levels: Readonly<Record<Level, string>>;
+  readonly halo: string;
+  readonly accent: string;
+  readonly field: readonly string[];
+  readonly fieldOpacity?: number | undefined;
+}
+
+### build/markers.d.ts#SIGN_RADIUS
+export declare const SIGN_RADIUS = 7;
+
+### build/markers.d.ts#createMarkers
+export declare function createMarkers(marks: readonly Mark[], options?: MarkersOptions): MarkersContent;
+
+### build/markers.d.ts#signReach
+export declare function signReach(level: Level, radius?: number): number;
+
+### build/marks.d.ts#DIRECTION_TOLERANCE
+export declare const DIRECTION_TOLERANCE = 1e-6;
+
+### build/marks.d.ts#MARK_FAULT_CODES
+export declare const MARK_FAULT_CODES: readonly ["type", "level", "name", "label", "number", "direction", "angle", "size", "grid", "values", "scale", "path"];
 
 ### build/marks.d.ts#MarkFault
 interface MarkFault {
@@ -509,62 +603,8 @@ interface MarkFault {
 ### build/marks.d.ts#MarkFaultCode
 type MarkFaultCode = (typeof MARK_FAULT_CODES)[number];
 
-### build/marks.d.ts#MarkType
-type MarkType = (typeof MARK_TYPES)[number];
-
-### build/marks.d.ts#MeterMark
-interface MeterMark extends MarkBase {
-  readonly type: "meter";
-  readonly value: number;
-  readonly limit?: number | undefined;
-  readonly unit: string;
-}
-
-### build/marks.d.ts#PointMark
-interface PointMark extends MarkBase {
-  readonly type: "point";
-  readonly frame: Frame;
-  readonly size?: number | undefined;
-}
-
-### build/marks.d.ts#RunMark
-interface RunMark extends MarkBase {
-  readonly type: "run";
-  readonly path: readonly Frame[];
-  readonly width: number;
-}
-
-### build/marks.d.ts#SHAPE_OUTLINES
-export declare const SHAPE_OUTLINES: Readonly<Record<LevelShape, ShapeOutline>>;
-
-### build/marks.d.ts#ShapeOutline
-interface ShapeOutline {
-  readonly radius: number;
-  readonly sides: number;
-  readonly start: number;
-  readonly hole: number;
-}
-
 ### build/marks.d.ts#checkMarks
 export declare function checkMarks(marks: readonly Mark[]): readonly MarkFault[];
-
-### build/marks.d.ts#fieldCellCenter
-export declare function fieldCellCenter(field: FieldMark, column: number, row: number): Point3;
-
-### build/marks.d.ts#fieldRowStep
-export declare function fieldRowStep(field: FieldMark): Point3;
-
-### build/marks.d.ts#fieldValue
-export declare function fieldValue(field: FieldMark, column: number, row: number): number | null;
-
-### build/marks.d.ts#levelRank
-export declare function levelRank(level: Level): number;
-
-### build/marks.d.ts#levelShape
-export declare function levelShape(level: Level | undefined): LevelShape;
-
-### build/marks.d.ts#shapeRing
-export declare function shapeRing(shape: LevelShape, radius?: number): Ring;
 
 ### build/replay.chunk.d.ts#Lifetime
 interface Lifetime {
@@ -787,6 +827,7 @@ interface StageOptions<P, T extends StageTheme = StageTheme> {
 interface StagePick<P> {
   readonly record: string;
   readonly value: P;
+  readonly distance?: number | undefined;
 }
 
 ### build/stage.chunk.d.ts#createStage

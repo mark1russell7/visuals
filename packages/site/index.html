@@ -51,6 +51,36 @@
     </div>
   </section>
 
+  <section class="plate plate-room" aria-label="A live room with marks">
+    <div class="title">
+      <h2>Marks in a room</h2>
+      <p class="lead">A viewer puts marks on a scene: a sign at a point, a run along a surface, a link and a field. The shape of a sign tells its level.</p>
+    </div>
+
+    <div class="chart">
+      <div id="room" class="room">
+        <noscript><p class="note">The room needs JavaScript.</p></noscript>
+      </div>
+      <p id="room-readout" class="readout"></p>
+      <div class="key">
+        <div id="room-levels" class="levels"></div>
+        <div id="room-scale" class="scale"></div>
+      </div>
+      <div id="room-views" class="views" role="group" aria-label="Views of the room">
+        <button type="button" data-view="corner">Corner</button>
+        <button type="button" data-view="plan">Plan</button>
+        <button type="button" data-view="front">Front</button>
+      </div>
+      <p id="room-hint" class="hint">Drag to turn the room. The outlet behind the desk stays in view.</p>
+    </div>
+
+    <div class="panel">
+      <div id="room-legend" class="legend" role="group" aria-label="Kinds of marks in the room"></div>
+      <ul id="room-records" class="records" aria-label="Marks in the room"></ul>
+      <p class="note">Sample data. The room and each value are made up.</p>
+    </div>
+  </section>
+
   <section class="text">
     <h2>Put a globe in a page</h2>
     <div class="command">
@@ -141,6 +171,39 @@ const stage = createStage(box, {
       <li>No text is on a different text or on a mark. When two texts have one place, the label with the higher rank stays.</li>
       <li>Each label is an HTML element. So the text is sharp, and it has the font of the page.</li>
       <li>The label of a highlighted record is first, and it gets the look of the highlight.</li>
+    </ul>
+
+    <h2>Put marks on a scene</h2>
+<pre><code>import { fitView } from "@mark1russell7/visuals";
+import { createMarkers } from "@mark1russell7/visuals/markers";
+import { createStage, stackContents } from "@mark1russell7/visuals/three";
+
+const markers = createMarkers([
+  {
+    type: "point",
+    record: "outlet-2",
+    kind: "outlet",
+    level: "near",
+    label: "Outlet 2: 1210 W of 1440 W",
+    // The point on the wall, and the direction out of the wall.
+    frame: { at: { x: 2.3, y: 0.3, z: 0 }, out: { x: 0, y: 0, z: 1 } },
+  },
+]);
+
+const stage = createStage(document.querySelector("#room"), {
+  // The content `room` has the solids. The marks are on top of them.
+  content: stackContents([room, markers]),
+  theme,
+  label: "A room with one outlet",
+  views: { corner: fitView({ polar: 1, azimuth: 0.7 }) },
+  home: "corner",
+  onHover: (mark) => console.log(mark?.label),
+});</code></pre>
+    <ul class="points">
+      <li>A mark is plain data: a point, a run, a link or a field. It goes through JSON with no change.</li>
+      <li>A mark has a level and no color. The level gives the shape of its sign, and the theme gives the color.</li>
+      <li>A mark behind a solid stays in the picture with less color, and the pointer finds it.</li>
+      <li>A link is a dashed line between two records. The picture shows it while one of them has a highlight.</li>
     </ul>
     <p class="note">The <a href="https://github.com/mark1russell7/visuals/tree/main/packages/visuals#readme">README</a> tells each option. <a href="./releases/">Releases</a> shows each version, and <a href="./status/">Status</a> shows the open work.</p>
   </section>
