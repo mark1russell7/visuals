@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DIRECTION_TOLERANCE, MARK_FAULT_CODES, checkMarks, type MarkFaultCode } from "./check.ts";
 import type { Level } from "./levels.ts";
 import type { Mark } from "./mark.ts";
-import { FIELD, LINK, METER, POINT, RUN, SAMPLE_MARKS } from "./sample.ts";
+import { FIELD, LINK, METER, METER_NO_LIMIT, POINT, RUN, SAMPLE_MARKS } from "./sample.ts";
 
 /** This function gives the code and the part of each fault of one mark. */
 function faultsOf(mark: Mark): readonly (readonly [MarkFaultCode, string])[] {
@@ -13,6 +13,19 @@ describe("checkMarks", () => {
   it("gives no fault for a correct mark of each type", () => {
     expect(checkMarks(SAMPLE_MARKS)).toEqual([]);
     expect(checkMarks([])).toEqual([]);
+  });
+
+  it("gives no fault for a meter with no limit, and for a limit of 0", () => {
+    expect("limit" in METER_NO_LIMIT).toBe(false);
+    expect(checkMarks([METER_NO_LIMIT])).toEqual([]);
+    expect(faultsOf({ ...METER, limit: undefined })).toEqual([]);
+    expect(faultsOf({ ...METER, limit: 0 })).toEqual([]);
+    expect(faultsOf({ ...METER, limit: -18 })).toEqual([]);
+  });
+
+  it("finds a limit of null, as in a list from JSON: a meter with no limit has no limit", () => {
+    expect(faultsOf({ ...METER, limit: null } as unknown as Mark)).toEqual([["number", "limit"]]);
+    expect(faultsOf({ ...METER_NO_LIMIT, value: Number.NaN })).toEqual([["number", "value"]]);
   });
 
   it("gives the index and the record name of the mark with the fault, in the sequence of the list", () => {

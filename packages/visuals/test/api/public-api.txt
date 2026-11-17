@@ -515,7 +515,7 @@ type MarkType = (typeof MARK_TYPES)[number];
 interface MeterMark extends MarkBase {
   readonly type: "meter";
   readonly value: number;
-  readonly limit: number;
+  readonly limit?: number | undefined;
   readonly unit: string;
 }
 

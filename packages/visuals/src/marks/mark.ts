@@ -101,7 +101,11 @@ export interface FieldMark extends MarkBase {
 export interface MeterMark extends MarkBase {
   readonly type: "meter";
   readonly value: number;
-  readonly limit: number;
+  /**
+   * The limit of the value. A meter with no limit has no `limit`, for example a circuit with a known load and no known breaker.
+   * A page shows only the value and the unit of that meter. A limit of 0 is a real limit, so it is not a sign for no limit.
+   */
+  readonly limit?: number | undefined;
   /** The text of the unit of the value and of the limit, for example `W`. */
   readonly unit: string;
 }

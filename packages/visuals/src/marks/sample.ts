@@ -66,5 +66,16 @@ export const METER: MeterMark = {
   unit: "W",
 };
 
+/** A meter with no limit: it has only its value and its unit. */
+export const METER_NO_LIMIT: MeterMark = {
+  type: "meter",
+  record: "sample/1:circuit-2",
+  kind: "circuit",
+  level: "unknown",
+  label: "Circuit 2",
+  value: 600,
+  unit: "W",
+};
+
 /** One correct mark of each type. */
 export const SAMPLE_MARKS: readonly Mark[] = [POINT, RUN, LINK, FIELD, METER];
