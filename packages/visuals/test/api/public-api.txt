@@ -147,6 +147,7 @@ fieldValue: build/mark.chunk.d.ts#fieldValue
 levelRank: build/mark.chunk.d.ts#levelRank
 levelShape: build/mark.chunk.d.ts#levelShape
 shapeRing: build/mark.chunk.d.ts#shapeRing
+transformMarks: build/mark.chunk.d.ts#transformMarks
 
 ## ./markers (build/markers.d.ts): names
 
@@ -553,6 +554,9 @@ declare function levelShape(level: Level | undefined): LevelShape;
 
 ### build/mark.chunk.d.ts#shapeRing
 declare function shapeRing(shape: LevelShape, radius?: number): Ring;
+
+### build/mark.chunk.d.ts#transformMarks
+declare function transformMarks(marks: readonly Mark[], transform: Transform3): readonly Mark[];
 
 ### build/markers.d.ts#MarkersContent
 interface MarkersContent extends StageContent<Mark, MarkersTheme> {

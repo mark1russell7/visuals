@@ -398,6 +398,16 @@ shapeRing("triangle").length; // => 3: the corners of the sign, counter-clockwis
 - A meter has no place. A page draws it in a panel, and a 3D view ignores it.
 - A meter with no limit has no `limit`. A page shows only its value and its unit.
 - Each point of a list of marks is in one space. The producer tells the unit and the axes of that space.
+- `transformMarks` gives the marks in a different space. It moves each point, and it turns each direction.
+
+```ts
+import { transformMarks } from "@mark1russell7/visuals/marks";
+
+// The marks of a room have the z axis up. A stage has the y axis up: a turn of a quarter about the x axis.
+const onStage = transformMarks(marks, { position: { x: 0, y: 0, z: 0 }, rotation: { x: -Math.SQRT1_2, y: 0, z: 0, w: Math.SQRT1_2 } });
+```
+
+A transform is a `Transform3` of `@mark1russell7/layout-contract`. It has no scale, so each length of a mark stays.
 
 `checkMarks` gives the faults of a list, each with a code, the index of its mark and the part with the fault. It examines the values that the types do not hold:
 
@@ -458,6 +468,7 @@ stage?.refresh();
 - A record with a highlight gets a larger sign, and a line of the color `accent` around it.
 - `signReach` gives the radius of a sign with its line. Give it to the field `clear` of a label.
 - The pick of a field gives the mark. `fieldValue` reads the value of a cell.
+- The content draws the marks in the space of the stage. `transformMarks` moves the marks of a different space into it.
 
 ## The camera maths
 
