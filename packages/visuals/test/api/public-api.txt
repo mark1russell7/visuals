@@ -263,6 +263,7 @@ SMALLEST_AREA: build/graph.d.ts#SMALLEST_AREA
 SMALLEST_BAR_LINE: build/graph.d.ts#SMALLEST_BAR_LINE
 SMALLEST_NAMED_BOX: build/graph.d.ts#SMALLEST_NAMED_BOX
 SMALLEST_TEXT_LINE: build/graph.d.ts#SMALLEST_TEXT_LINE
+type SetPictureOptions: build/graph.d.ts#SetPictureOptions
 TOUCH_CLICK_DISTANCE: build/graph.d.ts#TOUCH_CLICK_DISTANCE
 TOUCH_PICK_SLACK: build/graph.d.ts#TOUCH_PICK_SLACK
 UNIT_VIEW: build/graph.d.ts#UNIT_VIEW
@@ -543,7 +544,7 @@ interface LabelLook {
 
 ### build/graph.d.ts#LayoutPictureContent
 interface LayoutPictureContent<T> extends PictureContent<PictureRecord, T> {
-  setPicture(picture: LayoutPicture): void;
+  setPicture(picture: LayoutPicture, options?: SetPictureOptions): void;
   setFocus(records: readonly string[] | undefined): void;
 }
 
@@ -861,6 +862,11 @@ export declare const SMALLEST_NAMED_BOX = 48;
 
 ### build/graph.d.ts#SMALLEST_TEXT_LINE
 export declare const SMALLEST_TEXT_LINE = 11;
+
+### build/graph.d.ts#SetPictureOptions
+interface SetPictureOptions {
+  readonly fade?: boolean | undefined;
+}
 
 ### build/graph.d.ts#TOUCH_CLICK_DISTANCE
 export declare const TOUCH_CLICK_DISTANCE = 10;

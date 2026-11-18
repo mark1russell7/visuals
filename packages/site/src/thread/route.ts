@@ -20,7 +20,7 @@ const CORNER = 18;
 /** The input of a router for some placed boxes and some edges, with the facts that the curves read. */
 interface Ground {
   readonly router: Router;
-  /** The graph of the flat input: each card is one node, and the row of an edge is a plug on the border of its card. */
+  /** The graph of the flat input. Each card is one node, and the row of an edge is a plug on the border of its card. */
   readonly graph: Graph;
   /** The curve through the points of each route. */
   readonly type: CurveOptions["type"];
