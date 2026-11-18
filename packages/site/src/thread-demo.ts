@@ -3,8 +3,9 @@ import { onThemeChange, threadTheme } from "./colors.ts";
 import { chooseTopic } from "./thread/card.ts";
 import { labelOf, threadKinds, topicCounts, type ThreadDocument } from "./thread/document.ts";
 import { mountThreadView, type ThreadActionEvent, type ThreadView } from "./thread/mount.ts";
+import { panelId, withPanel } from "./thread/panels.ts";
 import { phaseText, type ThreadPhaseEvent } from "./thread/phases.ts";
-import { answerEntry, SAMPLE_LEGEND, sampleThread } from "./thread/sample.ts";
+import { answerEntry, SAMPLE_ANSWER, SAMPLE_LEGEND, sampleThread } from "./thread/sample.ts";
 
 /** The elements of the page that the conversation demo uses. */
 export interface ThreadElements {
@@ -21,10 +22,10 @@ export interface ThreadElements {
 /** The name of the person of the page, for a topic that the person gives to a part, and for an answer. */
 const PERSON = "you";
 
-/** The space between the form of an answer and its entry, and between the form and the border of the picture, in pixels. */
+/** The space between the sheet of an answer and its entry, and between the sheet and the border of the picture, in pixels. */
 const FORM_GAP = 8;
 
-/** A page of this width or less has the form of an answer at the bottom of the picture. */
+/** A page of this width or less has no room for a panel. Its form of an answer is a sheet at the bottom of the picture. */
 const NARROW = "(max-width: 44rem)";
 
 /**
@@ -56,8 +57,11 @@ export function startThread(elements: ThreadElements): ThreadView {
     }
   };
 
-  // The form of an answer. The view tells the action and the place of its entry, and the page has the form.
+  // The form of an answer. The view tells the action of an entry, and the page has the form.
+  // On a wide page, the form is the content of a panel: an empty box of the picture next to the entry.
   const form = elements.form;
+  /** The element of the page that has the form when no panel has it. */
+  const home = form.parentElement;
   const title = h("p", { class: "thread-form-title", id: "thread-form-title" });
   const field = h("textarea", { id: "thread-answer", rows: "2", maxlength: "200", required: "" });
   const cancel = h("button", { type: "button" }, "Cancel");
@@ -67,33 +71,43 @@ export function startThread(elements: ThreadElements): ThreadView {
   /** The id of the entry of the open form. */
   let answering: string | undefined;
 
-  /** This function puts the form at the rectangle of its entry: on its right, or on its left when the right has no room. */
-  const placeForm = (anchor = answering === undefined ? undefined : view.anchorOf(answering)): void => {
-    // A narrow page has the form at the bottom of the picture. An entry with no rectangle keeps the form at its last place.
-    if (answering === undefined || anchor === undefined || narrow.matches) return;
-    const frame = elements.picture.getBoundingClientRect();
-    const right = anchor.right - frame.left + FORM_GAP;
-    const left = right + form.offsetWidth <= frame.width - FORM_GAP ? right : Math.max(FORM_GAP, anchor.left - frame.left - FORM_GAP - form.offsetWidth);
-    const top = Math.max(FORM_GAP, Math.min(anchor.top - frame.top, frame.height - form.offsetHeight - FORM_GAP));
-    form.style.left = `${String(Math.round(left))}px`;
-    form.style.top = `${String(Math.round(top))}px`;
+  /** This function gives the document of the picture: the copy of the page, and the panel of the open form on a wide page. */
+  const shown = (): ThreadDocument => (answering === undefined || narrow.matches ? current : withPanel(current, answering, SAMPLE_ANSWER));
+
+  /**
+   * This function shows the document, and puts the form in its place: the panel of its entry.
+   * A narrow page has no panel. There, the form is a sheet at the bottom of the picture.
+   */
+  const seat = (): void => {
+    view.setDocument(shown());
+    const slot = answering === undefined ? undefined : view.slot(panelId(answering, SAMPLE_ANSWER.id));
+    const place = slot ?? home;
+    // The form goes only to a different place. Thus a form that stays keeps its focus.
+    if (form.parentElement !== place) place?.append(form);
+    form.classList.toggle("is-sheet", slot === undefined);
+    form.hidden = answering === undefined;
+  };
+
+  /** This function moves the camera to the open form: to its panel, or to its entry above the sheet of a narrow page. */
+  const aim = (): void => {
+    if (answering === undefined) return;
+    if (form.classList.contains("is-sheet")) view.reveal(answering, { bottom: form.offsetHeight + 2 * FORM_GAP });
+    else view.reveal(panelId(answering, SAMPLE_ANSWER.id));
   };
   const closeForm = (): void => {
     answering = undefined;
-    form.hidden = true;
+    seat();
   };
   const openForm = (event: ThreadActionEvent): void => {
     answering = event.box.id;
     title.textContent = labelOf(event.box);
     field.value = "";
-    form.removeAttribute("style");
-    form.hidden = false;
     // The card of the entry closes, so the form and the card do not cover the same part of the picture.
     selected = undefined;
     view.select(undefined);
     paint();
-    if (narrow.matches) view.reveal(answering, { bottom: form.offsetHeight + 2 * FORM_GAP });
-    else placeForm(event.anchor);
+    seat();
+    aim();
     field.focus({ preventScroll: true });
   };
 
@@ -109,12 +123,9 @@ export function startThread(elements: ThreadElements): ThreadView {
       paint();
     },
     onAction: openForm,
-    onCamera: () => {
-      placeForm();
-    },
     onChoose: (event) => {
       current = chooseTopic(current, event, PERSON);
-      view.setDocument(current);
+      view.setDocument(shown());
       paint();
     },
     // The view shows a note for a step with an error, so the line keeps the times of the last good picture.
@@ -144,9 +155,9 @@ export function startThread(elements: ThreadElements): ThreadView {
     if (answering === undefined || text === "") return;
     // The answer is a new entry of the copy of the page: a reply to the entry, which waits on no one after it.
     current = answerEntry(current, answering, text, new Date().toISOString(), PERSON);
-    closeForm();
-    view.setDocument(current);
     const made = current.boxes.at(-1)?.id;
+    // The panel goes with the form, and the picture gets the answer.
+    closeForm();
     if (made !== undefined) view.reveal(made);
     paint();
   });
@@ -154,9 +165,13 @@ export function startThread(elements: ThreadElements): ThreadView {
   form.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closeForm();
   });
-  // A new size of the page moves the entry in the picture, and the view gives no event of the camera for it.
-  addEventListener("resize", () => {
-    placeForm();
+  // A page that becomes narrow or wide gives the open form its other place. The form loses its focus when it moves.
+  narrow.addEventListener("change", () => {
+    if (answering === undefined) return;
+    const typing = form.contains(document.activeElement);
+    seat();
+    aim();
+    if (typing) field.focus({ preventScroll: true });
   });
 
   onThemeChange(() => {

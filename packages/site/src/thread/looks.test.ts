@@ -2,7 +2,8 @@ import type { PictureBox, PictureLabel, PictureRoute } from "@mark1russell7/layo
 import type { RecordState } from "@mark1russell7/visuals/graph";
 import { describe, expect, it } from "vitest";
 import { fakeAdvance } from "./advance.test-util.ts";
-import { DONE_OPACITY, FAR_LINE_OPACITY, farNameLine, LIGHT_THREAD_THEME, PROPOSAL_OPACITY, TEXT_ZOOM, threadLooks, WAITS_WIDTH, waitsColor, type ThreadLookState } from "./looks.ts";
+import { DONE_OPACITY, FAR_LINE_OPACITY, farNameLine, LIGHT_THREAD_THEME, PANEL_DASH, PANEL_NAME_LINE, PANEL_RADIUS, PROPOSAL_OPACITY, TEXT_ZOOM, threadLooks, WAITS_WIDTH, waitsColor, type ThreadLookState } from "./looks.ts";
+import { panelId, withPanels } from "./panel.test-util.ts";
 import { labelId, threadPicture } from "./picture.ts";
 import { sampleThread } from "./sample.ts";
 import { isTopicLook, MESSAGE_LOOK } from "./sizes.ts";
@@ -134,6 +135,40 @@ describe("the look of a route", () => {
     const base = { id: "x", source: "m01", target: "m01#0", path: [] };
     expect(looks.route({ ...base, data: { kind: "part" } }, near, theme)).toBeUndefined();
     expect(withState({ proposals: true }, () => looks.route({ ...base, data: { kind: "touches", state: "refused" } }, near, theme))).toBeUndefined();
+  });
+});
+
+describe("the look of a panel", () => {
+  const id = panelId("m10#0");
+  const withPanel = threadPicture(withPanels(sampleThread(), "m10#0"), fakeAdvance, { timeZone: "UTC" });
+  const panelLooks = threadLooks(() => ({ thread: withPanel, proposals: false }));
+  const found = <T>(record: T | undefined): T => {
+    if (record === undefined) throw new Error("no record of the panel");
+    return record;
+  };
+  const panel = found(withPanel.picture.boxes.find((entry) => entry.id === id));
+  const line = found(withPanel.picture.routes.find((entry) => entry.target === id));
+  const name = found(withPanel.picture.labels.find((entry) => entry.box === id));
+
+  it("makes an empty card of a panel, with a strong border and the accent of a highlight", () => {
+    expect(panelLooks.box(panel, near, theme)).toEqual({ fill: theme.surface, stroke: theme.edgeStrong, width: 1, radius: PANEL_RADIUS });
+    expect(panelLooks.box(panel, far, theme)).toEqual({ fill: theme.surface, stroke: theme.edgeStrong, width: 1, radius: PANEL_RADIUS });
+    expect(panelLooks.box(panel, { ...near, highlight: 2 }, theme)).toEqual({ fill: theme.surface, stroke: theme.accent, width: 2, radius: PANEL_RADIUS });
+  });
+
+  it("makes a line of short dashes of the edge of a panel, in each view and with no proposal shown", () => {
+    const dashes = { stroke: theme.edgeStrong, width: 1.25, dash: PANEL_DASH };
+    expect(panelLooks.route(line, near, theme)).toEqual(dashes);
+    expect(panelLooks.route(line, far, theme)).toEqual(dashes);
+    expect(panelLooks.route(line, { ...near, highlight: 1 }, theme)).toEqual({ stroke: theme.accent, width: 2, dash: PANEL_DASH });
+    // An edge of a different kind with a panel at an end is a line of a panel also.
+    expect(panelLooks.route({ ...line, data: { kind: "relates" } }, near, theme)).toEqual(dashes);
+  });
+
+  it("shows the name of a panel only in a far view, where the content of the page is not visible", () => {
+    const of = { type: "box", id, box: panel } as const;
+    expect(panelLooks.label(name, near, theme, of)).toBeUndefined();
+    expect(panelLooks.label(name, far, theme, of)).toEqual({ color: theme.text, halo: theme.surface, least: PANEL_NAME_LINE });
   });
 });
 

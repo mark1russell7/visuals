@@ -1,6 +1,6 @@
 import type { BoxLook, BoxMark, LabelLook, PictureLooks, RouteLook } from "@mark1russell7/visuals/graph";
 import { choiceOf, edgeKind, edgeState, isDone, isProposal, relationOf, waitsOf } from "./document.ts";
-import type { ThreadPicture } from "./picture.ts";
+import { isPanelLine, type ThreadPicture } from "./picture.ts";
 import { entryRow } from "./place.ts";
 import { isTopicLook, MESSAGE_LOOK } from "./sizes.ts";
 
@@ -93,6 +93,15 @@ export const FAR_LINE_OPACITY = 0.6;
 /** The width of the border of an entry that waits. */
 export const WAITS_WIDTH = 2;
 
+/** The radius of the corners of a panel. */
+export const PANEL_RADIUS = 10;
+
+/** The dashes of the line from a box to its panel. */
+export const PANEL_DASH: readonly number[] = [3, 4];
+
+/** The height on the screen of the name of a panel in a far view. */
+export const PANEL_NAME_LINE = 15;
+
 /** This function gives the color of an entry that waits: the color `waits` of a theme, or its color `open`. */
 export function waitsColor(theme: ThreadTheme): string {
   return theme.waits ?? theme.open;
@@ -127,6 +136,7 @@ export function farNameLine(size: number): number {
  * - In a far view, the text of a part is a row of bars. The name of a topic keeps a height that a person reads.
  * - In a far view, a topic is the darkest shape, and the line of a chosen topic is thin and light, with no dot.
  * - In a far view, an entry that waits has all its inside in the color `waits`, so a person finds it between many cards.
+ * - A panel is an empty card, and a line of short dashes joins it to its box. In a far view, the panel shows its name.
  */
 export function threadLooks(read: () => ThreadLookState): PictureLooks<ThreadTheme> {
   return {
@@ -136,6 +146,7 @@ export function threadLooks(read: () => ThreadLookState): PictureLooks<ThreadThe
       const lit = state.highlight > 0;
       const border = { stroke: lit ? theme.accent : theme.stroke, width: state.highlight === 2 ? 2 : 1 };
       if (kind === "message") return { fill: theme.tray, ...border, radius: 9 };
+      if (kind === "panel") return { fill: theme.surface, ...border, stroke: lit ? theme.accent : theme.edgeStrong, radius: PANEL_RADIUS };
       const size = thread.sizes.get(box.id);
       if (kind === "topic") {
         const far = state.zoom < TEXT_ZOOM;
@@ -157,13 +168,14 @@ export function threadLooks(read: () => ThreadLookState): PictureLooks<ThreadThe
     },
 
     route(route, state, theme): RouteLook | undefined {
-      const { proposals, part, hint } = read();
+      const { thread, proposals, part, hint } = read();
       const kind = edgeKind(route);
       if (kind === "part" || edgeState(route) === "refused") return undefined;
-      const own = isProposal(route) && choiceOf(route) === part;
-      if (isProposal(route) && !proposals && !own) return undefined;
       const lit = state.highlight > 0 || state.focus === "in" || hint?.edge === route.id;
       const line = lit ? { stroke: theme.accent, width: 2 } : undefined;
+      if (isPanelLine(route, thread.kinds)) return { stroke: theme.edgeStrong, width: 1.25, ...line, dash: PANEL_DASH };
+      const own = isProposal(route) && choiceOf(route) === part;
+      if (isProposal(route) && !proposals && !own) return undefined;
       if (isProposal(route)) return { stroke: theme.edge, width: 1.25, ...line, dash: [5, 5], opacity: own || lit ? 1 : PROPOSAL_OPACITY };
       if (kind === "reply") return { stroke: theme.edgeStrong, width: 1.5, ...line, end: { shape: "arrow", size: 7 } };
       if (kind === "relates") return { stroke: theme.edge, width: 1.5, ...line, dash: [1, 5], end: relationOf(route) === "sub" ? { shape: "arrow", size: 6 } : undefined };
@@ -183,6 +195,8 @@ export function threadLooks(read: () => ThreadLookState): PictureLooks<ThreadThe
         const least = farNameLine(size !== undefined && isTopicLook(size.look) ? size.look.size : 15);
         return { color: state.highlight > 0 ? theme.accent : theme.text, halo: theme.background, least, opacity: isDone(of.box) ? 0.6 : 1 };
       }
+      // In a near view, the slot of the view has the content of a panel. In a far view the slot is hidden, so the name tells the panel.
+      if (kind === "panel") return far ? { color: theme.text, halo: theme.surface, least: PANEL_NAME_LINE } : undefined;
       if (role === "waits") return far ? undefined : { color: waitsColor(theme) };
       if (role === "date" || role === "tag") return far ? undefined : { color: theme.muted };
       if (!far) return { color: theme.text };

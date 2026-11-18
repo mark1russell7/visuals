@@ -8,7 +8,10 @@ interface WithData {
   readonly data?: Data;
 }
 
-/** One box of a thread document: a box of `layout-input/1`. The view measures each box, so a size in the document has no effect. */
+/**
+ * One box of a thread document: a box of `layout-input/1`. The view measures each box, so a size in the document has no effect.
+ * A panel is different: its `w` is its width, and its `h` is its height until the page gives it content.
+ */
 export type ThreadBox = Omit<LayoutBox, "w" | "h"> & { readonly w?: number | undefined; readonly h?: number | undefined };
 
 /**
@@ -21,8 +24,10 @@ export type ThreadBox = Omit<LayoutBox, "w" | "h"> & { readonly w?: number | und
  * - A topic has `topic` as its first kind. Its second kind is a tag, and its `data.state` can be `done`.
  * - An entry is a box with no part and no parent that is not a topic. Its tag is its second kind.
  * - An entry can have `data.waits`: the id of who the entry waits on, for example a person. The entry stands out in the picture.
- * - An edge has `data.kind`: `reply`, `part`, `touches` or `relates`. An edge `relates` can have `data.relation`.
+ * - A panel has `panel` as its first kind, and no parent. It is the place of a form of the page, next to the box of its `data.of`.
+ * - An edge has `data.kind`: `reply`, `part`, `touches`, `relates` or `panel`. An edge `relates` can have `data.relation`.
  * - An edge of a sorter has also `data.state`, `data.rank`, `data.score`, `data.choice` and `data.by`.
+ * - An edge `panel` joins a box to its panel. It is a line of dashes, and it pulls no box.
  */
 export interface ThreadDocument {
   readonly id: string;
@@ -44,14 +49,17 @@ export interface LegendName {
   readonly title: string;
 }
 
-/** The kinds of the boxes of a thread document. A message is a card with a row for each part, and an entry is a card with one text. */
-export const THREAD_KINDS = ["message", "part", "topic", "entry"] as const;
+/**
+ * The kinds of the boxes of a thread document. A message is a card with a row for each part, and an entry is a card with one text.
+ * A panel is an empty box for a form of the page.
+ */
+export const THREAD_KINDS = ["message", "part", "topic", "entry", "panel"] as const;
 
 /** The kind of a box of a thread document. */
 export type ThreadKind = (typeof THREAD_KINDS)[number];
 
 /** The kinds of the edges of a thread document. */
-export const EDGE_KINDS = ["reply", "part", "touches", "relates"] as const;
+export const EDGE_KINDS = ["reply", "part", "touches", "relates", "panel"] as const;
 
 /** The kind of an edge of a thread document. */
 export type ThreadEdgeKind = (typeof EDGE_KINDS)[number];
@@ -86,16 +94,17 @@ export function kindsOf(box: WithData): string[] {
 /**
  * This function gives the kind of each box of a document, by the id of the box. The place of a box in the tree comes first.
  * A box with boxes in it is a message, and a box in a box is a part. A different box with the first kind `topic` is a topic.
- * Each other box is an entry.
+ * A different box with the first kind `panel` is a panel. Each other box is an entry.
  */
 export function threadKinds(document: ThreadDocument): Map<string, ThreadKind> {
   const parents = new Set<string>();
   for (const box of document.boxes) if (box.parent !== undefined) parents.add(box.parent);
   const out = new Map<string, ThreadKind>();
   for (const box of document.boxes) {
+    const first = kindsOf(box)[0];
     if (parents.has(box.id)) out.set(box.id, "message");
     else if (box.parent !== undefined) out.set(box.id, "part");
-    else out.set(box.id, kindsOf(box)[0] === "topic" ? "topic" : "entry");
+    else out.set(box.id, first === "topic" ? "topic" : first === "panel" ? "panel" : "entry");
   }
   return out;
 }
@@ -134,6 +143,14 @@ export function linkOf(box: WithData): string | undefined {
  */
 export function waitsOf(box: WithData): string | undefined {
   return field(box, "waits");
+}
+
+/**
+ * This function gives the id of the box of a panel: its `data.of`. The view puts the panel next to that box.
+ * It gives `undefined` for a panel with no box, and for a value that is not a text.
+ */
+export function panelOf(box: WithData): string | undefined {
+  return field(box, "of");
 }
 
 /** An action of a box: a button of the card of the box. The page does the action, and the view writes no data. */

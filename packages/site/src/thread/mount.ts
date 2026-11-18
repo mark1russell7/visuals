@@ -1,7 +1,7 @@
 import { pictureBounds, type Rect } from "@mark1russell7/layout-contract";
 import { canvasAdvance } from "@mark1russell7/layout-contract/text";
 import { h, svg } from "@mark1russell7/site-pages/chrome";
-import { aimAll, aimReveal, createPictureContent, createPictureStage, freeArea, revealRects, type Insets, type PictureAim, type PictureContent, type PictureRecord, type PictureStage, type PictureView } from "@mark1russell7/visuals/graph";
+import { aimAll, aimReveal, createPictureContent, createPictureStage, freeArea, rectToScreen, revealRects, type Insets, type PictureAim, type PictureContent, type PictureRecord, type PictureStage, type PictureView } from "@mark1russell7/visuals/graph";
 import { anchorRect } from "./anchor.ts";
 import { cardOf, relationNames, type CardChoice, type CardModel, type CardName, type TopicChoiceEvent } from "./card.ts";
 import { choiceOf, edgeKind, edgeState, isChosen, isProposal, labelOf, waitsOf, type ThreadBox, type ThreadDocument, type ThreadLegend } from "./document.ts";
@@ -80,8 +80,16 @@ export interface ThreadView {
   /**
    * This function moves the camera until the free area shows a box. The camera stays when it shows the box.
    * `covered` has more parts of the view that the page covers at this time, for example a form at the bottom.
+   * For a panel, the view measures the content of the panel first, so the camera shows the full panel.
    */
   reveal(id: string, covered?: Partial<Insets>): void;
+  /**
+   * This function gives the element of a panel. The page puts the content of the panel in it, and the element moves with the camera.
+   * The same element stays for the same id until the document has no such panel. Thus the content keeps its focus and its text.
+   * The view sets the width of the element, and it gives the panel the height of the content.
+   * It gives `undefined` for an id that is not a panel of the picture, and for a view that cannot draw.
+   */
+  slot(id: string): HTMLElement | undefined;
   /** This function removes the view from the page. */
   dispose(): void;
 }
@@ -173,6 +181,8 @@ function signSample(className: string): SVGSVGElement {
  * - A person moves the picture with a pointer, the wheel or the keys. A click on a box shows its card.
  * - The card of a part shows the topics that the sorter proposed. A click on a topic starts `onChoose`.
  * - A switch shows the line of each proposal. A button goes to the next part with no topic.
+ * - A panel of the document is an empty box next to its box. `slot` gives the element for its content, for example a form of the page.
+ * - A key, a pointer or a wheel in the content of a panel starts no move of the picture and no selection.
  *
  * The view writes no data: the page keeps the document.
  */
@@ -180,6 +190,8 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   addStyle(element);
   const page = element.ownerDocument;
   const stageBox = h("div", { class: "thread-stage" });
+  // The layer of the slots is after the stage, so the content of a panel is above the picture and below the tools and the card.
+  const slotLayer = h("div", { class: "thread-slots" });
   const note = h("p", { class: "thread-note", hidden: true });
   /** This function selects the next box of a list. The walk goes on after the selected box, in the order of the document. */
   const walk = (ids: readonly string[]): void => {
@@ -211,7 +223,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   const legendList = h("ul");
   const legendBox = h("details", { class: "thread-legend", open: true }, h("summary", {}, "Legend"), legendList);
   const tip = h("div", { class: "thread-tip", role: "tooltip", hidden: true });
-  const root = h("div", { class: "thread" }, stageBox, note, jumps, tools, card, legendBox, tip);
+  const root = h("div", { class: "thread" }, stageBox, slotLayer, note, jumps, tools, card, legendBox, tip);
 
   // A theme with no value for a color has no property for it, so the style uses its default.
   const setColors = (theme: ThreadTheme): void => {
@@ -266,6 +278,23 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   });
   const advance = measure === null ? (text: string): number => text.length * 7 : canvasAdvance(measure);
   const phases = phaseTeller({ onPhase: options.onPhase });
+  /** The element of each panel of the picture, by the id of the panel. The page puts the content of the panel in it. */
+  const slots = new Map<string, HTMLElement>();
+  /** The height of the content of each panel that has content, by the id of the panel. */
+  const heights = new Map<string, number>();
+  /** The heights of the content of the panels that the last picture has. */
+  let usedHeights: ReadonlyMap<string, number> = new Map();
+  /**
+   * This function reads the height of the content of each panel. A slot with no content has no height, so its panel has the height of the document.
+   * A slot of a view that the page hides has the height 0. Its panel keeps the last height.
+   */
+  const slotHeights = (): Map<string, number> => {
+    for (const [id, slot] of slots) {
+      if (slot.childNodes.length === 0) heights.delete(id);
+      else if (slot.offsetHeight > 0) heights.set(id, slot.offsetHeight);
+    }
+    return new Map(heights);
+  };
   /** This value is true when the last document has no picture. The note tells it. */
   let failed = false;
   /**
@@ -273,7 +302,8 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
    * A document that has no picture gives the picture of no boxes.
    */
   const pictureFor = (document: ThreadDocument, shown: readonly string[] = [], keep?: ThreadPicture): ThreadPicture => {
-    const made = phases.layout(document.boxes.length, () => threadPicture(document, advance, { ...making(document, shown), keep }));
+    usedHeights = slotHeights();
+    const made = phases.layout(document.boxes.length, () => threadPicture(document, advance, { ...making(document, shown), keep, panels: usedHeights }));
     failed = made === undefined;
     return made ?? threadPicture({ id: document.id, boxes: [] }, advance);
   };
@@ -352,10 +382,67 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     },
     onView: (view) => {
       showTip();
+      placeSlots(view);
       if (mounted) options.onCamera?.(view);
     },
   });
   if (stage === undefined) phases.noPaint("The browser gave no 2D context for a canvas.");
+
+  /**
+   * This function puts each slot on the box of its panel for a view of the camera. The slot has the width of the panel and the scale of the camera.
+   * In a far view, and for a panel with no place, the slot is not visible.
+   */
+  function placeSlots(view: PictureView | undefined = stage?.view()): void {
+    for (const [id, slot] of slots) {
+      const place = thread.places.get(id);
+      if (view === undefined || place === undefined) {
+        slot.classList.add("is-far");
+        continue;
+      }
+      const at = rectToScreen(view, place);
+      slot.classList.toggle("is-far", view.k < TEXT_ZOOM);
+      slot.style.width = `${String(place.w)}px`;
+      slot.style.transform = `translate(${String(at.x)}px, ${String(at.y)}px) scale(${String(view.k)})`;
+    }
+  }
+
+  /** This function makes the picture again when the content of a panel has a different height. */
+  const measureSlots = (): void => {
+    const now = slotHeights();
+    if ([...slots.keys()].some((id) => now.get(id) !== usedHeights.get(id))) remake(thread.document);
+  };
+
+  // The content of a panel can grow, for example a text area or a message of a form. Its panel gets the new height.
+  const slotObserver = new ResizeObserver(measureSlots);
+
+  /**
+   * This function makes the slot of each panel of the picture, and removes the slot of each panel that the picture does not have.
+   * A panel keeps its slot. A view that cannot draw has no slots, and a document with no picture keeps the slots that it has.
+   */
+  const syncSlots = (): void => {
+    if (stage === undefined) return;
+    if (!failed) {
+      for (const [id, slot] of slots) {
+        if (thread.kinds.get(id) === "panel") continue;
+        slotObserver.unobserve(slot);
+        slot.remove();
+        slots.delete(id);
+        heights.delete(id);
+      }
+      for (const box of thread.document.boxes) {
+        if (thread.kinds.get(box.id) !== "panel") continue;
+        let slot = slots.get(box.id);
+        if (slot === undefined) {
+          slot = h("div", { class: "thread-slot", role: "group", "data-panel": box.id });
+          slots.set(box.id, slot);
+          slotLayer.append(slot);
+          slotObserver.observe(slot);
+        }
+        slot.setAttribute("aria-label", labelOf(box));
+      }
+    }
+    placeSlots();
+  };
 
   /** This function tells the stage which parts of the view the page and the card cover, after a change. */
   const setInsets = (): void => {
@@ -638,6 +725,13 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
 
   /** This function selects a box, or no box. `tell` starts `onPick`, and `move` moves the camera to the box. */
   function show(id: string | undefined, tell: boolean, move: boolean): void {
+    // A panel has no card: the page gives its content. The camera goes to the panel, and the selection stays.
+    if (id !== undefined && thread.kinds.get(id) === "panel") {
+      measureSlots();
+      stage?.select(selected);
+      bring(id);
+      return;
+    }
     selected = id !== undefined && thread.kinds.has(id) ? id : undefined;
     hint = undefined;
     hovered = undefined;
@@ -659,6 +753,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     thread = pictureFor(document, shownParts(), fresh ? undefined : thread);
     boxes = new Map(thread.document.boxes.map((box) => [box.id, box]));
     content.setPicture(thread.picture);
+    syncSlots();
     const gone = selected !== undefined && !thread.kinds.has(selected);
     if (gone) selected = undefined;
     hint = undefined;
@@ -688,6 +783,8 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   // The key Escape closes the card from each part of the view: the picture, a tool or the card.
   root.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || selected === undefined) return;
+    // A key in the content of a panel is a key of the page: its form can close on Escape.
+    if (event.target instanceof Node && slotLayer.contains(event.target)) return;
     show(undefined, true, false);
     stage?.canvas.focus({ preventScroll: true });
   });
@@ -711,6 +808,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   observer.observe(card);
   drawFrame();
   setInsets();
+  syncSlots();
   mounted = true;
 
   return {
@@ -736,10 +834,16 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
       return stage === undefined ? undefined : anchorAt(id, stage.view());
     },
     reveal(id, covered) {
+      // The page can put the content of a panel in its slot and show the panel in one step. The observer of the slots tells the height later.
+      if (thread.kinds.get(id) === "panel") measureSlots();
       bring(id, covered);
+    },
+    slot(id) {
+      return slots.get(id);
     },
     dispose() {
       observer.disconnect();
+      slotObserver.disconnect();
       stage?.dispose();
       root.remove();
     },

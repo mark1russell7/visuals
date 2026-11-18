@@ -42,6 +42,22 @@ export const MESSAGE_LOOK = {
   dateLine: 14,
 } as const;
 
+/**
+ * The measures of a panel. `width` is its width when the document gives none, and `height` is its height before the page gives it content.
+ * `least` is the smallest width and height of a panel. The text is the name of the panel, for a far view.
+ */
+export const PANEL_LOOK: TextLook & { readonly width: number; readonly height: number; readonly least: number } = {
+  font: `600 13px ${THREAD_FAMILY}`,
+  lineHeight: 18,
+  wrapWidth: 296,
+  maxLines: 1,
+  padX: 12,
+  padY: 10,
+  width: 320,
+  height: 160,
+  least: 40,
+};
+
 /** The measures of a topic. They add the count of the parts of the topic to the measures of a text. */
 export interface TopicLook extends TextLook {
   /** The size of the font of the name, in pixels. */
@@ -111,8 +127,11 @@ export function widestLine(text: TextLayout): number {
  *
  * With `keep`, a box of that map keeps its lines, its look and its size. Only the count of a topic is new.
  * Thus a change of an edge does not change the size of a box.
+ *
+ * A panel has the width of its `w`, or the width of `PANEL_LOOK`. `panels` gives the height of the content of a panel, by its id.
+ * A panel with no such height has the height of its `h`, or the height of `PANEL_LOOK`.
  */
-export function threadSizes(document: ThreadDocument, advance: AdvanceFn, keep?: ReadonlyMap<string, LeafSize>): Map<string, LeafSize> {
+export function threadSizes(document: ThreadDocument, advance: AdvanceFn, keep?: ReadonlyMap<string, LeafSize>, panels?: ReadonlyMap<string, number>): Map<string, LeafSize> {
   const measurer = createMeasurer(advance);
   const kinds = threadKinds(document);
   const counts = topicCounts(document.edges ?? []);
@@ -126,6 +145,13 @@ export function threadSizes(document: ThreadDocument, advance: AdvanceFn, keep?:
     const count = kind === "topic" ? (counts.get(box.id) ?? 0) : 0;
     const label = labelOf(box);
     const kept = keep?.get(box.id);
+    if (kind === "panel") {
+      const look = PANEL_LOOK;
+      const text = kept !== undefined && kept.kind === kind && kept.label === label ? kept.text : layoutText(label, { font: look.font, measurer, lineHeight: look.lineHeight, wrapWidth: look.wrapWidth, maxLines: look.maxLines, wordBreak: "anywhere" });
+      const side = (...lengths: readonly (number | undefined)[]): number => Math.max(look.least, Math.ceil(lengths.find((length) => length !== undefined && Number.isFinite(length) && length > 0) ?? 0));
+      out.set(box.id, { kind, label, text, look, count: 0, countWidth: 0, w: side(box.w, look.width), h: side(panels?.get(box.id), box.h, look.height) });
+      continue;
+    }
     if (kept !== undefined && kept.kind === kind && kept.label === label) {
       const countWidth = isTopicLook(kept.look) ? Math.ceil(advance(String(count), kept.look.countFont)) : 0;
       out.set(box.id, { ...kept, count, countWidth });

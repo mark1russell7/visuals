@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionsOf, choiceOf, choicesOf, edgeKind, isChosen, isDone, isDrawn, isProposal, isSpring, labelOf, linkOf, partStates, relationOf, soundDocument, tagOf, textOf, threadKinds, topicCounts, waitsOf, type ThreadDocument } from "./document.ts";
+import { actionsOf, choiceOf, choicesOf, EDGE_KINDS, edgeKind, isChosen, isDone, isDrawn, isProposal, isSpring, labelOf, linkOf, panelOf, partStates, relationOf, soundDocument, tagOf, textOf, THREAD_KINDS, threadKinds, topicCounts, waitsOf, type ThreadDocument } from "./document.ts";
 import { SAMPLE_ANSWER, sampleThread } from "./sample.ts";
 
 const sample = sampleThread();
@@ -28,6 +28,26 @@ describe("the kinds of the boxes", () => {
   it("gives an entry to a message with no part", () => {
     const kinds = threadKinds({ id: "d", boxes: [{ id: "a", data: { kinds: ["message"] } }] });
     expect(kinds.get("a")).toBe("entry");
+  });
+
+  it("gives a panel to a box that has the kind of a panel first, and reads the box of a panel", () => {
+    const kinds = threadKinds({ id: "d", boxes: [{ id: "a" }, { id: "p", data: { kinds: ["panel"], of: "a" } }, { id: "q", data: { kinds: ["ask", "panel"] } }] });
+    expect(kinds.get("p")).toBe("panel");
+    expect(kinds.get("q")).toBe("entry");
+    expect(THREAD_KINDS).toContain("panel");
+    expect(panelOf({ data: { of: "a" } })).toBe("a");
+    expect(panelOf({ data: { of: 3 } })).toBeUndefined();
+    expect(panelOf({ data: { of: "" } })).toBeUndefined();
+    expect(panelOf({})).toBeUndefined();
+  });
+
+  it("draws the edge of a panel, and makes no spring of it", () => {
+    const line = { data: { kind: "panel" } };
+    expect(EDGE_KINDS).toContain("panel");
+    expect(edgeKind(line)).toBe("panel");
+    expect(isDrawn(line)).toBe(true);
+    expect(isSpring(line)).toBe(false);
+    expect(isProposal(line)).toBe(false);
   });
 
   it("gives the tag of a topic and of an entry", () => {

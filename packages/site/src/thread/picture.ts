@@ -1,7 +1,8 @@
 import type { CurveOptions } from "@mark1russell7/highways";
-import { pictureOf, type LayoutBox, type LayoutPicture, type PictureLabel, type PictureRouteSource, type Rect } from "@mark1russell7/layout-contract";
+import { pictureOf, topBoxes, type LayoutBox, type LayoutEdge, type LayoutPicture, type PictureLabel, type PictureRoute, type PictureRouteSource, type Rect } from "@mark1russell7/layout-contract";
 import type { AdvanceFn } from "@mark1russell7/layout-contract/text";
-import { choiceOf, isDrawn, isProposal, partStates, soundDocument, tagOf, threadKinds, timeOf, waitsOf, type PartState, type ThreadBox, type ThreadDocument, type ThreadKind, type ThreadLegend } from "./document.ts";
+import { choiceOf, edgeKind, isDrawn, isProposal, partStates, soundDocument, tagOf, threadKinds, timeOf, waitsOf, type PartState, type ThreadBox, type ThreadDocument, type ThreadKind, type ThreadLegend } from "./document.ts";
+import { placePanels, splitPanels, type PanelSide } from "./panels.ts";
 import { entryRow, placeThread, sizedBoxes, type PlaceOptions } from "./place.ts";
 import { routeThread } from "./route.ts";
 import { isTopicLook, MESSAGE_LOOK, PART_LOOK, widestLine, threadSizes, type LeafSize } from "./sizes.ts";
@@ -41,12 +42,19 @@ export interface ThreadPictureOptions extends PlaceOptions, ThreadRouteOptions {
    * A new box gets a place near the boxes that its edges join it to. `keepsPlaces` tells if a change is small.
    */
   readonly keep?: ThreadPicture | undefined;
+  /** The height of the content of each panel, by the id of the panel. A panel with no height here has the height of its `h`. */
+  readonly panels?: ReadonlyMap<string, number> | undefined;
 }
+
+/** The options that the routes and the labels of a thread picture read. */
+export type ThreadLineOptions = Pick<ThreadPictureOptions, "router" | "proposalRouter" | "curve" | "legend" | "locale" | "timeZone">;
 
 /** A thread document as a picture, with the facts of each box that the looks and the page read. */
 export interface ThreadPicture {
   /** The document that the picture shows: the result of `soundDocument`. */
   readonly document: ThreadDocument;
+  /** The document with no panel and no edge of a panel. It is `document` when the document has none. */
+  readonly plain: ThreadDocument;
   readonly picture: LayoutPicture;
   /** The kind of each box, by its id. */
   readonly kinds: ReadonlyMap<string, ThreadKind>;
@@ -54,10 +62,16 @@ export interface ThreadPicture {
   readonly sizes: ReadonlyMap<string, LeafSize>;
   /** The rectangle of each box, by its id. */
   readonly places: ReadonlyMap<string, Rect>;
+  /** The rectangle of each box that is not a panel, before a panel pushes it, by its id. */
+  readonly base: ReadonlyMap<string, Rect>;
+  /** The side of each panel at its box, by the id of the panel. */
+  readonly sides: ReadonlyMap<string, PanelSide>;
   /** The state of the topic of each part, by the id of the part. */
   readonly states: ReadonlyMap<string, PartState>;
   /** The proposals that have a route in the picture. */
   readonly proposals: Proposals;
+  /** The options of the routes and the labels of the picture. */
+  readonly made: ThreadLineOptions;
 }
 
 /** The names of the labels of a box. A look reads `data.role` of a label. */
@@ -148,25 +162,61 @@ function threadLabels(document: ThreadDocument, kinds: ReadonlyMap<string, Threa
   return out;
 }
 
-/** This function tells if a picture has a place for each box of a document. Each box must have the kind and the size that it has in that picture. */
-function keeps(keep: ThreadPicture, document: ThreadDocument, kinds: ReadonlyMap<string, ThreadKind>, sizes: ReadonlyMap<string, LeafSize>): boolean {
-  if (keep.places.size !== document.boxes.length) return false;
-  return document.boxes.every((box) => {
-    if (!keep.places.has(box.id) || keep.kinds.get(box.id) !== kinds.get(box.id)) return false;
+/** This function gives the label of each panel: its name. The looks show it in a far view, where the content of the page is not visible. */
+function panelLabels(panels: readonly ThreadBox[], sizes: ReadonlyMap<string, LeafSize>, places: ReadonlyMap<string, Rect>): PictureLabel[] {
+  return panels.flatMap((panel): PictureLabel[] => {
+    const place = places.get(panel.id);
+    const size = sizes.get(panel.id);
+    return place === undefined || size === undefined ? [] : [textLabel(panel.id, place, size)];
+  });
+}
+
+/**
+ * This function tells if a picture has a place for each box of a document with no panel.
+ * Each box must have the kind and the size that it has in that picture.
+ */
+function keeps(keep: ThreadPicture, plain: ThreadDocument, kinds: ReadonlyMap<string, ThreadKind>, sizes: ReadonlyMap<string, LeafSize>): boolean {
+  if (keep.base.size !== plain.boxes.length) return false;
+  return plain.boxes.every((box) => {
+    if (!keep.base.has(box.id) || keep.kinds.get(box.id) !== kinds.get(box.id)) return false;
     const now = sizes.get(box.id);
     const then = keep.sizes.get(box.id);
     return now === undefined ? then === undefined : then !== undefined && now.w === then.w && now.h === then.h;
   });
 }
 
-/** This function gives the places of the cards and the topics of a picture: each box that is in no box. */
+/** This function gives the places of the cards and the topics of a picture, before a panel pushes them: each box that is in no box. */
 function topPlaces(keep: ThreadPicture): Map<string, Rect> {
   const out = new Map<string, Rect>();
-  for (const box of keep.document.boxes) {
-    const place = keep.places.get(box.id);
+  for (const box of keep.plain.boxes) {
+    const place = keep.base.get(box.id);
     if (box.parent === undefined && place !== undefined) out.set(box.id, place);
   }
   return out;
+}
+
+/** This function tells if two lists have the same records. Two records that are not one object are the same when the lists have the same JSON text. */
+function sameRecords(a: readonly unknown[], b: readonly unknown[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((record, at) => record === b[at]) || JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
+ * This function tells if a picture has the routes and the labels of a document with no panel.
+ * The boxes, the edges and the options must be the same, and each box must have its place of that picture.
+ * Thus a panel that pushes no box changes no line and no label of the other boxes.
+ */
+function keepsLines(keep: ThreadPicture, plain: ThreadDocument, places: ReadonlyMap<string, Rect>, made: ThreadLineOptions, proposals: Proposals): boolean {
+  const was = keep.made;
+  if (!hasProposals(keep.proposals, proposals)) return false;
+  if (was.router !== made.router || was.proposalRouter !== made.proposalRouter || was.curve !== made.curve || was.locale !== made.locale || was.timeZone !== made.timeZone) return false;
+  if (was.legend !== made.legend && JSON.stringify(was.legend) !== JSON.stringify(made.legend)) return false;
+  if (!sameRecords(keep.plain.boxes, plain.boxes) || !sameRecords(keep.plain.edges ?? [], plain.edges ?? [])) return false;
+  return plain.boxes.every((box) => {
+    const now = places.get(box.id);
+    const then = keep.places.get(box.id);
+    return now === then || (now !== undefined && then !== undefined && now.x === then.x && now.y === then.y && now.w === then.w && now.h === then.h);
+  });
 }
 
 /** This function gives the boxes of a document with the place and the size of each box that has a place. */
@@ -175,6 +225,23 @@ function placedBoxes(document: ThreadDocument, sizes: ReadonlyMap<string, LeafSi
     const place = places.get(box.id);
     return place === undefined ? [] : [{ ...box, x: place.x, y: place.y, w: place.w, h: place.h }];
   });
+}
+
+/** This function tells if a route is a line of a panel: a route of the kind `panel`, or a route with a panel at an end. */
+export function isPanelLine(route: PictureRoute, kinds: ReadonlyMap<string, ThreadKind>): boolean {
+  return edgeKind(route) === "panel" || kinds.get(route.source) === "panel" || kinds.get(route.target) === "panel";
+}
+
+/**
+ * This function routes the edges of the panels: one straight line for each edge. The router gets only the cards at the ends of these edges.
+ * Thus the time of the lines of a panel does not grow with the document.
+ */
+function panelRoutes(id: string, boxes: readonly LayoutBox[], edges: readonly LayoutEdge[]): PictureRouteSource[] {
+  const drawn = edges.filter(isDrawn);
+  if (drawn.length === 0) return [];
+  const tops = topBoxes(boxes);
+  const cards = new Set(drawn.flatMap((edge) => [tops.get(edge.source) ?? edge.source, tops.get(edge.target) ?? edge.target]));
+  return routeThread(id, boxes.filter((box) => cards.has(tops.get(box.id) ?? box.id)), drawn, { router: "straight", curve: "straight" });
 }
 
 /** This function routes the proposals of a document that `proposals` names, between the placed boxes. */
@@ -207,25 +274,44 @@ export function routedProposals(document: ThreadDocument, shown: readonly string
  *
  * 1. `layoutText` of `layout-contract` measures the text of each box.
  * 2. `ireko` places the boxes: the cards and the topics by forces, the parts of a message in one column.
- * 3. `highways` routes the edges between the placed boxes. The routes of the proposals are behind the other routes.
- * 4. `pictureOf` of `layout-contract` puts the boxes, the routes and the labels in one picture.
+ * 3. `placePanels` puts each panel at a side of its box. The push cascade of `packing` moves the boxes that are too near.
+ * 4. `highways` routes the edges between the placed boxes. The routes of the proposals are behind the other routes.
+ * 5. `pictureOf` of `layout-contract` puts the boxes, the routes and the labels in one picture.
  *
  * An edge `part` and a refused proposal have no route. The same document and the same options give the same picture.
  * With the option `proposals`, only the proposals of some parts and entries get a route. `withProposals` gives the routes of others later.
+ *
+ * A panel is no obstacle of a route, and its edge is one straight line. A picture with `keep` keeps the routes and the labels of that picture
+ * when no box of them has a different place. Thus a panel that pushes no box costs the time of its own line only.
  */
 export function threadPicture(input: ThreadDocument, advance: AdvanceFn, options: ThreadPictureOptions = {}): ThreadPicture {
   const document = soundDocument(input);
   const kinds = threadKinds(document);
   const { keep } = options;
-  const sizes = threadSizes(document, advance, keep?.sizes);
-  const places = keep === undefined ? placeThread(document, sizes, options) : keeps(keep, document, kinds, sizes) ? keep.places : placeThread(document, sizes, { ...options, before: topPlaces(keep) });
+  const sizes = threadSizes(document, advance, keep?.sizes, options.panels);
+  const { plain, panels, edges: panelEdges } = splitPanels(document, kinds);
+  const base = keep === undefined ? placeThread(plain, sizes, options) : keeps(keep, plain, kinds, sizes) ? keep.base : placeThread(plain, sizes, { ...options, before: topPlaces(keep) });
+  const { places, sides } = placePanels(document, panels, sizes, base, keep?.sides);
   const boxes = placedBoxes(document, sizes, places);
   const edges = document.edges ?? [];
   const proposals = options.proposals ?? "each";
-  const behind = proposalRoutes(document, boxes, proposals, options);
-  const main = routeThread(document.id, boxes, edges.filter((edge) => isDrawn(edge) && !isProposal(edge)), { router: options.router ?? "shared", curve: options.curve, bundle: true });
-  const picture = pictureOf({ id: document.id, boxes, edges }, { routes: [...behind, ...main], labels: threadLabels(document, kinds, sizes, places, options, advance) });
-  return { document, picture, kinds, sizes, places, states: partStates(edges), proposals };
+  const made: ThreadLineOptions = { router: options.router, proposalRouter: options.proposalRouter, curve: options.curve, legend: options.legend, locale: options.locale, timeZone: options.timeZone };
+  const facts = { document, plain, kinds, sizes, places, base, sides, states: partStates(plain.edges ?? []), made };
+  const lines = panelRoutes(document.id, boxes, panelEdges);
+  const names = panelLabels(panels, sizes, places);
+  if (keep !== undefined && keepsLines(keep, plain, places, made, proposals)) {
+    // A picture of the boxes and the lines of the panels is good, so its routes go into the picture with the routes of before.
+    const next = pictureOf({ id: document.id, boxes, edges: panelEdges }, { routes: lines, labels: names });
+    const routes = [...keep.picture.routes.filter((route) => !isPanelLine(route, keep.kinds)), ...next.routes];
+    const labels = [...keep.picture.labels.filter((label) => label.box === undefined || keep.kinds.get(label.box) !== "panel"), ...next.labels];
+    return { ...facts, picture: { ...next, routes, labels }, proposals: keep.proposals };
+  }
+  // The routes of the other edges read no panel. Thus a panel is no obstacle of a line, and a picture with a panel has the lines of the picture with none.
+  const plainBoxes = plain === document ? boxes : placedBoxes(plain, sizes, places);
+  const behind = proposalRoutes(plain, plainBoxes, proposals, options);
+  const main = routeThread(document.id, plainBoxes, (plain.edges ?? []).filter((edge) => isDrawn(edge) && !isProposal(edge)), { router: options.router ?? "shared", curve: options.curve, bundle: true });
+  const picture = pictureOf({ id: document.id, boxes, edges }, { routes: [...behind, ...main, ...lines], labels: [...threadLabels(plain, kinds, sizes, places, options, advance), ...names] });
+  return { ...facts, picture, proposals };
 }
 
 /**
@@ -234,9 +320,9 @@ export function threadPicture(input: ThreadDocument, advance: AdvanceFn, options
  */
 export function withProposals(thread: ThreadPicture, proposals: Proposals, options: ThreadRouteOptions = {}): ThreadPicture {
   if (hasProposals(thread.proposals, proposals)) return thread;
-  const { document, picture } = thread;
-  const boxes = placedBoxes(document, thread.sizes, thread.places);
+  const { plain, picture } = thread;
+  const boxes = placedBoxes(plain, thread.sizes, thread.places);
   // `pictureOf` gives each route the ends and the data of its edge. A picture of the boxes and these routes is good, so its routes go into the picture.
-  const behind = pictureOf({ id: document.id, boxes, edges: document.edges ?? [] }, { routes: proposalRoutes(document, boxes, proposals, options) }).routes;
-  return { ...thread, proposals, picture: { ...picture, routes: [...behind, ...picture.routes.filter((route) => !isProposal(route))] } };
+  const behind = pictureOf({ id: plain.id, boxes, edges: plain.edges ?? [] }, { routes: proposalRoutes(plain, boxes, proposals, options) }).routes;
+  return { ...thread, proposals, picture: { ...picture, routes: [...behind, ...picture.routes.filter((route) => !isProposal(route) || isPanelLine(route, thread.kinds))] } };
 }
