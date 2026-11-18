@@ -58,6 +58,22 @@ export const PANEL_LOOK: TextLook & { readonly width: number; readonly height: n
   least: 40,
 };
 
+/**
+ * The measures of a group: the frame around the boxes in it. The text is the name of the group, on one line in its header.
+ * `header` is the height of the header, `padding` is the space around the boxes and `gap` is the space between two boxes.
+ */
+export const GROUP_LOOK: TextLook & { readonly header: number; readonly padding: number; readonly gap: number } = {
+  font: `600 13px ${THREAD_FAMILY}`,
+  lineHeight: 18,
+  wrapWidth: 360,
+  maxLines: 1,
+  padX: 14,
+  padY: 8,
+  header: 34,
+  padding: 14,
+  gap: 14,
+};
+
 /** The measures of a topic. They add the count of the parts of the topic to the measures of a text. */
 export interface TopicLook extends TextLook {
   /** The size of the font of the name, in pixels. */
@@ -93,7 +109,7 @@ export function topicLook(share: number): TopicLook {
   };
 }
 
-/** The measured text and the size of one box with no box in it. */
+/** The measured text and the size of one box with no box in it. For a group, the size is the size of its header with its name. */
 export interface LeafSize {
   readonly kind: ThreadKind;
   /** The short name of the box, before the measure. */
@@ -124,6 +140,7 @@ export function widestLine(text: TextLayout): number {
 /**
  * This function measures each box of a document that has no box in it. It gives the lines and the size of the box, by its id.
  * `advance` gives the width of a text in a font: `canvasAdvance` of `@mark1russell7/layout-contract/text` gives it for a canvas.
+ * A group gets the measure of its header: the name of the group on one line. A message gets no measure.
  *
  * With `keep`, a box of that map keeps its lines, its look and its size. Only the count of a topic is new.
  * Thus a change of an edge does not change the size of a box.
@@ -155,6 +172,12 @@ export function threadSizes(document: ThreadDocument, advance: AdvanceFn, keep?:
     if (kept !== undefined && kept.kind === kind && kept.label === label) {
       const countWidth = isTopicLook(kept.look) ? Math.ceil(advance(String(count), kept.look.countFont)) : 0;
       out.set(box.id, { ...kept, count, countWidth });
+      continue;
+    }
+    if (kind === "group") {
+      const look = GROUP_LOOK;
+      const text = layoutText(label, { font: look.font, measurer, lineHeight: look.lineHeight, wrapWidth: look.wrapWidth, maxLines: look.maxLines, wordBreak: "anywhere" });
+      out.set(box.id, { kind, label, text, look, count: 0, countWidth: 0, w: widestLine(text) + 2 * look.padX, h: look.header });
       continue;
     }
     if (kind === "topic") {
