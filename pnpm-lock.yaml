@@ -248,8 +248,8 @@ importers:
         specifier: ^5.0.3
         version: 5.1.0(vitest@5.1.0)
       ireko:
-        specifier: ^0.2.3
-        version: 0.2.3
+        specifier: ^0.2.5
+        version: 0.2.5
       three:
         specifier: ^0.187.0
         version: 0.187.0
@@ -1331,8 +1331,8 @@ packages:
     resolution: {integrity: sha512-6xwYfHbajpoF0xLW+iwLkhwgvLoZDfjYfoFNu8ftMoXINzwuymNLd9u/KmwtdT2GbR+/Cz66otEGEVVUHX9QLQ==}
     engines: {node: '>=10.13.0'}
 
-  ireko@0.2.3:
-    resolution: {integrity: sha512-uhldoYly07ez4HIEmWtsU4OCFLZG1jYd8OXF8uThr4aZwyjToJ23fdd4FeDyUAB9mSTYce/bZeQ54mA/pN/JbA==}
+  ireko@0.2.5:
+    resolution: {integrity: sha512-NwwoYEJHCL8Tp1bjzCJvNyeUIKVSXo3H9mLPQLgE3CAX+/N8CTeYV+gFrvCRFCYQ9aYWX/ylh6Huo00B5igczg==}
     engines: {node: '>=22.12'}
     peerDependencies:
       '@xyflow/react': ^12.0.0
@@ -2522,7 +2522,7 @@ snapshots:
 
   interpret@3.1.1: {}
 
-  ireko@0.2.3: {}
+  ireko@0.2.5: {}
 
   is-core-module@2.18.0:
     dependencies:
