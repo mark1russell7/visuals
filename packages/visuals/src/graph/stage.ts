@@ -1,4 +1,4 @@
-import type { Point, Rect } from "@mark1russell7/layout-contract";
+import { rectCenter, type Point, type Rect } from "@mark1russell7/layout-contract";
 import { CLICK_DISTANCE, highlightOf, NO_HIGHLIGHTS, type Highlight, type Highlights } from "../highlight.ts";
 import { lessMotion, MOVE_TIME } from "../motion.ts";
 import { aimAll, type AimFrame, type PictureAim } from "./aim.ts";
@@ -6,7 +6,6 @@ import {
   clampZoom,
   freeArea,
   keepRect,
-  middleOf,
   pictureMoveAt,
   sameView,
   toPicture,
@@ -138,7 +137,10 @@ export interface PictureStage<P, T> {
   highlight(records: readonly string[]): void;
   /** This function selects one record by its name, or no record. It does not start `onSelect`. */
   select(record: string | undefined): void;
-  /** This function makes a new picture. Use it after a change of the content. */
+  /**
+   * This function makes a new picture. Use it after a change of the content.
+   * After a change of the bounds of the content, the camera goes to its view again if no person moved it.
+   */
   refresh(): void;
   /** This function removes the canvas, and disposes the content. */
   dispose(): void;
@@ -226,10 +228,14 @@ export function createPictureStage<P, T>(container: HTMLElement, options: Pictur
     canvas.style.cursor = dragging ? "grabbing" : highlights.hovered === undefined ? "grab" : "pointer";
   };
 
+  /** The bounds of the content at the last `setArea`. `refresh` finds a change of the bounds with them. */
+  let fitted: Rect = content.bounds;
+
   /** This function sets the free area and the limits of the zoom, from the size, the insets and the content. */
   const setArea = (): void => {
     area = freeArea({ width, height }, insets);
-    limits = zoomLimitsFor(content.bounds, area, baseLimits);
+    fitted = content.bounds;
+    limits = zoomLimitsFor(fitted, area, baseLimits);
   };
 
   const aimFrame = (): AimFrame => ({ bounds: content.bounds, area, view, limits });
@@ -259,7 +265,7 @@ export function createPictureStage<P, T>(container: HTMLElement, options: Pictur
    */
   const hold = (base: PictureView): void => {
     const k = clampZoom(base.k, limits);
-    const middle = middleOf(area);
+    const middle = rectCenter(area);
     move = undefined;
     view = keepRect(k === base.k ? base : viewAt(toPicture(base, middle), middle, k), content.bounds, area);
     invalidate();
@@ -301,7 +307,7 @@ export function createPictureStage<P, T>(container: HTMLElement, options: Pictur
     }
     // A person moved the view: the point of the picture at the middle of the free area stays at the middle.
     const base = move?.to ?? view;
-    hold(viewAt(toPicture(base, middleOf(before)), middleOf(area), base.k));
+    hold(viewAt(toPicture(base, rectCenter(before)), rectCenter(area), base.k));
   };
 
   function tick(now: number): void {
@@ -509,7 +515,7 @@ export function createPictureStage<P, T>(container: HTMLElement, options: Pictur
     zoomBy(factor: number, animate: boolean = true): void {
       moved = true;
       // A second step of a button starts from the goal of the first step, so each step has its full factor.
-      glide(keepRect(zoomView(move?.to ?? view, middleOf(area), factor, limits), content.bounds, area), animate);
+      glide(keepRect(zoomView(move?.to ?? view, rectCenter(area), factor, limits), content.bounds, area), animate);
     },
     highlight(records: readonly string[]): void {
       highlights = { ...highlights, highlighted: new Set(records) };
@@ -519,7 +525,20 @@ export function createPictureStage<P, T>(container: HTMLElement, options: Pictur
       highlights = { ...highlights, selected: record };
       invalidate();
     },
-    refresh: invalidate,
+    refresh(): void {
+      if (disposed) return;
+      // The record below the pointer can go with a change of the content.
+      if (highlights.hovered !== undefined && !content.has(highlights.hovered)) setHover(undefined);
+      const bounds = content.bounds;
+      if (bounds.x !== fitted.x || bounds.y !== fitted.y || bounds.w !== fitted.w || bounds.h !== fitted.h) {
+        setArea();
+        if (sized) {
+          if (moved) hold(move?.to ?? view);
+          else goTo(aim, true);
+        }
+      }
+      invalidate();
+    },
     dispose(): void {
       if (disposed) return;
       disposed = true;

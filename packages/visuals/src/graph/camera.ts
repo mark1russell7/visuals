@@ -1,4 +1,4 @@
-import type { Point, Rect } from "@mark1russell7/layout-contract";
+import { rectCenter, type Point, type Rect } from "@mark1russell7/layout-contract";
 import { easeInOut, partAt } from "../motion.ts";
 
 /**
@@ -146,14 +146,6 @@ export interface FitOptions {
   readonly limits?: ZoomLimits | undefined;
 }
 
-/**
- * This function gives the middle of a rectangle.
- * The home of this function is `@mark1russell7/layout-contract`, which does not have it. It moves there with the records of a picture.
- */
-export function middleOf(rect: Rect): Point {
-  return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
-}
-
 /** This function gives the zoom at which a rectangle of the picture fills an area of the screen, with a padding at each edge. */
 function fillZoom(rect: Rect, area: Rect, padding: number): number {
   const width = Math.max(area.w - 2 * padding, 1);
@@ -168,7 +160,7 @@ function fillZoom(rect: Rect, area: Rect, padding: number): number {
 export function fitRect(rect: Rect, area: Rect, options: FitOptions = {}): PictureView {
   const limits = options.limits ?? ZOOM_LIMITS;
   const k = clampZoom(Math.min(options.most ?? limits.max, fillZoom(rect, area, options.padding ?? FIT_PADDING)), limits);
-  return viewAt(middleOf(rect), middleOf(area), k);
+  return viewAt(rectCenter(rect), rectCenter(area), k);
 }
 
 /**
@@ -231,7 +223,7 @@ export function frameRects(rects: readonly Rect[], area: Rect, options: FrameOpt
   }
   const last = rects.at(-1);
   if (last === undefined) return undefined;
-  return viewAt(middleOf(last), middleOf(area), clampZoom(options.least, options.limits));
+  return viewAt(rectCenter(last), rectCenter(area), clampZoom(options.least, options.limits));
 }
 
 /**
