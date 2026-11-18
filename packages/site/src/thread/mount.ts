@@ -1,10 +1,11 @@
 import { pictureBounds, type Rect } from "@mark1russell7/layout-contract";
 import { canvasAdvance } from "@mark1russell7/layout-contract/text";
 import { h, svg } from "@mark1russell7/site-pages/chrome";
-import { aimAll, aimReveal, createPictureContent, createPictureStage, type Insets, type PictureAim, type PictureRecord, type PictureStage } from "@mark1russell7/visuals/graph";
+import { aimAll, aimReveal, createPictureContent, createPictureStage, type Insets, type PictureAim, type PictureContent, type PictureRecord, type PictureStage } from "@mark1russell7/visuals/graph";
 import { cardOf, relationNames, type CardChoice, type CardModel, type CardName, type TopicChoiceEvent } from "./card.ts";
 import { choiceOf, edgeKind, edgeState, isChosen, isProposal, labelOf, type ThreadBox, type ThreadDocument, type ThreadLegend } from "./document.ts";
 import { TEXT_ZOOM, threadLooks, type ThreadLookState, type ThreadTheme } from "./looks.ts";
+import { phaseTeller, type ThreadPhaseEvent } from "./phases.ts";
 import { routedProposals, threadPicture, withProposals, type ThreadPicture, type ThreadPictureOptions } from "./picture.ts";
 import style from "./thread.css?inline";
 
@@ -29,6 +30,11 @@ export interface ThreadViewOptions extends Pick<ThreadPictureOptions, "router" |
    * The page writes the choice, then gives the new document with `setDocument`. With no function, a person cannot change a topic.
    */
   readonly onChoose?: ((event: TopicChoiceEvent) => void) | undefined;
+  /**
+   * The view starts this function at the end of each step of a picture: the layout, then the first drawing.
+   * An event with an error tells that the step stopped. The view does not throw that error: it shows a note.
+   */
+  readonly onPhase?: ((event: ThreadPhaseEvent) => void) | undefined;
 }
 
 /** A thread view in a page. */
@@ -201,7 +207,19 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     proposals: routedProposals(document, shown, proposals),
   });
   const advance = measure === null ? (text: string): number => text.length * 7 : canvasAdvance(measure);
-  let thread: ThreadPicture = threadPicture(options.document, advance, making(options.document));
+  const phases = phaseTeller({ onPhase: options.onPhase });
+  /** This value is true when the last document has no picture. The note tells it. */
+  let failed = false;
+  /**
+   * This function makes the picture of a document, and tells its time. With `keep`, each box of that picture keeps its place if the boxes are the same.
+   * A document that has no picture gives the picture of no boxes.
+   */
+  const pictureFor = (document: ThreadDocument, shown: readonly string[] = [], keep?: ThreadPicture): ThreadPicture => {
+    const made = phases.layout(document.boxes.length, () => threadPicture(document, advance, { ...making(document, shown), keep }));
+    failed = made === undefined;
+    return made ?? threadPicture({ id: document.id, boxes: [] }, advance);
+  };
+  let thread: ThreadPicture = pictureFor(options.document);
   let boxes = new Map(thread.document.boxes.map((box) => [box.id, box]));
   let hint: ThreadLookState["hint"];
   /** The position of the pointer in the view, in CSS pixels from its top left corner. */
@@ -243,10 +261,23 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     return true;
   };
 
+  /** The content that the stage draws: `content`, with the time of the first drawing of each picture. */
+  const timed: PictureContent<PictureRecord, ThreadTheme> = {
+    get bounds() {
+      return content.bounds;
+    },
+    has: (record) => content.has(record),
+    pick: (at) => content.pick(at),
+    draw: (context, frame, theme, highlight) => phases.paint(() => content.draw(context, frame, theme, highlight)),
+    dispose: () => {
+      content.dispose?.();
+    },
+  };
+
   // The variable is here before the stage, so a function that the stage starts in its making reads `undefined`.
   let stage: PictureStage<PictureRecord, ThreadTheme> | undefined;
   stage = createPictureStage<PictureRecord, ThreadTheme>(stageBox, {
-    content,
+    content: timed,
     theme: options.theme,
     label: options.label ?? "The messages of a conversation and their topics",
     views: { all: aimAll({ most: 1 }) },
@@ -263,6 +294,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
       showTip();
     },
   });
+  if (stage === undefined) phases.noPaint("The browser gave no 2D context for a canvas.");
 
   /** This function tells the stage which parts of the view the page and the card cover, after a change. */
   const setInsets = (): void => {
@@ -464,7 +496,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     openButton.setAttribute("aria-label", `No topic yet: ${String(open.length)}. Go to the next part with no topic.`);
     const empty = thread.document.boxes.length === 0;
     note.hidden = !empty && stage !== undefined;
-    note.textContent = stage === undefined ? "This browser cannot draw the picture." : "No messages yet.";
+    note.textContent = stage === undefined ? "This browser cannot draw the picture." : failed ? "The view cannot make the picture of this conversation." : "No messages yet.";
     tools.hidden = empty || stage === undefined;
   };
 
@@ -488,8 +520,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   /** This function makes the picture again from a document. Each box keeps its place when the boxes are the same and `fresh` is not true. */
   const remake = (document: ThreadDocument, fresh = false): void => {
     const before = selected === undefined ? undefined : JSON.stringify(boundsOf([selected]));
-    const next = making(document, shownParts());
-    thread = threadPicture(document, advance, fresh ? next : { ...next, keep: thread });
+    thread = pictureFor(document, shownParts(), fresh ? undefined : thread);
     boxes = new Map(thread.document.boxes.map((box) => [box.id, box]));
     content.setPicture(thread.picture);
     const gone = selected !== undefined && !thread.kinds.has(selected);
