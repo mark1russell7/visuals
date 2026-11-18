@@ -298,15 +298,49 @@ if ($(ANSWER) !== null) {
   click(ANSWER);
   check("the button opens the form, and the card closes", await until(() => $(FORM)?.hidden === false && $(CARD)?.hidden === true), [$(FORM)?.hidden, cardBox()]);
   check("the form names the entry", text(`${FORM} .thread-form-title`) === "Order two cubic meters of gravel before Saturday.", text(`${FORM} .thread-form-title`));
-  // The form is at the entry, so it is in the picture. A form at the start of the page is a form with no place.
-  const frame = $("#thread")?.getBoundingClientRect();
-  const place = $(FORM)?.getBoundingClientRect();
-  const inside = frame !== undefined && place !== undefined && place.width > 0 && place.left >= frame.left && place.right <= frame.right + 1 && place.top >= frame.top && place.bottom <= frame.bottom + 1;
-  check("the form is in the picture", inside, [frame?.toJSON(), place?.toJSON()]);
+  // A wide page has the form in a panel of the picture, next to its entry. A narrow page has the form in a sheet at the bottom.
+  const wide = !matchMedia("(max-width: 44rem)").matches;
+  const panel = (): HTMLElement | null => $(FORM)?.closest<HTMLElement>(".thread-slot") ?? null;
+  const sheet = $(FORM)?.classList.contains("is-sheet") === true;
+  check("a wide page has the form in the panel of its entry, and a narrow page has it in a sheet", wide ? panel()?.dataset["panel"] === "panel:answer:e04" && !sheet : panel() === null && sheet, [wide, panel()?.dataset["panel"], $(FORM)?.className]);
+  // The camera moves to the form, so the form is in the picture. A form at the start of the page is a form with no place.
+  const rects = (): [DOMRect | undefined, DOMRect | undefined] => [$("#thread")?.getBoundingClientRect(), $(FORM)?.getBoundingClientRect()];
+  const inside = (): boolean => {
+    const [frame, place] = rects();
+    return frame !== undefined && place !== undefined && place.width > 0 && place.left >= frame.left && place.right <= frame.right + 1 && place.top >= frame.top && place.bottom <= frame.bottom + 1;
+  };
+  check(
+    "the form is in the picture",
+    await until(() => inside() && panel()?.classList.contains("is-far") !== true),
+    rects().map((rect) => rect?.toJSON()),
+  );
+  if (wide) {
+    check("the panel has the name of its action", panel()?.getAttribute("role") === "group" && panel()?.getAttribute("aria-label") === "Answer", panel()?.getAttribute("aria-label"));
+    // The view makes the picture again for the height of the form. The form stays in the same element, so it keeps its focus.
+    check("the field of the form keeps the focus", document.activeElement?.id === "thread-answer", document.activeElement?.id);
+    // A far view shows no content of a panel. The content stays in the page, so the field keeps its focus.
+    const out = '#thread .thread-zoom[aria-label="Zoom out"]';
+    click(out);
+    click(out);
+    click(out);
+    check("a far view shows no content of the panel", await until(() => panel()?.classList.contains("is-far") === true), panel()?.className);
+    check("the field keeps the focus in a far view", document.activeElement?.id === "thread-answer", document.activeElement?.id);
+    // A focus in content that is not in view moves the camera to the panel of the content.
+    const answer = $("#thread-answer");
+    // A browser gives no focus event in a page that does not have the focus of the system. The probe gives the event then.
+    const focused = document.hasFocus();
+    if (focused) {
+      answer?.blur();
+      answer?.focus({ preventScroll: true });
+    } else answer?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    check("a focus in a far panel moves the camera to the panel", await until(() => inside() && panel()?.classList.contains("is-far") !== true), [focused, ...rects().map((rect) => rect?.toJSON())]);
+    check("the field has the focus after the move", document.activeElement?.id === "thread-answer", document.activeElement?.id);
+  }
   const field = $(`${FORM} textarea`);
   if (field instanceof HTMLTextAreaElement) field.value = "I order it on Thursday.";
   click(`${FORM} button[type="submit"]`);
   check("an answer closes the form, and no entry waits after it", await until(() => $(FORM)?.hidden === true && $(WAITS)?.hidden === true), [$(FORM)?.hidden, text(WAITS)]);
+  check("the panel goes with the form", $$("#thread .thread-slot").length === 0 && $(FORM)?.closest(".thread-frame") !== null && panel() === null, [$$("#thread .thread-slot").length, $(FORM)?.parentElement?.className]);
   check("the list counts the answer at the topic of its entry", partsOf("trench") === before + 1, [before, partsOf("trench")]);
 }
 

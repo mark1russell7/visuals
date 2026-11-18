@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { fakeAdvance } from "./advance.test-util.ts";
 import { chooseTopic } from "./card.ts";
 import { sampleThread } from "./sample.ts";
-import { isTopicLook, PART_LOOK, threadSizes, topicLook } from "./sizes.ts";
+import { panelBox, panelId, withPanels } from "./panel.test-util.ts";
+import { isTopicLook, PANEL_LOOK, PART_LOOK, threadSizes, topicLook } from "./sizes.ts";
 
 const sample = sampleThread();
 const sizes = threadSizes(sample, fakeAdvance);
@@ -54,5 +55,42 @@ describe("threadSizes", () => {
     const next = threadSizes({ ...sample, boxes }, fakeAdvance, sizes);
     expect(next.get("north")?.label).toBe("North and east beds");
     expect(next.get("north")?.w).toBeGreaterThan(sizes.get("north")?.w ?? 0);
+  });
+});
+
+describe("the size of a panel", () => {
+  const id = panelId("e01");
+  const document = withPanels(sample, "e01");
+
+  it("gives a panel the default width and height, and its name on one line", () => {
+    const size = threadSizes(document, fakeAdvance).get(id);
+    expect(size).toMatchObject({ kind: "panel", label: "Answer", w: PANEL_LOOK.width, h: PANEL_LOOK.height, count: 0 });
+    expect(size?.text.lines).toEqual(["Answer"]);
+    expect(threadSizes(document, fakeAdvance).size).toBe(sizes.size + 1);
+  });
+
+  it("takes the width and the height of the box of a panel, and the measured height of its content first", () => {
+    const sized = { ...sample, boxes: [...sample.boxes, { ...panelBox("e01"), w: 400.2, h: 90 }] };
+    expect(threadSizes(sized, fakeAdvance).get(id)).toMatchObject({ w: 401, h: 90 });
+    expect(threadSizes(sized, fakeAdvance, undefined, new Map([[id, 212.4]])).get(id)).toMatchObject({ w: 401, h: 213 });
+    expect(threadSizes(document, fakeAdvance, undefined, new Map([[id, 212.4]])).get(id)?.h).toBe(213);
+    // A height of a different panel, and a height that is not a length, change no size.
+    expect(threadSizes(document, fakeAdvance, undefined, new Map([[panelId("e02"), 300]])).get(id)?.h).toBe(PANEL_LOOK.height);
+    expect(threadSizes(document, fakeAdvance, undefined, new Map([[id, Number.NaN]])).get(id)?.h).toBe(PANEL_LOOK.height);
+    expect(threadSizes(document, fakeAdvance, undefined, new Map([[id, 0]])).get(id)?.h).toBe(PANEL_LOOK.height);
+  });
+
+  it("keeps a panel at the smallest size or more", () => {
+    const small = { ...sample, boxes: [...sample.boxes, { ...panelBox("e01"), w: 8, h: 8 }] };
+    expect(threadSizes(small, fakeAdvance).get(id)).toMatchObject({ w: PANEL_LOOK.least, h: PANEL_LOOK.least });
+    expect(threadSizes(small, fakeAdvance, undefined, new Map([[id, 3]])).get(id)?.h).toBe(PANEL_LOOK.least);
+  });
+
+  it("gives a panel its new height when the sizes of before have the panel", () => {
+    const before = threadSizes(document, fakeAdvance);
+    const next = threadSizes(document, fakeAdvance, before, new Map([[id, 250]]));
+    expect(next.get(id)?.h).toBe(250);
+    expect(next.get(id)?.text).toBe(before.get(id)?.text);
+    expect(next.get("m01#0")?.text).toBe(before.get("m01#0")?.text);
   });
 });

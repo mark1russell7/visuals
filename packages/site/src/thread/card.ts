@@ -52,9 +52,11 @@ export const MOST_CHOICES = 3;
 /**
  * This function gives the content of the card of a box, or `undefined` for an id that is not a box of the picture.
  * A part and an entry get the list of their topics. A topic gets the list of its parts, and a message gets its parts.
+ * A panel has no card: the page gives its content.
  */
 export function cardOf(thread: ThreadPicture, id: string, options: Pick<ThreadPictureOptions, "legend" | "locale" | "timeZone"> = {}): CardModel | undefined {
-  const { document, kinds } = thread;
+  // The document with no panel has each box that can have a card. No list of a card names a panel.
+  const { plain: document, kinds } = thread;
   const box = document.boxes.find((entry) => entry.id === id);
   const kind = kinds.get(id);
   if (box === undefined || kind === undefined) return undefined;

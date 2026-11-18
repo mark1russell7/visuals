@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { fakeAdvance } from "./advance.test-util.ts";
 import { cardOf, chooseTopic, MOST_CHOICES, relationNames } from "./card.ts";
 import { choicesOf, partStates } from "./document.ts";
+import { panelId, withPanels } from "./panel.test-util.ts";
 import { threadPicture } from "./picture.ts";
 import { SAMPLE_LEGEND, sampleThread } from "./sample.ts";
 
@@ -73,6 +74,13 @@ describe("cardOf", () => {
 
   it("gives no card for an id that is not a box", () => {
     expect(cardOf(thread, "nowhere")).toBeUndefined();
+  });
+
+  it("gives no card for a panel, and no card names a panel", () => {
+    const withPanel = threadPicture(withPanels(sample, "e01", "water"), fakeAdvance, options);
+    expect(withPanel.kinds.get(panelId("e01"))).toBe("panel");
+    expect(cardOf(withPanel, panelId("e01"), options)).toBeUndefined();
+    for (const id of ["e01", "water", "m01", "m01#0"]) expect(cardOf(withPanel, id, options)).toEqual(cardOf(thread, id, options));
   });
 });
 

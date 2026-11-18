@@ -376,6 +376,18 @@ button {
   opacity: 0.35;
 }
 
+/* A topic of the conversation is not a filter: each topic stays in the picture. A button selects one topic, and that button has the color of a selection. */
+.plate-thread .kind[aria-pressed="false"] {
+  border-style: solid;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.plate-thread .kind[aria-pressed="true"] {
+  border-color: var(--link);
+  box-shadow: inset 0 0 0 1px var(--link);
+}
+
 .records {
   margin: 1rem 0 0;
   padding: 0;
@@ -521,27 +533,35 @@ button {
   }
 }
 
-/* The frame of the picture of the conversation. The form of an answer is in it, at the entry that the answer is for. */
+/* The frame of the picture of the conversation. It has the form of an answer when no panel of the picture has the form. */
 .thread-frame {
   position: relative;
 }
 
+/* The form of an answer. On a wide page it is the content of a panel: a box of the picture next to its entry. The picture draws the border of the panel. */
 .thread-form {
-  position: absolute;
-  z-index: 3;
   display: grid;
   gap: 0.5rem;
-  width: min(19rem, calc(100% - 1rem));
   padding: 0.75rem;
-  border: 1px solid var(--topic-waits);
-  border-radius: 0.5rem;
-  background: var(--page);
-  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.2);
+  color: var(--ink);
   text-align: left;
 }
 
 .thread-form[hidden] {
   display: none;
+}
+
+/* A narrow page has no room for a panel. The form is a sheet at the bottom of the picture, and the view moves its entry above the sheet. */
+.thread-form.is-sheet {
+  position: absolute;
+  z-index: 3;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  left: 0.5rem;
+  border: 1px solid var(--topic-waits);
+  border-radius: 0.5rem;
+  background: var(--page);
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.2);
 }
 
 .thread-form-title {
@@ -550,9 +570,10 @@ button {
   overflow-wrap: anywhere;
 }
 
+/* The sizes of the form are parts of the size of its text. In a panel, that is the size of the text of the picture. */
 .thread-form label {
   color: var(--quiet);
-  font-size: 0.9375rem;
+  font-size: 0.9375em;
 }
 
 .thread-form textarea {
@@ -577,16 +598,6 @@ button {
   border-color: var(--ink);
   background: var(--ink);
   color: var(--page);
-}
-
-/* A narrow page: the form is at the bottom of the picture, and the view moves its entry above the form. */
-@media (max-width: 44rem) {
-  .thread-form {
-    right: 0.5rem;
-    bottom: 0.5rem;
-    left: 0.5rem;
-    width: auto;
-  }
 }
 
 /* The key of the picture: the shape of each level, and the colors of the light. */

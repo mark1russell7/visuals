@@ -2,8 +2,11 @@ import { checkPicture } from "@mark1russell7/layout-contract";
 import { describe, expect, it } from "vitest";
 import { fakeAdvance } from "./advance.test-util.ts";
 import { chooseTopic } from "./card.ts";
-import { HEADER_GAP, labelId, ROUTED_MOST, routedProposals, TAG_FONT, threadPicture, timeText, titleOf, waitsText, withProposals, type ThreadPicture } from "./picture.ts";
+import { panelBox, panelEdge, panelId, withPanels } from "./panel.test-util.ts";
+import { PANEL_GAP } from "./panels.ts";
+import { HEADER_GAP, isPanelLine, labelId, ROUTED_MOST, routedProposals, TAG_FONT, threadPicture, timeText, titleOf, waitsText, withProposals, type ThreadPicture } from "./picture.ts";
 import { SAMPLE_LEGEND, sampleThread } from "./sample.ts";
+import { PANEL_LOOK } from "./sizes.ts";
 
 const sample = sampleThread();
 const options = { legend: SAMPLE_LEGEND, timeZone: "UTC" } as const;
@@ -200,6 +203,123 @@ describe("the proposals of a picture", () => {
     expect(routedProposals(many, [])).toEqual([]);
     expect(routedProposals(many, [], true)).toBe("each");
     expect(routedProposals({ id: "empty", boxes: [] }, [])).toBe("each");
+  });
+});
+
+describe("the panels of a picture", () => {
+  /** A part with a free side: its panel pushes no box. */
+  const free = "m10#0";
+  /** A part with no free side: its panel pushes boxes. */
+  const tight = "m02#0";
+  const id = panelId(free);
+  const document = withPanels(sample, free);
+  const made = threadPicture(document, fakeAdvance, options);
+  const lines = (of: ThreadPicture) => of.picture.routes.filter((route) => isPanelLine(route, of.kinds));
+  const others = (of: ThreadPicture) => of.picture.routes.filter((route) => !isPanelLine(route, of.kinds));
+  const moved = (of: ThreadPicture): string[] => of.plain.boxes.filter((box) => of.places.get(box.id) !== of.base.get(box.id)).map((box) => box.id);
+
+  it("has no panel for a document with none", () => {
+    expect(thread.plain).toBe(thread.document);
+    expect(thread.base).toBe(thread.places);
+    expect(thread.sides.size).toBe(0);
+    expect(lines(thread)).toEqual([]);
+  });
+
+  it("makes a good picture with the panel, its name and its line", () => {
+    expect(checkPicture(made.picture)).toEqual([]);
+    expect(made.kinds.get(id)).toBe("panel");
+    expect(made.plain).toEqual(sample);
+    expect(made.sides.get(id)).toBe("right");
+    const card = made.places.get("m10");
+    const row = made.places.get(free);
+    expect(made.picture.boxes.find((box) => box.id === id)).toMatchObject({ x: (card?.x ?? 0) + (card?.w ?? 0) + PANEL_GAP, y: row?.y, w: PANEL_LOOK.width, h: PANEL_LOOK.height });
+    expect(label(labelId("text", id))).toBeUndefined();
+    expect(made.picture.labels.find((entry) => entry.id === labelId("text", id))).toMatchObject({ box: id, lines: ["Answer"] });
+    expect(lines(made).map((route) => [route.id, route.source, route.target, route.data?.["kind"]])).toEqual([[`to:${id}`, free, id, "panel"]]);
+  });
+
+  it("makes one straight line of the edge of a panel, from the side of the card to the side of the panel", () => {
+    const [line] = lines(made);
+    const card = made.places.get("m10");
+    const at = made.places.get(id);
+    expect(line?.path.map((step) => step.kind)).toEqual(["move", "line"]);
+    const [from, to] = (line?.path ?? []).flatMap((step) => ("to" in step ? [step.to] : []));
+    expect(from?.x).toBeCloseTo((card?.x ?? 0) + (card?.w ?? 0), 6);
+    expect(to?.x).toBeCloseTo(at?.x ?? 0, 6);
+    expect(made.picture.routes.at(-1)).toBe(line);
+  });
+
+  it("changes no box, no label and no line of a document when its panel pushes no box", () => {
+    expect(moved(made)).toEqual([]);
+    expect(made.base).toEqual(thread.places);
+    expect(others(made)).toEqual(thread.picture.routes);
+    expect(made.picture.boxes.filter((box) => box.id !== id)).toEqual(thread.picture.boxes);
+    expect(made.picture.labels.filter((entry) => entry.box !== id)).toEqual(thread.picture.labels);
+  });
+
+  it("keeps the routes and the labels of the picture of before when the panel pushes no box", () => {
+    const next = threadPicture(document, fakeAdvance, { ...options, keep: thread });
+    expect(next.picture).toEqual(made.picture);
+    expect(checkPicture(next.picture)).toEqual([]);
+    expect(next.base).toBe(thread.base);
+    for (const [at, route] of thread.picture.routes.entries()) expect(next.picture.routes[at]).toBe(route);
+    for (const [at, entry] of thread.picture.labels.entries()) expect(next.picture.labels[at]).toBe(entry);
+    // A different option of the lines makes each route again.
+    const curved = threadPicture(document, fakeAdvance, { ...options, curve: "smooth", keep: thread });
+    expect(curved.picture.routes[0]).not.toBe(thread.picture.routes[0]);
+    expect(curved.picture).toEqual(threadPicture(document, fakeAdvance, { ...options, curve: "smooth" }).picture);
+  });
+
+  it("gives the picture of before again when the panel goes", () => {
+    const back = threadPicture(sample, fakeAdvance, { ...options, keep: made });
+    expect(back.picture).toEqual(thread.picture);
+    expect(back.sides.size).toBe(0);
+    for (const [at, route] of others(made).entries()) expect(back.picture.routes[at]).toBe(route);
+  });
+
+  it("gives a panel the height of its content, and keeps the side of the panel", () => {
+    const tall = threadPicture(document, fakeAdvance, { ...options, keep: made, panels: new Map([[id, 301]]) });
+    expect(tall.picture.boxes.find((box) => box.id === id)).toMatchObject({ w: PANEL_LOOK.width, h: 301 });
+    expect(tall.sides.get(id)).toBe("right");
+    expect(tall.places.get(id)).toMatchObject({ x: made.places.get(id)?.x, y: made.places.get(id)?.y });
+    expect(checkPicture(tall.picture)).toEqual([]);
+  });
+
+  it("pushes the boxes that are too near to a panel, and routes each line between the new places", () => {
+    const pushed = threadPicture(withPanels(sample, tight), fakeAdvance, options);
+    expect(moved(pushed).length).toBeGreaterThan(0);
+    expect(checkPicture(pushed.picture)).toEqual([]);
+    expect(pushed.base).toEqual(thread.places);
+    expect(others(pushed).map((route) => route.id).sort()).toEqual(thread.picture.routes.map((route) => route.id).sort());
+    expect(others(pushed)).not.toEqual(thread.picture.routes);
+    // The picture with the picture of before is the same picture, and the boxes go back when the panel goes.
+    expect(threadPicture(withPanels(sample, tight), fakeAdvance, { ...options, keep: thread }).picture).toEqual(pushed.picture);
+    expect(threadPicture(sample, fakeAdvance, { ...options, keep: pushed }).picture).toEqual(thread.picture);
+  });
+
+  it("keeps the side of a panel when a different panel comes", () => {
+    const two = threadPicture(withPanels(sample, free, tight), fakeAdvance, { ...options, keep: made });
+    expect(two.sides.get(id)).toBe(made.sides.get(id));
+    expect(two.sides.has(panelId(tight))).toBe(true);
+    expect(checkPicture(two.picture)).toEqual([]);
+    expect(lines(two)).toHaveLength(2);
+  });
+
+  it("makes a good picture for an edge with the id of its panel, and for a panel with no edge", () => {
+    const twin = { ...sample, boxes: [...sample.boxes, panelBox("e01")], edges: [...(sample.edges ?? []), { ...panelEdge("e01"), id: panelId("e01") }] };
+    expect(checkPicture(threadPicture(twin, fakeAdvance, options).picture)).toEqual([]);
+    const alone = threadPicture({ ...sample, boxes: [...sample.boxes, panelBox("e01")] }, fakeAdvance, options);
+    expect(checkPicture(alone.picture)).toEqual([]);
+    expect(lines(alone)).toEqual([]);
+    expect(alone.places.has(panelId("e01"))).toBe(true);
+  });
+
+  it("keeps the line of a panel when the picture gets the routes of other proposals", () => {
+    const none = threadPicture(document, fakeAdvance, { ...options, proposals: [] });
+    const next = withProposals(none, ["m12#1"]);
+    expect(next.picture).toEqual(threadPicture(document, fakeAdvance, { ...options, proposals: ["m12#1"] }).picture);
+    expect(lines(next)).toEqual(lines(none));
+    expect(checkPicture(next.picture)).toEqual([]);
   });
 });
 
