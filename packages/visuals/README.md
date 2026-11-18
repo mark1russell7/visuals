@@ -474,7 +474,8 @@ stage?.refresh();
 ## A flat picture
 
 The entry `/graph` is for a flat picture that a person moves and zooms, for example a graph of boxes and edges.
-It has a stage on a canvas, and the maths of its camera, its pointers and its keys. It imports no `three`.
+It has a stage on a canvas, and the content for a picture of a layout.
+It has the maths of its camera, its pointers and its keys too. It imports no `three`.
 
 ```ts
 import { aimRects, createPictureStage, type PictureContent } from "@mark1russell7/visuals/graph";
@@ -614,6 +615,90 @@ canvas.addEventListener("pointerup", (event) => {
 - The zoom of a move changes by an equal factor for each equal step, so it has one speed in the picture.
 - `frameRects` gets the bounds of groups of boxes, the largest group first. It takes the first group that a person can read.
 - The zoom stays in `ZOOM_LIMITS`. Each function with a zoom takes different limits as a parameter.
+
+## The picture of a layout
+
+`createPictureContent` makes the content of a flat stage from a picture of `@mark1russell7/layout-contract`: its boxes, its routes and its labels.
+A layout engine gives the picture. The content draws the picture, and it does not change it.
+
+```ts
+import { PICTURE_SCHEMA, pathOf, type LayoutPicture } from "@mark1russell7/layout-contract";
+import { LIGHT_PICTURE_THEME, createPictureContent, createPictureStage, plainLooks } from "@mark1russell7/visuals/graph";
+
+const picture: LayoutPicture = {
+  schema: PICTURE_SCHEMA,
+  boxes: [
+    { id: "card", x: 0, y: 0, w: 200, h: 100 },
+    { id: "row", parent: "card", x: 10, y: 30, w: 180, h: 25 },
+    { id: "topic", x: 300, y: 20, w: 60, h: 60, shape: { kind: "circle", cx: 30, cy: 30, r: 30 } },
+  ],
+  routes: [
+    {
+      id: "link",
+      source: "row",
+      target: "topic",
+      path: pathOf([
+        { x: 190, y: 42 },
+        { x: 300, y: 50 },
+      ]),
+    },
+  ],
+  labels: [{ id: "name", box: "card", x: 10, y: 6, w: 100, h: 18, lines: ["Card"], lineHeight: 18, font: "13px sans-serif" }],
+};
+
+const content = createPictureContent(picture, { looks: plainLooks({ end: { shape: "arrow", size: 8 } }) });
+const stage = createPictureStage(document.body, {
+  content,
+  theme: LIGHT_PICTURE_THEME,
+  label: "A card and a topic",
+  onSelect: (record) => console.log(record?.id),
+});
+
+// A new layout gives a new picture. The stage shows it after a refresh.
+content.setPicture({ ...picture, routes: [] });
+stage?.refresh();
+```
+
+- The looks give the colors, the lines and the signs of each record. `plainLooks` gives the looks of a plain picture.
+- `LIGHT_PICTURE_THEME` and `DARK_PICTURE_THEME` are the themes of the plain looks.
+- A look gets the state of its record: its highlight, its focus level, the zoom, and if the box has children.
+- A look of `undefined` hides a record. A hidden box takes its labels with it, and a person cannot point at it.
+- A box is a rectangle with round corners, a circle, an ellipse or a polygon. Its look can add a ring off its border, and small signs.
+- A route is a path of lines, curves and arcs. Its look can add an arrow or a dot at each end.
+- A label has the lines and the place that the layout gives. The content breaks no line.
+- In `plainLooks`, a text that is too small to read becomes bars. A text below `SMALLEST_BAR_LINE` pixels goes.
+- At the zoom 1 or less, the lines and the signs keep their size on the screen. Above it, they grow with the boxes.
+- The selected record and the records at it stay clear. Each other record has less color, and the colors change in a short time.
+- `setFocus` sets the records of the focus from the page. The option `focus: "none"` stops the focus of the selection.
+- A person points at the top box below the pointer. A box with no child comes before the box around it.
+- The option `picks` tells which records a person can point at, for example the routes too.
+- The content makes shapes only for the records in view.
+- `setPicture` shows a different picture. Start `refresh` of the stage after it.
+
+The parts of the content are pure functions. A test in Node.js examines a picture with no canvas:
+
+```ts
+import { LIGHT_PICTURE_THEME, focusOf, indexPicture, paintPicture, pickRecord, plainLooks } from "@mark1russell7/visuals/graph";
+
+const index = indexPicture(picture);
+pickRecord(index, { x: 50, y: 40 })?.id; // => "row"
+
+// The focus of the row has the row, its card, the link and the topic.
+const focus = focusOf(index, ["row"]);
+const shapes = paintPicture(index, plainLooks(), LIGHT_PICTURE_THEME, { zoom: 1, highlight: () => 0, focus });
+shapes.length; // => 5: the card, its name, the link, the row and the topic
+```
+
+| Function | What it gives |
+| --- | --- |
+| `indexPicture` | The tables of a picture: each record by its id, the children of each box, and the routes and the labels of each record. |
+| `focusOf`, `boxFocus`, `routeFocus` | The focus of a list of records, and the focus level of a box or a route. `FOCUS_OPACITY` has the color share of each level. |
+| `pickRecord`, `boxDistance` | The record at a point of the picture, and the distance from a point to the shape of a box. |
+| `routeLine` | The path of a route as a line of points, with its bounds. |
+| `plainLooks`, `lookUnit` | The looks of a plain picture, and the size of one unit of a look at a zoom. |
+| `paintPicture` | The paint list of a picture: its shapes as plain data, in the order of the paint. |
+| `drawShapes` | The drawing of a paint list on a 2D context, in the view of a camera. |
+| `recordKey`, `boxState`, `routeState` | The key of a record for the function `fade` of a paint, and the state of a record for its look. |
 
 ## The camera maths
 

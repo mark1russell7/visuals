@@ -36,7 +36,45 @@ export {
   type RevealOptions,
   type ZoomLimits,
 } from "./graph/camera.ts";
+export { FOCUS_FADE, createPictureContent, type LayoutPictureContent, type PictureContentOptions } from "./graph/content.ts";
+export { drawShapes } from "./graph/draw.ts";
+export { FOCUS_OPACITY, boxFocus, focusOf, routeFocus, type FocusLevel, type PictureFocus } from "./graph/focus.ts";
+export { boxDistance, pickRecord, type PickOptions } from "./graph/hit.ts";
 export { pictureKeyAction, type PictureKeyAction, type PictureKeyOptions } from "./graph/keys.ts";
+export {
+  DARK_PICTURE_THEME,
+  LIGHT_PICTURE_THEME,
+  SMALLEST_BAR_LINE,
+  SMALLEST_TEXT_LINE,
+  lookUnit,
+  plainLooks,
+  type BoxLook,
+  type BoxMark,
+  type BoxRing,
+  type LabelLook,
+  type PictureLooks,
+  type PictureTheme,
+  type PlainLookOptions,
+  type RecordState,
+  type RouteEnd,
+  type RouteLook,
+} from "./graph/looks.ts";
+export {
+  ARROW_SPREAD,
+  BAR_HEIGHT,
+  FREE_LABELS,
+  HALO_WIDTH,
+  VIEW_MARGIN,
+  boxState,
+  paintPicture,
+  recordKey,
+  routeState,
+  type PaintOutline,
+  type PaintOutlined,
+  type PaintShape,
+  type PaintState,
+  type PaintText,
+} from "./graph/paint.ts";
 export {
   NO_POINTERS,
   TOUCH_CLICK_DISTANCE,
@@ -48,6 +86,7 @@ export {
   type PointerUpResult,
   type Pointers,
 } from "./graph/pointers.ts";
+export { indexPicture, routeLine, type PictureIndex, type PictureRecord, type RouteLine } from "./graph/records.ts";
 export { stackPictureContents } from "./graph/stack.ts";
 export {
   DOUBLE_CLICK_ZOOM,

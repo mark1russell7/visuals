@@ -1,0 +1,180 @@
+import { describe, expect, it } from "vitest";
+import { drawShapes } from "./draw.ts";
+import { LIGHT_PICTURE_THEME, plainLooks } from "./looks.ts";
+import { paintPicture, type PaintOutlined, type PaintShape, type PaintText } from "./paint.ts";
+import { indexPicture } from "./records.ts";
+import { fakeContext, linesOf, PICTURE, type FakeContextOptions } from "./sample.ts";
+
+const VIEW = { x: 10, y: 20, k: 2 };
+
+/** The first lines of each drawing: the view of the camera, and the styles that each shape uses. */
+const HEAD = ["save", "transform 2 0 0 2 10 20", "lineJoin = round", "lineCap = round", "textBaseline = middle"];
+
+/** This function draws a paint list, and gives the lines of the context between the first lines and the last line. */
+function drawn(shapes: readonly PaintShape[], options: FakeContextOptions = {}): string[] {
+  const { context, calls } = fakeContext(options);
+  drawShapes(context, shapes, VIEW);
+  expect(calls.slice(0, HEAD.length)).toEqual(HEAD);
+  expect(calls.at(-1)).toBe("restore");
+  return calls.slice(HEAD.length, -1);
+}
+
+/** This function gives a square with a line, and with the parts that the test gives. */
+function square(more: Partial<PaintOutlined> = {}): PaintOutlined {
+  return { type: "shape", outline: { kind: "rect", x: 0, y: 0, w: 10, h: 10, radius: 0 }, stroke: "#000", lineWidth: 1, opacity: 1, ...more };
+}
+
+/** The lines of a square with a line and no dash. */
+const SQUARE = ["globalAlpha = 1", "beginPath", "rect 0 0 10 10", "strokeStyle = #000", "lineWidth = 1", "stroke"];
+
+const PLAIN_TEXT: PaintText = { type: "text", text: "A note", x: 520, y: 8, font: "12px sans-serif", align: "right", fill: "#111", opacity: 1 };
+const HALO_TEXT: PaintText = { type: "text", text: "uses", x: 245, y: 50, font: "12px sans-serif", align: "center", fill: "#111", halo: { color: "#fff", width: 4 }, opacity: 0.5 };
+
+describe("drawShapes", () => {
+  it("does not use the context for an empty list", () => {
+    const { context, calls } = fakeContext();
+    drawShapes(context, [], VIEW);
+    expect(calls).toEqual([]);
+  });
+
+  it("applies the view of the camera, and puts the state of the context back at the end", () => {
+    const { context, calls } = fakeContext();
+    drawShapes(context, [square(), square()], VIEW);
+    expect(calls).toEqual([...HEAD, ...SQUARE, ...SQUARE, "restore"]);
+  });
+
+  it("draws the inside of a shape, then its line", () => {
+    const shape: PaintShape = { type: "shape", outline: { kind: "rect", x: 1, y: 2, w: 30, h: 40, radius: 6 }, fill: "#fff", stroke: "#000", lineWidth: 2, opacity: 0.5 };
+    expect(drawn([shape])).toEqual(["globalAlpha = 0.5", "beginPath", "roundRect 1 2 30 40 6", "fillStyle = #fff", "fill evenodd", "strokeStyle = #000", "lineWidth = 2", "stroke"]);
+  });
+
+  it("draws a rectangle with sharp corners for a radius of 0, and in a browser with no round rectangle", () => {
+    const sharp: PaintShape = { type: "shape", outline: { kind: "rect", x: 1, y: 2, w: 30, h: 40, radius: 0 }, fill: "#fff", opacity: 1 };
+    expect(drawn([sharp])).toEqual(["globalAlpha = 1", "beginPath", "rect 1 2 30 40", "fillStyle = #fff", "fill evenodd"]);
+    const round: PaintShape = { type: "shape", outline: { kind: "rect", x: 1, y: 2, w: 30, h: 40, radius: 6 }, fill: "#fff", opacity: 1 };
+    expect(drawn([round], { roundRect: false })).toEqual(["globalAlpha = 1", "beginPath", "rect 1 2 30 40", "fillStyle = #fff", "fill evenodd"]);
+  });
+
+  it("draws an ellipse as one full turn", () => {
+    const shape: PaintShape = { type: "shape", outline: { kind: "ellipse", cx: 5, cy: 6, rx: 7, ry: 8 }, fill: "#0a0", opacity: 1 };
+    expect(drawn([shape])).toEqual(["globalAlpha = 1", "beginPath", `ellipse 5 6 7 8 0 0 ${2 * Math.PI}`, "fillStyle = #0a0", "fill evenodd"]);
+  });
+
+  it("closes each ring of a polygon, so a hole stays empty", () => {
+    const shape: PaintShape = {
+      type: "shape",
+      outline: {
+        kind: "polygon",
+        rings: [
+          [
+            [0, 0],
+            [40, 0],
+            [20, 30],
+          ],
+          [
+            [15, 5],
+            [25, 5],
+            [20, 12],
+          ],
+        ],
+      },
+      fill: "#eee",
+      opacity: 1,
+    };
+    expect(drawn([shape])).toEqual(["globalAlpha = 1", "beginPath", "moveTo 0 0", "lineTo 40 0", "lineTo 20 30", "closePath", "moveTo 15 5", "lineTo 25 5", "lineTo 20 12", "closePath", "fillStyle = #eee", "fill evenodd"]);
+  });
+
+  it("draws each segment of a path: a move, a line, a curve and an arc in each direction", () => {
+    const shape: PaintShape = {
+      type: "shape",
+      outline: {
+        kind: "path",
+        path: [
+          { kind: "move", to: { x: 1, y: 2 } },
+          { kind: "line", to: { x: 3, y: 4 } },
+          { kind: "cubic", c1: { x: 5, y: 6 }, c2: { x: 7, y: 8 }, to: { x: 9, y: 10 } },
+          { kind: "arc", center: { x: 10, y: 20 }, radius: 5, start: 0, sweep: 1.5, to: { x: 0, y: 0 } },
+          { kind: "arc", center: { x: 10, y: 20 }, radius: 5, start: 1, sweep: -0.5, to: { x: 0, y: 0 } },
+        ],
+      },
+      stroke: "#222",
+      lineWidth: 1.25,
+      opacity: 1,
+    };
+    expect(drawn([shape])).toEqual(["globalAlpha = 1", "beginPath", "moveTo 1 2", "lineTo 3 4", "bezierCurveTo 5 6 7 8 9 10", "arc 10 20 5 0 1.5 false", "arc 10 20 5 1 0.5 true", "strokeStyle = #222", "lineWidth = 1.25", "stroke"]);
+  });
+
+  it("draws no line for a shape with no line width, or with a width of 0", () => {
+    const outline = ["globalAlpha = 1", "beginPath", "rect 0 0 10 10"];
+    expect(drawn([square({ lineWidth: 0 })])).toEqual(outline);
+    expect(drawn([square({ lineWidth: undefined })])).toEqual(outline);
+    expect(drawn([square({ stroke: undefined })])).toEqual(outline);
+    // A line that the function does not draw does not change the dashes of the context.
+    expect(drawn([square({ lineWidth: 0, dash: [8, 4] })])).toEqual(outline);
+  });
+
+  it("sets the dashes before the line of a shape with dashes", () => {
+    expect(drawn([square({ dash: [8, 4] })])).toEqual(["globalAlpha = 1", "beginPath", "rect 0 0 10 10", "setLineDash [8,4]", "strokeStyle = #000", "lineWidth = 1", "stroke"]);
+  });
+
+  it("removes the dashes before the next line with no dash, and not for each shape", () => {
+    const shapes = [square({ dash: [8, 4] }), square({ dash: [2, 2] }), square(), square(), square({ dash: [] }), square({ dash: [6, 3] })];
+    expect(linesOf(drawn(shapes), "setLineDash")).toEqual(["setLineDash [8,4]", "setLineDash [2,2]", "setLineDash []", "setLineDash [6,3]"]);
+    // A list with no dash does not use the dashes of the context.
+    expect(linesOf(drawn([square(), square({ dash: [] }), PLAIN_TEXT, HALO_TEXT]), "setLineDash")).toEqual([]);
+  });
+
+  it("draws a text at its point, with its font and its side", () => {
+    expect(drawn([PLAIN_TEXT])).toEqual(["globalAlpha = 1", "font = 12px sans-serif", "textAlign = right", "fillStyle = #111", "fillText A note 520 8"]);
+  });
+
+  it("draws the line around the letters of a text below the letters", () => {
+    expect(drawn([HALO_TEXT])).toEqual(["globalAlpha = 0.5", "font = 12px sans-serif", "textAlign = center", "strokeStyle = #fff", "lineWidth = 4", "strokeText uses 245 50", "fillStyle = #111", "fillText uses 245 50"]);
+  });
+
+  it("removes the dashes before the line around the letters of a text", () => {
+    const calls = drawn([square({ dash: [8, 4] }), PLAIN_TEXT, HALO_TEXT, square()]);
+    expect(calls).toEqual([
+      "globalAlpha = 1",
+      "beginPath",
+      "rect 0 0 10 10",
+      "setLineDash [8,4]",
+      "strokeStyle = #000",
+      "lineWidth = 1",
+      "stroke",
+      // A text with no line around its letters does not use the dashes.
+      "globalAlpha = 1",
+      "font = 12px sans-serif",
+      "textAlign = right",
+      "fillStyle = #111",
+      "fillText A note 520 8",
+      "globalAlpha = 0.5",
+      "font = 12px sans-serif",
+      "textAlign = center",
+      "setLineDash []",
+      "strokeStyle = #fff",
+      "lineWidth = 4",
+      "strokeText uses 245 50",
+      "fillStyle = #111",
+      "fillText uses 245 50",
+      // The context has no dash at this time.
+      ...SQUARE,
+    ]);
+  });
+
+  it("draws the paint list of a picture in its order", () => {
+    const shapes = paintPicture(indexPicture(PICTURE), plainLooks(), LIGHT_PICTURE_THEME, { zoom: 2, highlight: () => 0 });
+    const calls = drawn(shapes);
+    expect(linesOf(calls, "globalAlpha")).toEqual(new Array(13).fill("globalAlpha = 1"));
+    expect(linesOf(calls, "fillText")).toEqual(["fillText Card 10 15", "fillText First line 16 37", "fillText Second 16 47", "fillText uses 245 50", "fillText A note 520 8"]);
+    expect(linesOf(calls, "strokeText")).toEqual(["strokeText uses 245 50"]);
+    // The card and the three boxes with no shape are round rectangles, and the topic is a circle.
+    expect(linesOf(calls, "roundRect")).toEqual(["roundRect 0 0 200 100 6", "roundRect 10 30 180 25 6", "roundRect 10 65 180 25 6", "roundRect 0 300 100 40 6"]);
+    expect(linesOf(calls, "ellipse")).toEqual([`ellipse 330 50 30 30 0 0 ${2 * Math.PI}`]);
+    expect(linesOf(calls, "bezierCurveTo")).toEqual(["bezierCurveTo 100 200 50 200 50 300"]);
+    // The lines are those of the card, the three routes and the four boxes with no child.
+    expect(linesOf(calls, "stroke")).toHaveLength(8);
+    expect(linesOf(calls, "fill")).toEqual(new Array(5).fill("fill evenodd"));
+    expect(linesOf(calls, "setLineDash")).toEqual([]);
+  });
+});

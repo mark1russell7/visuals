@@ -970,6 +970,78 @@ describe("createPictureStage", () => {
     });
   });
 
+  describe("a change of the content", () => {
+    it("shows all of a content with different bounds after a refresh, with a move", () => {
+      const { stage, content } = start();
+      paint(1000);
+      const bounds = { x: 5000, y: 5000, w: 400, h: 300 };
+      content.bounds = bounds;
+      stage.refresh();
+      expect(stage.view()).toEqual(HOME);
+      paint(1000 + MOVE_TIME);
+      expect(stage.view()).toEqual(fitRect(bounds, AREA));
+      expect(frames.size).toBe(0);
+    });
+
+    it("keeps the camera after a refresh of a content with equal bounds", () => {
+      const { stage, content, events } = start();
+      paint(1000);
+      content.bounds = { ...BOUNDS };
+      stage.refresh();
+      expect(paint(1100)).toBe(1);
+      expect(stage.view()).toEqual(HOME);
+      expect(events.view).toEqual([HOME]);
+      expect(frames.size).toBe(0);
+    });
+
+    it("keeps a view that a person moved after a refresh, with a part of the content in view", () => {
+      const { stage, canvas, content } = start();
+      drag(canvas, [300, 300], [340, 320]);
+      content.bounds = { ...BOUNDS, w: BOUNDS.w + 100 };
+      stage.refresh();
+      expect(stage.view()).toEqual(DRAGGED);
+      const far = { x: 5000, y: 5000, w: 100, h: 100 };
+      content.bounds = far;
+      stage.refresh();
+      expect(stage.view()).toEqual({ x: -1750, y: -1950, k: 0.5 });
+      expect(showsRect(stage.view(), far, AREA)).toBe(true);
+    });
+
+    it("sets the limits of the zoom again after a refresh of a content with larger bounds", () => {
+      const { stage, content } = start();
+      paint(1000);
+      const bounds = { x: -3000, y: 100, w: 1_000_000, h: 40_000 };
+      content.bounds = bounds;
+      stage.refresh();
+      paint(1000 + MOVE_TIME);
+      expect(stage.view().k).toBe(752 / 1_000_000);
+      expect(showsRect(stage.view(), bounds, AREA)).toBe(true);
+    });
+
+    it("shows all of a content whose bounds changed before the container had a size", () => {
+      const { stage, container, content } = start({}, { width: 0, height: 0 });
+      const bounds = { x: 5000, y: 5000, w: 400, h: 300 };
+      content.bounds = bounds;
+      stage.refresh();
+      resize(container, 800, 600);
+      expect(stage.view()).toEqual(fitRect(bounds, AREA));
+    });
+
+    it("removes the hover of a record that the content does not have after a refresh", () => {
+      const boxes = [A, B];
+      const { stage, canvas, events } = start({ content: recording(boxes) });
+      paint(1000);
+      canvas.fire("pointermove", at(450, 350));
+      expect(canvas.style.cursor).toBe("pointer");
+      stage.refresh();
+      expect(canvas.style.cursor).toBe("pointer");
+      boxes.pop();
+      stage.refresh();
+      expect(canvas.style.cursor).toBe("grab");
+      expect(events.hover).toEqual(["value:b", undefined]);
+    });
+  });
+
   describe("the end", () => {
     it("removes the canvas, and disposes the content one time", () => {
       const { stage, container, canvas, content, events } = start();

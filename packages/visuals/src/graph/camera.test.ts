@@ -13,7 +13,6 @@ import {
   frameRects,
   freeArea,
   keepRect,
-  middleOf,
   panView,
   pictureMoveAt,
   pinchView,
@@ -261,13 +260,6 @@ describe("fitRect", () => {
         expect(showsRect(view, rect, into, FIT_PADDING - 1e-6)).toBe(true);
       }),
     );
-  });
-});
-
-describe("middleOf", () => {
-  it("gives the middle of a rectangle", () => {
-    expect(middleOf({ x: 200, y: 50, w: 800, h: 600 })).toEqual({ x: 600, y: 350 });
-    expect(middleOf({ x: -10, y: 4, w: 0, h: 0 })).toEqual({ x: -10, y: 4 });
   });
 });
 
