@@ -1,5 +1,5 @@
 import type { LayoutEdge } from "@mark1russell7/layout-contract";
-import type { ThreadBox, ThreadDocument, ThreadLegend } from "./document.ts";
+import { choiceOf, isChosen, type ThreadAction, type ThreadBox, type ThreadDocument, type ThreadLegend } from "./document.ts";
 
 /** One topic that the sorter of the sample proposed for a part: the id of the topic and its score. */
 type Proposal = readonly [topic: string, score: number];
@@ -34,6 +34,8 @@ interface SampleEntry {
   readonly text: string;
   readonly topic: string;
   readonly after?: string;
+  /** The id of who the entry waits on. The card of the entry has a button for an answer. */
+  readonly waits?: string;
 }
 
 const TOPICS: readonly SampleTopic[] = [
@@ -236,8 +238,11 @@ const ENTRIES: readonly SampleEntry[] = [
   { id: "e01", tag: "ask", at: "2026-09-03T09:00:00Z", text: "Who pays for the gravel of the trench?", topic: "trench" },
   { id: "e02", tag: "comment", at: "2026-09-03T09:25:00Z", text: "The repair fund pays. It has 140 left.", topic: "trench", after: "e01" },
   { id: "e03", tag: "decision", at: "2026-09-03T10:10:00Z", text: "The tomatoes move to bed 6 this week.", topic: "tomatoes" },
-  { id: "e04", tag: "request", at: "2026-09-03T11:40:00Z", text: "Order two cubic meters of gravel before Saturday.", topic: "trench" },
+  { id: "e04", tag: "request", at: "2026-09-03T11:40:00Z", text: "Order two cubic meters of gravel before Saturday.", topic: "trench", waits: "reader" },
 ];
+
+/** The action of an entry of the sample that waits: an answer. A page with a function for the actions gets a button for it. */
+export const SAMPLE_ANSWER: ThreadAction = { id: "answer", title: "Answer" };
 
 /** The name of the sorter in `data.by` of an edge. */
 const SORTER = "sorter";
@@ -267,6 +272,7 @@ function messageRecords(message: SampleMessage): { boxes: ThreadBox[]; edges: La
  * - It has 12 messages with 19 parts, 10 topics and 4 entries.
  * - A sorter gave a topic to each part, with 3 proposals or fewer. A person changed one topic, and two parts have no topic.
  * - One topic is done. Two topics are parts of a wider topic, and two pairs of topics are related.
+ * - One entry waits on the reader of the page, and it has the action of an answer.
  */
 export function sampleThread(): ThreadDocument {
   const boxes: ThreadBox[] = TOPICS.map(([id, label, tag, state]): ThreadBox => ({ id, data: { kinds: ["topic", tag], label, ref: `#${id}`, ...(state === undefined ? {} : { state }) } }));
@@ -277,7 +283,8 @@ export function sampleThread(): ThreadDocument {
     edges.push(...records.edges);
   }
   for (const entry of ENTRIES) {
-    boxes.push({ id: entry.id, data: { kinds: ["entry", entry.tag], label: entry.text, text: entry.text, at: entry.at } });
+    const waits = entry.waits === undefined ? {} : { waits: entry.waits, actions: [SAMPLE_ANSWER] };
+    boxes.push({ id: entry.id, data: { kinds: ["entry", entry.tag], label: entry.text, text: entry.text, at: entry.at, ...waits } });
     edges.push({ id: `touches:${entry.id}:${entry.topic}`, source: entry.id, target: entry.topic, data: { kind: "touches", choice: entry.id, state: "chosen", by: SORTER } });
     if (entry.after !== undefined) edges.push({ id: `reply:${entry.after}:${entry.id}`, source: entry.after, target: entry.id, data: { kind: "reply" } });
   }
@@ -300,4 +307,37 @@ export const SAMPLE_LEGEND: ThreadLegend = {
     { id: "sub", title: "Part of" },
     { id: "related", title: "Related" },
   ],
+  waits: [{ id: "reader", title: "you" }],
 };
+
+/** The start of the id of each answer that `answerEntry` makes. */
+const ANSWER = "answer";
+
+/**
+ * This function gives a document after an answer to an entry. The function does not change the document of the argument.
+ *
+ * - The entry waits on no one, and it has no action.
+ * - A new comment is a reply to the entry. It is the last box, and it has each chosen topic of the entry.
+ * - The result is the document of the argument for an id that is not a box, and for an empty text.
+ *
+ * @param at - The time of the answer.
+ * @param by - The name of who gave the answer.
+ */
+export function answerEntry(document: ThreadDocument, entry: string, text: string, at: string, by: string): ThreadDocument {
+  const found = document.boxes.find((box) => box.id === entry);
+  if (found === undefined || text === "") return document;
+  const start = `${ANSWER}:${entry}:`;
+  const id = `${start}${String(document.boxes.filter((box) => box.id.startsWith(start)).length + 1)}`;
+  const { waits: _waits, actions: _actions, ...data } = found.data ?? {};
+  const edges = document.edges ?? [];
+  const topics = edges.filter((edge) => isChosen(edge) && choiceOf(edge) === entry).map((edge) => edge.target);
+  return {
+    ...document,
+    boxes: [...document.boxes.map((box) => (box === found ? { ...found, data } : box)), { id, data: { kinds: ["entry", "comment"], label: text, text, at } }],
+    edges: [
+      ...edges,
+      { id: `reply:${entry}:${id}`, source: entry, target: id, data: { kind: "reply" } },
+      ...topics.map((topic): LayoutEdge => ({ id: `touches:${id}:${topic}`, source: id, target: topic, data: { kind: "touches", choice: id, state: "chosen", by } })),
+    ],
+  };
+}

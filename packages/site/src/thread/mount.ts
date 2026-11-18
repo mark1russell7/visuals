@@ -4,10 +4,10 @@ import { h, svg } from "@mark1russell7/site-pages/chrome";
 import { aimAll, aimReveal, createPictureContent, createPictureStage, freeArea, revealRects, type Insets, type PictureAim, type PictureContent, type PictureRecord, type PictureStage, type PictureView } from "@mark1russell7/visuals/graph";
 import { anchorRect } from "./anchor.ts";
 import { cardOf, relationNames, type CardChoice, type CardModel, type CardName, type TopicChoiceEvent } from "./card.ts";
-import { choiceOf, edgeKind, edgeState, isChosen, isProposal, labelOf, type ThreadBox, type ThreadDocument, type ThreadLegend } from "./document.ts";
+import { choiceOf, edgeKind, edgeState, isChosen, isProposal, labelOf, waitsOf, type ThreadBox, type ThreadDocument, type ThreadLegend } from "./document.ts";
 import { TEXT_ZOOM, threadLooks, type ThreadLookState, type ThreadTheme } from "./looks.ts";
 import { phaseTeller, type ThreadPhaseEvent } from "./phases.ts";
-import { routedProposals, threadPicture, withProposals, type ThreadPicture, type ThreadPictureOptions } from "./picture.ts";
+import { routedProposals, threadPicture, waitsText, withProposals, type ThreadPicture, type ThreadPictureOptions } from "./picture.ts";
 import style from "./thread.css?inline";
 
 /** A person used a button of the card of a box: an action of `data.actions`. */
@@ -101,6 +101,8 @@ const THEME_PROPERTIES: Readonly<Record<keyof ThreadTheme, string>> = {
   topicText: "--thread-topic-text",
   open: "--thread-open",
   quiet: "--thread-quiet",
+  waits: "--thread-waits",
+  waitsFill: "--thread-waits-fill",
 };
 
 /** The largest width of a narrow view, in CSS pixels. The style has the same number. */
@@ -154,6 +156,11 @@ function lineSample(options: { readonly dash?: string; readonly arrow?: boolean;
   );
 }
 
+/** This function makes the small picture of an entry that waits for the legend. */
+function waitsSample(): SVGSVGElement {
+  return svg("svg", { width: 28, height: 10, viewBox: "0 0 28 10", "aria-hidden": "true" }, svg("rect", { class: "is-waits", x: 7, y: 1, width: 14, height: 8, rx: 2.5 }));
+}
+
 /** This function makes the small picture of a sign of a part for the legend. */
 function signSample(className: string): SVGSVGElement {
   return svg("svg", { width: 28, height: 10, viewBox: "0 0 28 10", "aria-hidden": "true" }, svg("circle", { class: className, cx: 14, cy: 5, r: 3 }));
@@ -174,14 +181,22 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   const page = element.ownerDocument;
   const stageBox = h("div", { class: "thread-stage" });
   const note = h("p", { class: "thread-note", hidden: true });
-  const openButton = button("thread-open", { hidden: true }, [], () => {
-    // The walk goes on after the selected box, in the order of the document. Thus a part that got a topic does not start the walk again.
-    const open = new Set(openParts());
+  /** This function selects the next box of a list. The walk goes on after the selected box, in the order of the document. */
+  const walk = (ids: readonly string[]): void => {
+    const among = new Set(ids);
     const order = thread.document.boxes.map((box) => box.id);
     const from = order.indexOf(selected ?? "") + 1;
-    const next = [...order.slice(from), ...order.slice(0, from)].find((id) => open.has(id));
+    const next = [...order.slice(from), ...order.slice(0, from)].find((id) => among.has(id));
     if (next !== undefined) show(next, true, true);
+  };
+  // The walk goes on after the selected box. Thus a part that got a topic does not start the walk again.
+  const openButton = button("thread-jump thread-open", { hidden: true }, [], () => {
+    walk(openParts());
   });
+  const waitsButton = button("thread-jump thread-waits", { hidden: true }, [], () => {
+    walk(waitingEntries());
+  });
+  const jumps = h("div", { class: "thread-jumps" }, waitsButton, openButton);
   const proposalsInput = h("input", { type: "checkbox" });
   const proposalsSwitch = h("label", { class: "thread-tool thread-switch" }, proposalsInput, h("span", {}, "Proposals"));
   const tools = h(
@@ -196,10 +211,15 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   const legendList = h("ul");
   const legendBox = h("details", { class: "thread-legend", open: true }, h("summary", {}, "Legend"), legendList);
   const tip = h("div", { class: "thread-tip", role: "tooltip", hidden: true });
-  const root = h("div", { class: "thread" }, stageBox, note, openButton, tools, card, legendBox, tip);
+  const root = h("div", { class: "thread" }, stageBox, note, jumps, tools, card, legendBox, tip);
 
+  // A theme with no value for a color has no property for it, so the style uses its default.
   const setColors = (theme: ThreadTheme): void => {
-    for (const [key, property] of Object.entries(THEME_PROPERTIES)) root.style.setProperty(property, theme[key as keyof ThreadTheme]);
+    for (const [key, property] of Object.entries(THEME_PROPERTIES)) {
+      const color = theme[key as keyof ThreadTheme];
+      if (color === undefined) root.style.removeProperty(property);
+      else root.style.setProperty(property, color);
+    }
   };
   setColors(options.theme);
   element.append(root);
@@ -207,7 +227,9 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   /** This function gives the parts of the view that the page and the card cover. `more` has parts that the page covers for one move of the camera. */
   const insetsNow = (more: Partial<Insets> = {}): Insets => {
     const narrow = root.clientWidth <= NARROW;
-    const own = narrow ? { top: 56, right: 0, bottom: card.hidden ? 0 : card.offsetHeight, left: 0 } : { top: 52, right: card.hidden ? 0 : card.offsetWidth + 20, bottom: 0, left: 0 };
+    // The two buttons of the walks are in two rows in a view that has no room for them in one row.
+    const top = Math.max(narrow ? 56 : 52, jumps.offsetHeight === 0 ? 0 : jumps.offsetTop + jumps.offsetHeight + 4);
+    const own = narrow ? { top, right: 0, bottom: card.hidden ? 0 : card.offsetHeight, left: 0 } : { top, right: card.hidden ? 0 : card.offsetWidth + 20, bottom: 0, left: 0 };
     const outer = options.covered ?? {};
     const most = (edge: keyof Insets): number => Math.max(own[edge], outer[edge] ?? 0, more[edge] ?? 0);
     return { top: most("top"), right: most("right"), bottom: most("bottom"), left: most("left") };
@@ -413,6 +435,17 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   /** This function gives the parts and the entries that have proposals and no topic, in the order of the document. */
   const openParts =(): string[] => thread.document.boxes.filter((box) => thread.states.get(box.id) === "open").map((box) => box.id);
 
+  /** This function gives the entries that wait, in the order of the document. */
+  const waitingEntries = (): string[] => thread.document.boxes.filter((box) => thread.kinds.get(box.id) === "entry" && waitsOf(box) !== undefined).map((box) => box.id);
+
+  /** This function gives who the entries of the document wait on, when it is one id for each of them. Entries that wait on two ids or more give `undefined`. */
+  const waitedOn = (): string | undefined => {
+    const ids = new Set(thread.document.boxes.filter((box) => thread.kinds.get(box.id) === "entry").map((box) => waitsOf(box)));
+    ids.delete(undefined);
+    const [only] = ids;
+    return ids.size === 1 ? only : undefined;
+  };
+
   /** This function shows the text of the box below the pointer, when the picture is too small to read. */
   function showTip(): void {
     const text = hovered === undefined || stage === undefined || stage.view().k >= TEXT_ZOOM ? undefined : labelOf(hovered);
@@ -508,7 +541,12 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
       const same = key === undefined ? undefined : [...card.querySelectorAll<HTMLElement>("[data-key]")].find((node) => node.dataset["key"] === key);
       (same ?? close).focus({ preventScroll: true });
     };
-    const meta = h("p", { class: "thread-meta" }, [model.title, model.date, model.done && "done"].filter((text): text is string => typeof text === "string").join(", "));
+    const meta = h(
+      "p",
+      { class: "thread-meta" },
+      [model.title, model.date, model.done && "done"].filter((text): text is string => typeof text === "string").join(", "),
+      model.waits !== undefined && h("span", { class: "thread-waiting" }, `Waits on ${model.waits}`),
+    );
     const link = model.link !== undefined && h("a", { class: "thread-link", href: model.link }, "Open");
     // A page with no function for an action gets no button: a button that does nothing misleads a person.
     const actions =
@@ -568,6 +606,8 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     const edges = thread.document.edges ?? [];
     const item = (sample: SVGSVGElement, text: string): HTMLLIElement => h("li", {}, sample, text);
     const states = new Set(thread.states.values());
+    const waiting = waitingEntries();
+    const on = waitedOn();
     legendList.replaceChildren(
       ...(edges.some(isChosen) ? [item(lineSample({ dot: true }), "Topic of a part")] : []),
       ...(edges.some(isProposal) ? [item(lineSample({ dash: "5 4" }), "Proposal")] : []),
@@ -575,13 +615,20 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
       ...relationNames(thread.document, legend).map((relation) => item(lineSample({ dash: "1 5", arrow: relation.id === "sub" }), relation.label)),
       ...(states.has("changed") ? [item(signSample("is-changed"), "Not the first proposal")] : []),
       ...(states.has("open") ? [item(signSample("is-open"), "No topic yet")] : []),
+      ...(waiting.length > 0 ? [item(waitsSample(), on === undefined ? "Waits on a person" : waitsText(on, legend))] : []),
     );
     legendBox.hidden = legendList.childElementCount === 0;
     proposalsSwitch.hidden = !edges.some(isProposal);
+    waitsButton.hidden = waiting.length === 0;
+    // A narrow view hides some of the words, so the label has each word.
+    const words = on === undefined ? "Waiting" : waitsText(on, legend);
+    const [verb = words, ...rest] = words.split(" ");
+    waitsButton.replaceChildren(h("span", { class: "thread-jump-words" }, verb, rest.length > 0 && h("span", { class: "thread-jump-more" }, ` ${rest.join(" ")}`), ": "), String(waiting.length));
+    waitsButton.setAttribute("aria-label", `${words}: ${String(waiting.length)}. Go to the next entry that waits.`);
     const open = openParts();
     openButton.hidden = open.length === 0;
     // A narrow view hides some of the words, so the label has each word.
-    openButton.replaceChildren(h("span", { class: "thread-open-words" }, "No topic", h("span", { class: "thread-open-more" }, " yet"), ": "), String(open.length));
+    openButton.replaceChildren(h("span", { class: "thread-jump-words" }, "No topic", h("span", { class: "thread-jump-more" }, " yet"), ": "), String(open.length));
     openButton.setAttribute("aria-label", `No topic yet: ${String(open.length)}. Go to the next part with no topic.`);
     const empty = thread.document.boxes.length === 0;
     note.hidden = !empty && stage !== undefined;

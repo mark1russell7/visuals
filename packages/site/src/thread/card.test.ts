@@ -64,6 +64,13 @@ describe("cardOf", () => {
     expect(card?.choices.map((choice) => [choice.id, choice.chosen])).toEqual([["tomatoes", true]]);
   });
 
+  it("tells who an entry waits on, with the name of the legend or the id", () => {
+    expect(cardOf(thread, "e04", options)?.waits).toBe("you");
+    expect(cardOf(thread, "e04", { timeZone: "UTC" })?.waits).toBe("reader");
+    expect(cardOf(thread, "e01", options)?.waits).toBeUndefined();
+    expect(cardOf(thread, "m01", options)?.waits).toBeUndefined();
+  });
+
   it("gives no card for an id that is not a box", () => {
     expect(cardOf(thread, "nowhere")).toBeUndefined();
   });

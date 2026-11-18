@@ -2,7 +2,7 @@ import type { PictureBox, PictureLabel, PictureRoute } from "@mark1russell7/layo
 import type { RecordState } from "@mark1russell7/visuals/graph";
 import { describe, expect, it } from "vitest";
 import { fakeAdvance } from "./advance.test-util.ts";
-import { DONE_OPACITY, FAR_LINE_OPACITY, farNameLine, LIGHT_THREAD_THEME, PROPOSAL_OPACITY, TEXT_ZOOM, threadLooks, type ThreadLookState } from "./looks.ts";
+import { DONE_OPACITY, FAR_LINE_OPACITY, farNameLine, LIGHT_THREAD_THEME, PROPOSAL_OPACITY, TEXT_ZOOM, threadLooks, WAITS_WIDTH, waitsColor, type ThreadLookState } from "./looks.ts";
 import { labelId, threadPicture } from "./picture.ts";
 import { sampleThread } from "./sample.ts";
 import { isTopicLook, MESSAGE_LOOK } from "./sizes.ts";
@@ -82,6 +82,20 @@ describe("the look of a box", () => {
     expect(looks.box(box("m01"), { ...near, highlight: 2 }, theme)).toMatchObject({ stroke: theme.accent, width: 2 });
     expect(looks.box(box("m01#0"), { ...near, highlight: 1 }, theme)).toMatchObject({ stroke: theme.accent, width: 1 });
   });
+
+  it("makes an entry that waits stand out, with all its inside in the color in a far view", () => {
+    expect(looks.box(box("e04"), near, theme)).toEqual({ fill: theme.waitsFill, stroke: theme.waits, width: WAITS_WIDTH, radius: 9, marks: [] });
+    expect(looks.box(box("e04"), far, theme)).toMatchObject({ fill: theme.waits, stroke: theme.waits, width: WAITS_WIDTH });
+    expect(looks.box(box("e04"), { ...near, highlight: 2 }, theme)).toMatchObject({ fill: theme.waitsFill, stroke: theme.accent });
+    expect(looks.box(box("e01"), far, theme)).toMatchObject({ fill: theme.surface, stroke: theme.stroke });
+  });
+
+  it("uses the colors of a part with no topic and of a row for a theme with no colors of an entry that waits", () => {
+    const { waits: _waits, waitsFill: _fill, ...old } = theme;
+    expect(waitsColor(old)).toBe(theme.open);
+    expect(looks.box(box("e04"), near, old)).toMatchObject({ fill: theme.surface, stroke: theme.open, width: WAITS_WIDTH });
+    expect(looks.box(box("e04"), far, old)).toMatchObject({ fill: theme.open });
+  });
 });
 
 describe("the look of a route", () => {
@@ -129,6 +143,11 @@ describe("the look of a label", () => {
     expect(labelLook(labelId("date", "m01"), "m01", near)).toEqual({ color: theme.muted });
     expect(labelLook(labelId("text", "water"), "water", near)).toEqual({ color: theme.topicText });
     expect(labelLook(labelId("count", "water"), "water", near)).toEqual({ color: theme.topicText, opacity: 0.72 });
+  });
+
+  it("tells who an entry waits on in a near view only, in the color of that entry", () => {
+    expect(labelLook(labelId("waits", "e04"), "e04", near)).toEqual({ color: theme.waits });
+    expect(labelLook(labelId("waits", "e04"), "e04", far)).toBeUndefined();
   });
 
   it("makes bars of the text of a part in a far view, and no paint of a very small text", () => {

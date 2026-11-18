@@ -32,5 +32,5 @@ startRoom({
 
 // The conversation has its own layout engines. The page loads them after the two stages, so the globe does not wait.
 void import("./thread-demo.ts").then(({ startThread }) => {
-  startThread({ picture: byId("thread"), topics: byId("thread-topics"), time: byId("thread-time") });
+  startThread({ picture: byId("thread"), topics: byId("thread-topics"), time: byId("thread-time"), form: byId<HTMLFormElement>("thread-form") });
 });

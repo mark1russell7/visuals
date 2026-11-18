@@ -2,7 +2,7 @@ import { checkPicture } from "@mark1russell7/layout-contract";
 import { describe, expect, it } from "vitest";
 import { fakeAdvance } from "./advance.test-util.ts";
 import { chooseTopic } from "./card.ts";
-import { labelId, ROUTED_MOST, routedProposals, threadPicture, timeText, titleOf, withProposals, type ThreadPicture } from "./picture.ts";
+import { HEADER_GAP, labelId, ROUTED_MOST, routedProposals, TAG_FONT, threadPicture, timeText, titleOf, waitsText, withProposals, type ThreadPicture } from "./picture.ts";
 import { SAMPLE_LEGEND, sampleThread } from "./sample.ts";
 
 const sample = sampleThread();
@@ -50,6 +50,33 @@ describe("threadPicture", () => {
     expect(label(labelId("tag", "e01"))?.lines).toEqual(["Question"]);
     expect(label(labelId("date", "e01"))?.align).toBe("right");
     expect(threadPicture(sample, fakeAdvance).picture.labels.find((entry) => entry.id === labelId("tag", "e01"))?.lines).toEqual(["ask"]);
+  });
+
+  it("tells who an entry waits on after its tag, with the name of the legend", () => {
+    const tag = label(labelId("tag", "e04"));
+    const waits = label(labelId("waits", "e04"));
+    expect(waits?.lines).toEqual(["Waits on you"]);
+    expect(waits?.x).toBe((tag?.x ?? 0) + Math.ceil(fakeAdvance("Request", TAG_FONT)) + HEADER_GAP);
+    expect(label(labelId("date", "e04"))?.align).toBe("right");
+    expect(threadPicture(sample, fakeAdvance).picture.labels.find((entry) => entry.id === labelId("waits", "e04"))?.lines).toEqual(["Waits on reader"]);
+    expect(waitsText("reader", SAMPLE_LEGEND)).toBe("Waits on you");
+    expect(waitsText("the board", SAMPLE_LEGEND)).toBe("Waits on the board");
+  });
+
+  it("gives no such text to an entry that waits on no one, and to a message", () => {
+    expect(label(labelId("waits", "e01"))).toBeUndefined();
+    const message = { ...sample, boxes: sample.boxes.map((box) => (box.id === "m01" ? { ...box, data: { ...box.data, waits: "reader" } } : box)) };
+    expect(threadPicture(message, fakeAdvance, options).picture.labels.find((entry) => entry.id === labelId("waits", "m01"))).toBeUndefined();
+  });
+
+  it("gives no date to a header with no room for it", () => {
+    const long = { ...SAMPLE_LEGEND, waits: [{ id: "reader", title: "the person with the keys of the shed" }] };
+    const labels = threadPicture(sample, fakeAdvance, { ...options, legend: long }).picture.labels;
+    const ids = labels.filter((entry) => entry.box === "e04").map((entry) => entry.id);
+    expect(ids).toContain(labelId("tag", "e04"));
+    expect(ids).toContain(labelId("waits", "e04"));
+    expect(ids).not.toContain(labelId("date", "e04"));
+    expect(labels.some((entry) => entry.id === labelId("date", "e03"))).toBe(true);
   });
 
   it("puts each label of a box in the box", () => {

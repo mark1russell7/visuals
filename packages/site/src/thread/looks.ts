@@ -1,5 +1,5 @@
 import type { BoxLook, BoxMark, LabelLook, PictureLooks, RouteLook } from "@mark1russell7/visuals/graph";
-import { choiceOf, edgeKind, edgeState, isDone, isProposal, relationOf } from "./document.ts";
+import { choiceOf, edgeKind, edgeState, isDone, isProposal, relationOf, waitsOf } from "./document.ts";
 import type { ThreadPicture } from "./picture.ts";
 import { entryRow } from "./place.ts";
 import { isTopicLook, MESSAGE_LOOK } from "./sizes.ts";
@@ -31,6 +31,10 @@ export interface ThreadTheme {
   readonly open: string;
   /** The bars of a text that is too small to read. */
   readonly quiet: string;
+  /** The border and the text of an entry that waits, and its inside in a far view. The default is the color `open`. */
+  readonly waits?: string | undefined;
+  /** The inside of an entry that waits, in a near view. The default is the color `surface`. */
+  readonly waitsFill?: string | undefined;
 }
 
 /** The colors of a thread picture on a light page. */
@@ -48,6 +52,8 @@ export const LIGHT_THREAD_THEME: ThreadTheme = {
   topicText: "#ffffff",
   open: "#a55a00",
   quiet: "#d3d8e3",
+  waits: "#b0235f",
+  waitsFill: "#fdeef4",
 };
 
 /** The colors of a thread picture on a dark page. */
@@ -65,6 +71,8 @@ export const DARK_THREAD_THEME: ThreadTheme = {
   topicText: "#0e1220",
   open: "#f0b45a",
   quiet: "#2f3855",
+  waits: "#f783ac",
+  waitsFill: "#3a1c2f",
 };
 
 /** The zoom at which a person reads the text of a part. Below it, the text of a part is a row of bars, and the name of a topic keeps its height. */
@@ -81,6 +89,14 @@ export const PROPOSAL_OPACITY = 0.55;
 
 /** The share of its color that the line of a chosen topic keeps in a far view. A far view has many lines, so each line is light. */
 export const FAR_LINE_OPACITY = 0.6;
+
+/** The width of the border of an entry that waits. */
+export const WAITS_WIDTH = 2;
+
+/** This function gives the color of an entry that waits: the color `waits` of a theme, or its color `open`. */
+export function waitsColor(theme: ThreadTheme): string {
+  return theme.waits ?? theme.open;
+}
 
 /** What the looks of a thread picture read at the time of each paint. */
 export interface ThreadLookState {
@@ -104,11 +120,13 @@ export function farNameLine(size: number): number {
  *
  * - A message is a card, and each part is a row of it. An entry is a card with one text. A topic is a pill.
  * - A sign at the left end of a row tells the state of its topic. A full dot is a topic that is not the first proposal, and a ring is no topic.
+ * - An entry that waits has a border and an inside of the color `waits`, and its header tells who it waits on.
  * - A reply has an arrow. A chosen topic is a thin line with a dot at its part.
  * - A proposal is a line of dashes, and a relation is a line of dots.
  * - A record of the focus, the record below the pointer and the selected record have the accent.
  * - In a far view, the text of a part is a row of bars. The name of a topic keeps a height that a person reads.
  * - In a far view, a topic is the darkest shape, and the line of a chosen topic is thin and light, with no dot.
+ * - In a far view, an entry that waits has all its inside in the color `waits`, so a person finds it between many cards.
  */
 export function threadLooks(read: () => ThreadLookState): PictureLooks<ThreadTheme> {
   return {
@@ -129,6 +147,11 @@ export function threadLooks(read: () => ThreadLookState): PictureLooks<ThreadThe
       const row = kind === "entry" && size !== undefined ? entryRow(box, size) : box;
       const at = { x: kind === "entry" ? MESSAGE_LOOK.padding + 6 : 6, y: row.y - box.y + row.h / 2 };
       const marks: BoxMark[] = sign === "changed" ? [{ shape: "dot", ...at, radius: 2.5, color: theme.accent }] : sign === "open" ? [{ shape: "ring", ...at, radius: 2.75, color: theme.open, width: 1.5 }] : [];
+      if (kind === "entry" && waitsOf(box) !== undefined) {
+        const waits = waitsColor(theme);
+        const far = state.zoom < TEXT_ZOOM;
+        return { fill: far ? waits : (theme.waitsFill ?? theme.surface), stroke: lit ? theme.accent : waits, width: WAITS_WIDTH, radius: 9, marks };
+      }
       if (kind === "entry") return { fill: theme.surface, ...border, radius: 9, marks };
       return { fill: theme.surface, ...(lit ? border : {}), radius: 6, marks };
     },
@@ -160,6 +183,7 @@ export function threadLooks(read: () => ThreadLookState): PictureLooks<ThreadThe
         const least = farNameLine(size !== undefined && isTopicLook(size.look) ? size.look.size : 15);
         return { color: state.highlight > 0 ? theme.accent : theme.text, halo: theme.background, least, opacity: isDone(of.box) ? 0.6 : 1 };
       }
+      if (role === "waits") return far ? undefined : { color: waitsColor(theme) };
       if (role === "date" || role === "tag") return far ? undefined : { color: theme.muted };
       if (!far) return { color: theme.text };
       return label.lineHeight * state.zoom < SMALLEST_BAR ? undefined : { color: theme.quiet, as: "bars" };

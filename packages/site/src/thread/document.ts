@@ -20,6 +20,7 @@ export type ThreadBox = Omit<LayoutBox, "w" | "h"> & { readonly w?: number | und
  * - A part has its message as `parent`.
  * - A topic has `topic` as its first kind. Its second kind is a tag, and its `data.state` can be `done`.
  * - An entry is a box with no part and no parent that is not a topic. Its tag is its second kind.
+ * - An entry can have `data.waits`: the id of who the entry waits on, for example a person. The entry stands out in the picture.
  * - An edge has `data.kind`: `reply`, `part`, `touches` or `relates`. An edge `relates` can have `data.relation`.
  * - An edge of a sorter has also `data.state`, `data.rank`, `data.score`, `data.choice` and `data.by`.
  */
@@ -33,6 +34,8 @@ export interface ThreadDocument {
 export interface ThreadLegend {
   readonly kinds?: readonly LegendName[] | undefined;
   readonly relations?: readonly LegendName[] | undefined;
+  /** The names of who an entry waits on: the ids of `data.waits`. With no name, the view shows the id. */
+  readonly waits?: readonly LegendName[] | undefined;
 }
 
 /** The title of one id of a legend. */
@@ -123,6 +126,14 @@ const ADDRESS = /^(https?:\/\/|\/|\.{1,2}\/|#|\?)/i;
  */
 export function linkOf(box: WithData): string | undefined {
   return [field(box, "url"), field(box, "ref")].find((value) => value !== undefined && ADDRESS.test(value));
+}
+
+/**
+ * This function gives the id of who a box waits on: its `data.waits`.
+ * It gives `undefined` for a box that waits on no one, and for a value that is not a text.
+ */
+export function waitsOf(box: WithData): string | undefined {
+  return field(box, "waits");
 }
 
 /** An action of a box: a button of the card of the box. The page does the action, and the view writes no data. */

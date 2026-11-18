@@ -1,7 +1,7 @@
 import type { CurveOptions } from "@mark1russell7/highways";
 import { pictureOf, type LayoutBox, type LayoutPicture, type PictureLabel, type PictureRouteSource, type Rect } from "@mark1russell7/layout-contract";
 import type { AdvanceFn } from "@mark1russell7/layout-contract/text";
-import { choiceOf, isDrawn, isProposal, partStates, soundDocument, tagOf, threadKinds, timeOf, type PartState, type ThreadBox, type ThreadDocument, type ThreadKind, type ThreadLegend } from "./document.ts";
+import { choiceOf, isDrawn, isProposal, partStates, soundDocument, tagOf, threadKinds, timeOf, waitsOf, type PartState, type ThreadBox, type ThreadDocument, type ThreadKind, type ThreadLegend } from "./document.ts";
 import { entryRow, placeThread, sizedBoxes, type PlaceOptions } from "./place.ts";
 import { routeThread } from "./route.ts";
 import { isTopicLook, MESSAGE_LOOK, PART_LOOK, widestLine, threadSizes, type LeafSize } from "./sizes.ts";
@@ -61,7 +61,7 @@ export interface ThreadPicture {
 }
 
 /** The names of the labels of a box. A look reads `data.role` of a label. */
-export const LABEL_ROLES = ["text", "count", "date", "tag"] as const;
+export const LABEL_ROLES = ["text", "count", "date", "tag", "waits"] as const;
 
 /** The role of a label of a thread picture. */
 export type LabelRole = (typeof LABEL_ROLES)[number];
@@ -92,14 +92,35 @@ function textLabel(box: string, row: Rect, size: LeafSize): PictureLabel {
   return { id: labelId("text", box), box, x: row.x + look.padX, y: row.y + look.padY, w: Math.max(1, row.w - 2 * look.padX), h: Math.max(1, text.lineCount) * look.lineHeight, lines: text.lines, lineHeight: look.lineHeight, font: look.font, data: { role: "text" } };
 }
 
-/** This function gives the labels of the header of a card: the tag of an entry on the left and the date. With no tag, the date is on the left. */
-function headerLabels(box: ThreadBox, card: Rect, options: ThreadPictureOptions): PictureLabel[] {
+/** The space between two texts of the header of a card. */
+export const HEADER_GAP = 8;
+
+/** This function gives the text that tells who a box waits on, with the name of the legend. With no name, the text has the id. */
+export function waitsText(waits: string, legend?: ThreadLegend): string {
+  return `Waits on ${titleOf(legend?.waits, waits)}`;
+}
+
+/**
+ * This function gives the labels of the header of a card. The tag of an entry is on the left, then who the entry waits on.
+ * The date is on the right. With no text on the left, the date is on the left. A header with no room for the date has no date.
+ */
+function headerLabels(box: ThreadBox, card: Rect, options: ThreadPictureOptions, advance: AdvanceFn, waits?: string): PictureLabel[] {
   const at = timeOf(box);
   const tag = tagOf(box);
   const band = { x: card.x + MESSAGE_LOOK.padding + PART_LOOK.padX, y: card.y + (MESSAGE_LOOK.header - MESSAGE_LOOK.dateLine) / 2 + 1, w: Math.max(1, card.w - 2 * (MESSAGE_LOOK.padding + PART_LOOK.padX)), h: MESSAGE_LOOK.dateLine, lineHeight: MESSAGE_LOOK.dateLine };
   const out: PictureLabel[] = [];
-  if (tag !== undefined) out.push({ id: labelId("tag", box.id), box: box.id, ...band, lines: [titleOf(options.legend?.kinds, tag)], font: TAG_FONT, data: { role: "tag" } });
-  if (at !== undefined) out.push({ id: labelId("date", box.id), box: box.id, ...band, lines: [timeText(at, options.locale, options.timeZone)], font: MESSAGE_LOOK.dateFont, ...(tag === undefined ? {} : { align: "right" as const }), data: { role: "date" } });
+  /** The width that the texts on the left use, with the space after each of them. */
+  let used = 0;
+  const left = (role: LabelRole, text: string): void => {
+    out.push({ id: labelId(role, box.id), box: box.id, ...band, x: band.x + used, w: Math.max(1, band.w - used), lines: [text], font: TAG_FONT, data: { role } });
+    used += Math.ceil(advance(text, TAG_FONT)) + HEADER_GAP;
+  };
+  if (tag !== undefined) left("tag", titleOf(options.legend?.kinds, tag));
+  if (waits !== undefined) left("waits", waitsText(waits, options.legend));
+  if (at === undefined) return out;
+  const date = timeText(at, options.locale, options.timeZone);
+  if (used > 0 && used + Math.ceil(advance(date, MESSAGE_LOOK.dateFont)) > band.w) return out;
+  out.push({ id: labelId("date", box.id), box: box.id, ...band, lines: [date], font: MESSAGE_LOOK.dateFont, ...(used === 0 ? {} : { align: "right" as const }), data: { role: "date" } });
   return out;
 }
 
@@ -107,17 +128,17 @@ function headerLabels(box: ThreadBox, card: Rect, options: ThreadPictureOptions)
  * This function gives the labels of a thread picture.
  * They are the text of each part, entry and topic, the count of each topic and the header of each card.
  */
-function threadLabels(document: ThreadDocument, kinds: ReadonlyMap<string, ThreadKind>, sizes: ReadonlyMap<string, LeafSize>, places: ReadonlyMap<string, Rect>, options: ThreadPictureOptions): PictureLabel[] {
+function threadLabels(document: ThreadDocument, kinds: ReadonlyMap<string, ThreadKind>, sizes: ReadonlyMap<string, LeafSize>, places: ReadonlyMap<string, Rect>, options: ThreadPictureOptions, advance: AdvanceFn): PictureLabel[] {
   const out: PictureLabel[] = [];
   for (const box of document.boxes) {
     const place = places.get(box.id);
     const kind = kinds.get(box.id);
     if (place === undefined || kind === undefined) continue;
     const size = sizes.get(box.id);
-    if (kind === "message") out.push(...headerLabels(box, place, options));
+    if (kind === "message") out.push(...headerLabels(box, place, options, advance));
     if (size === undefined) continue;
     if (kind === "part") out.push(textLabel(box.id, place, size));
-    if (kind === "entry") out.push(...headerLabels(box, place, options), textLabel(box.id, entryRow(place, size), size));
+    if (kind === "entry") out.push(...headerLabels(box, place, options, advance, waitsOf(box)), textLabel(box.id, entryRow(place, size), size));
     if (kind !== "topic") continue;
     const { look, text } = size;
     out.push({ id: labelId("text", box.id), box: box.id, x: place.x + look.padX, y: place.y + look.padY, w: Math.max(1, widestLine(text)), h: Math.max(1, text.lineCount) * look.lineHeight, lines: text.lines, lineHeight: look.lineHeight, font: look.font, data: { role: "text" } });
@@ -203,7 +224,7 @@ export function threadPicture(input: ThreadDocument, advance: AdvanceFn, options
   const proposals = options.proposals ?? "each";
   const behind = proposalRoutes(document, boxes, proposals, options);
   const main = routeThread(document.id, boxes, edges.filter((edge) => isDrawn(edge) && !isProposal(edge)), { router: options.router ?? "shared", curve: options.curve, bundle: true });
-  const picture = pictureOf({ id: document.id, boxes, edges }, { routes: [...behind, ...main], labels: threadLabels(document, kinds, sizes, places, options) });
+  const picture = pictureOf({ id: document.id, boxes, edges }, { routes: [...behind, ...main], labels: threadLabels(document, kinds, sizes, places, options, advance) });
   return { document, picture, kinds, sizes, places, states: partStates(edges), proposals };
 }
 
