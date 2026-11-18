@@ -27,11 +27,29 @@ export const ASPECT_RANGE = { least: 0.4, most: 2.5 } as const;
 /** The limits of the scale of the heights in the search of `placeThread`. */
 const SCALE_RANGE = { least: 0.2, most: 8 } as const;
 
+/**
+ * The shape that the forces give to a picture of many cards with no scale: its width divided by its height.
+ * It is the measure of pictures with 71, 136 and 278 cards: 0.58, 0.64 and 0.68.
+ */
+const FREE_SHAPE = 0.6;
+
+/**
+ * The limits of the first scale of the search of `placeThread`.
+ * Below 1, a picture has much empty space. Above 3, a picture of many cards does not get wider.
+ */
+const FIRST_SCALE = { least: 1, most: 3 } as const;
+
 /** The most layouts of the search of `placeThread`. */
 const MOST_ROUNDS = 5;
 
 /** The search of `placeThread` stops at this ratio between the shape of the picture and the shape of the area. */
 const NEAR = 1.1;
+
+/**
+ * The work that the search of `placeThread` can use. One layout uses the square of the number of the cards and the topics.
+ * Thus 100 cards get each layout of the search, and more than 158 cards get one layout.
+ */
+const SEARCH_WORK = MOST_ROUNDS * 100 ** 2;
 
 /** The id of the box that contains each box with no parent. A document cannot contain it. */
 const ROOT = "\u0000root";
@@ -56,6 +74,23 @@ interface Arrangement {
   readonly shape: number;
 }
 
+/**
+ * This function gives the first scale of the heights for the shape of an area. With no shape, the scale is 1.
+ * The scale is the shape of the area divided by `FREE_SHAPE`, in the limits of `FIRST_SCALE`.
+ */
+export function firstScale(aspect: number | undefined): number {
+  if (aspect === undefined || !Number.isFinite(aspect)) return 1;
+  return Math.min(FIRST_SCALE.most, Math.max(FIRST_SCALE.least, aspect / FREE_SHAPE));
+}
+
+/**
+ * This function gives the most layouts of the search of `placeThread` from the count of the cards and the topics.
+ * The time of one layout grows with the square of that count, so a picture of many cards gets one layout.
+ */
+export function mostLayouts(count: number): number {
+  return Math.min(MOST_ROUNDS, Math.max(1, Math.floor(SEARCH_WORK / (count * count))));
+}
+
 /** This function gives the boxes of a document with the size of each measured box. A box with no measure gets the size 0. */
 export function sizedBoxes(document: ThreadDocument, sizes: ReadonlyMap<string, LeafSize>): LayoutBox[] {
   return document.boxes.map((box): LayoutBox => {
@@ -76,7 +111,8 @@ export function sizedBoxes(document: ThreadDocument, sizes: ReadonlyMap<string, 
  *
  * With the option `aspect`, the second step multiplies each height by a scale, and divides each y of the result by that scale.
  * Thus the scale changes the shape of the picture, and no two boxes overlap.
- * A short search finds the scale that gives the shape of the area.
+ * `firstScale` gives the scale of the first layout. A short search then moves the scale to the shape of the area.
+ * `mostLayouts` gives the most layouts of the search: a picture of many cards gets only the first layout.
  *
  * The same document and the same options give the same places.
  */
@@ -121,14 +157,18 @@ export function placeThread(document: ThreadDocument, sizes: ReadonlyMap<string,
     return { corners, shape: Math.max(1, bounds.right - bounds.left) / Math.max(1, bounds.bottom - bounds.top) };
   };
 
-  let best = arrange(1);
-  if (options.aspect !== undefined && Number.isFinite(options.aspect)) {
-    const aim = Math.min(ASPECT_RANGE.most, Math.max(ASPECT_RANGE.least, options.aspect));
+  const aim = options.aspect !== undefined && Number.isFinite(options.aspect) ? Math.min(ASPECT_RANGE.most, Math.max(ASPECT_RANGE.least, options.aspect)) : undefined;
+  let scale = firstScale(aim);
+  let best = arrange(scale);
+  if (aim !== undefined) {
     const off = (shape: number): number => Math.max(shape / aim, aim / shape);
-    let scale = 1;
+    const most = mostLayouts(tree.length);
     let last = best;
-    for (let round = 1; round < MOST_ROUNDS && off(best.shape) > NEAR; round++) {
-      scale = Math.min(SCALE_RANGE.most, Math.max(SCALE_RANGE.least, (scale * aim) / last.shape));
+    for (let round = 1; round < most && off(best.shape) > NEAR; round++) {
+      const next = Math.min(SCALE_RANGE.most, Math.max(SCALE_RANGE.least, (scale * aim) / last.shape));
+      // A scale at a limit gives the layout of the round before. The search stops there.
+      if (next === scale) break;
+      scale = next;
       last = arrange(scale);
       if (off(last.shape) < off(best.shape)) best = last;
     }
