@@ -441,6 +441,11 @@ button {
   margin: 1rem 0 0;
 }
 
+/* A second note is a part of the first note: the times of a picture below the note about its data. */
+.panel .note + .note {
+  margin-top: 0.25rem;
+}
+
 /* The room: the second plate. A wide page puts its picture at the right. */
 .plate-room {
   margin-top: 4rem;

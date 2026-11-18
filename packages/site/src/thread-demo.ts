@@ -3,6 +3,7 @@ import { onThemeChange, threadTheme } from "./colors.ts";
 import { chooseTopic } from "./thread/card.ts";
 import { labelOf, threadKinds, topicCounts, type ThreadDocument } from "./thread/document.ts";
 import { mountThreadView, type ThreadView } from "./thread/mount.ts";
+import { phaseText, type ThreadPhaseEvent } from "./thread/phases.ts";
 import { SAMPLE_LEGEND, sampleThread } from "./thread/sample.ts";
 
 /** The elements of the page that the conversation demo uses. */
@@ -11,6 +12,8 @@ export interface ThreadElements {
   readonly picture: HTMLElement;
   /** The box of the topics. The demo puts one button for each topic in it. */
   readonly topics: HTMLElement;
+  /** The line of the times of the picture. It is hidden until the view draws its first picture. */
+  readonly time: HTMLElement;
 }
 
 /** The name of the person of the page, for a topic that the person gives to a part. */
@@ -23,6 +26,8 @@ const PERSON = "you";
 export function startThread(elements: ThreadElements): ThreadView {
   let current: ThreadDocument = sampleThread();
   let selected: string | undefined;
+  /** The layout of the last picture. Its first drawing completes the line of the times. */
+  let made: ThreadPhaseEvent | undefined;
 
   const kinds = threadKinds(current);
   const rows = current.boxes
@@ -58,6 +63,16 @@ export function startThread(elements: ThreadElements): ThreadView {
       current = chooseTopic(current, event, PERSON);
       view.setDocument(current);
       paint();
+    },
+    // The view shows a note for a step with an error, so the line keeps the times of the last good picture.
+    onPhase: (event) => {
+      if (event.error !== undefined) return;
+      if (event.phase === "layout") {
+        made = event;
+      } else if (made?.picture === event.picture) {
+        elements.time.textContent = phaseText(made, event);
+        elements.time.hidden = false;
+      }
     },
   });
 

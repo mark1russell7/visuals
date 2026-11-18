@@ -252,6 +252,9 @@ const thread = await until(() => $("#thread canvas"), 15000);
 check("the page shows the conversation", thread, "The picture has no canvas.");
 const threadHeight = (thread as Element | null)?.getBoundingClientRect().height ?? 0;
 check("the picture of the conversation has a height of 150 pixels or more", threadHeight >= 150, threadHeight);
+// The view tells the page the layout and the first drawing of its picture. The line of the times has the two.
+check("the view tells the times of its first picture", await until(() => /^The view made this picture of \d+ boxes in .+, and drew it in .+\.$/.test(text("#thread-time"))), text("#thread-time"));
+check("the line of the times shows", $("#thread-time")?.hidden === false, $("#thread-time")?.hidden);
 check("the list has each topic of the sample", $$("#thread-topics .kind").length === 10, $$("#thread-topics .kind").length);
 check("no box is selected at the start", $$('#thread-topics .kind[aria-pressed="true"]').length === 0 && $(CARD)?.hidden === true, cardBox());
 
