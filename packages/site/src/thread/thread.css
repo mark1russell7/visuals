@@ -244,6 +244,37 @@
   font-weight: 500;
   text-underline-offset: 3px;
 }
+/* The buttons of the actions of a box. The first action is the main action of the box. */
+.thread-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.thread .thread-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 9px;
+  border: 1px solid var(--thread-line);
+  background: var(--thread-surface);
+  font-weight: 550;
+  white-space: nowrap;
+  user-select: none;
+}
+.thread .thread-action:hover {
+  border-color: var(--thread-stroke);
+}
+.thread .thread-action:first-child {
+  border-color: transparent;
+  background: var(--thread-accent);
+  color: var(--thread-surface);
+}
+.thread .thread-action:first-child:hover {
+  filter: brightness(1.08);
+}
 .thread .thread-heading {
   margin: 0 0 4px;
   color: var(--thread-muted);
@@ -362,6 +393,9 @@
   .thread .thread-open {
     height: 40px;
     min-width: 40px;
+  }
+  .thread .thread-action {
+    min-height: 40px;
   }
   .thread-zoom {
     display: none !important;

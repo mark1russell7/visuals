@@ -1,5 +1,5 @@
 import type { LayoutEdge } from "@mark1russell7/layout-contract";
-import { choiceOf, choicesOf, edgeKind, edgeState, isChosen, isDone, labelOf, linkOf, tagOf, textOf, timeOf, type ThreadDocument, type ThreadKind, type ThreadLegend } from "./document.ts";
+import { actionsOf, choiceOf, choicesOf, edgeKind, edgeState, isChosen, isDone, labelOf, linkOf, tagOf, textOf, timeOf, type ThreadAction, type ThreadDocument, type ThreadKind, type ThreadLegend } from "./document.ts";
 import { timeText, titleOf, type ThreadPicture, type ThreadPictureOptions } from "./picture.ts";
 
 /** A box that a card names: its id and its short name. */
@@ -40,6 +40,8 @@ export interface CardModel extends CardName {
   readonly others: readonly CardName[];
   /** The parts of a message, or the parts and entries of a topic. */
   readonly parts: readonly CardName[];
+  /** The buttons of the card, in the order of `data.actions` of the box. */
+  readonly actions: readonly ThreadAction[];
 }
 
 /** The largest number of topics in the list of the sorter that a card shows before the other topics. */
@@ -98,6 +100,7 @@ export function cardOf(thread: ThreadPicture, id: string, options: Pick<ThreadPi
     by: ranked.find((choice) => choice.chosen)?.by,
     others,
     parts,
+    actions: actionsOf(box),
   };
 }
 
