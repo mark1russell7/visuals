@@ -50,7 +50,7 @@ export interface PanelSplit {
 
 /**
  * This function takes the panels and their edges out of a document. `kinds` has the kind of each box.
- * The layout and the routes of the other boxes read the document with no panel, so a panel changes no place and no line of them.
+ * The layout and the routes of the other boxes read the document with no panel. Thus a panel changes no place and no line of them.
  */
 export function splitPanels(document: ThreadDocument, kinds: ReadonlyMap<string, ThreadKind>): PanelSplit {
   const isPanel = (id: string): boolean => kinds.get(id) === "panel";

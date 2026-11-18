@@ -185,7 +185,7 @@ function keeps(keep: ThreadPicture, plain: ThreadDocument, kinds: ReadonlyMap<st
   });
 }
 
-/** This function gives the places of the cards and the topics of a picture, before a panel pushes them: each box that is in no box. */
+/** This function gives the place of each card and each topic of a picture, before a panel pushes it. */
 function topPlaces(keep: ThreadPicture): Map<string, Rect> {
   const out = new Map<string, Rect>();
   for (const box of keep.plain.boxes) {
@@ -227,7 +227,7 @@ function placedBoxes(document: ThreadDocument, sizes: ReadonlyMap<string, LeafSi
   });
 }
 
-/** This function tells if a route is a line of a panel: a route of the kind `panel`, or a route with a panel at an end. */
+/** This function tells if a route is a line of a panel. Such a route has the kind `panel`, or it has a panel at an end. */
 export function isPanelLine(route: PictureRoute, kinds: ReadonlyMap<string, ThreadKind>): boolean {
   return edgeKind(route) === "panel" || kinds.get(route.source) === "panel" || kinds.get(route.target) === "panel";
 }
