@@ -318,6 +318,23 @@ if ($(ANSWER) !== null) {
     check("the panel has the name of its action", panel()?.getAttribute("role") === "group" && panel()?.getAttribute("aria-label") === "Answer", panel()?.getAttribute("aria-label"));
     // The view makes the picture again for the height of the form. The form stays in the same element, so it keeps its focus.
     check("the field of the form keeps the focus", document.activeElement?.id === "thread-answer", document.activeElement?.id);
+    // A far view shows no content of a panel. The content stays in the page, so the field keeps its focus.
+    const out = '#thread .thread-zoom[aria-label="Zoom out"]';
+    click(out);
+    click(out);
+    click(out);
+    check("a far view shows no content of the panel", await until(() => panel()?.classList.contains("is-far") === true), panel()?.className);
+    check("the field keeps the focus in a far view", document.activeElement?.id === "thread-answer", document.activeElement?.id);
+    // A focus in content that is not in view moves the camera to the panel of the content.
+    const answer = $("#thread-answer");
+    // A browser gives no focus event in a page that does not have the focus of the system. The probe gives the event then.
+    const focused = document.hasFocus();
+    if (focused) {
+      answer?.blur();
+      answer?.focus({ preventScroll: true });
+    } else answer?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    check("a focus in a far panel moves the camera to the panel", await until(() => inside() && panel()?.classList.contains("is-far") !== true), [focused, ...rects().map((rect) => rect?.toJSON())]);
+    check("the field has the focus after the move", document.activeElement?.id === "thread-answer", document.activeElement?.id);
   }
   const field = $(`${FORM} textarea`);
   if (field instanceof HTMLTextAreaElement) field.value = "I order it on Thursday.";
