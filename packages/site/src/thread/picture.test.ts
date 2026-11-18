@@ -71,11 +71,22 @@ describe("threadPicture", () => {
     expect(checkPicture(next.picture)).toEqual([]);
   });
 
-  it("places the boxes again when the boxes are different", () => {
+  it("gives a new box a place, and moves no box of before", () => {
     const boxes = [...sample.boxes, { id: "new", data: { kinds: ["topic"], label: "Bees" } }];
     const next = threadPicture({ ...sample, boxes }, fakeAdvance, { ...options, keep: thread });
     expect(next.places).not.toBe(thread.places);
     expect(next.places.has("new")).toBe(true);
+    for (const [id, place] of thread.places) expect(next.places.get(id)).toEqual(place);
+    expect(checkPicture(next.picture)).toEqual([]);
+  });
+
+  it("moves no box when a box goes away", () => {
+    const boxes = sample.boxes.filter((box) => box.id !== "e04");
+    const edges = (sample.edges ?? []).filter((edge) => edge.source !== "e04" && edge.target !== "e04");
+    const next = threadPicture({ ...sample, boxes, edges }, fakeAdvance, { ...options, keep: thread });
+    expect(next.places.has("e04")).toBe(false);
+    for (const [id, place] of next.places) expect(place).toEqual(thread.places.get(id));
+    expect(checkPicture(next.picture)).toEqual([]);
   });
 
   it("gives the same picture for the same document", () => {

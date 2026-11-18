@@ -37,7 +37,8 @@ export interface ThreadPictureOptions extends PlaceOptions, ThreadRouteOptions {
   readonly timeZone?: string | undefined;
   /**
    * The picture before a change of the document. Each box keeps its place and its size when the new document has the same boxes with the same names.
-   * Thus a change of an edge moves no box.
+   * Thus a change of an edge moves no box. A small change of the boxes moves no card and no topic of this picture.
+   * A new box gets a place near the boxes that its edges join it to. `keepsPlaces` tells if a change is small.
    */
   readonly keep?: ThreadPicture | undefined;
 }
@@ -137,6 +138,16 @@ function keeps(keep: ThreadPicture, document: ThreadDocument, kinds: ReadonlyMap
   });
 }
 
+/** This function gives the places of the cards and the topics of a picture: each box that is in no box. */
+function topPlaces(keep: ThreadPicture): Map<string, Rect> {
+  const out = new Map<string, Rect>();
+  for (const box of keep.document.boxes) {
+    const place = keep.places.get(box.id);
+    if (box.parent === undefined && place !== undefined) out.set(box.id, place);
+  }
+  return out;
+}
+
 /** This function gives the boxes of a document with the place and the size of each box that has a place. */
 function placedBoxes(document: ThreadDocument, sizes: ReadonlyMap<string, LeafSize>, places: ReadonlyMap<string, Rect>): LayoutBox[] {
   return sizedBoxes(document, sizes).flatMap((box): LayoutBox[] => {
@@ -186,7 +197,7 @@ export function threadPicture(input: ThreadDocument, advance: AdvanceFn, options
   const kinds = threadKinds(document);
   const { keep } = options;
   const sizes = threadSizes(document, advance, keep?.sizes);
-  const places = keep !== undefined && keeps(keep, document, kinds, sizes) ? keep.places : placeThread(document, sizes, options);
+  const places = keep === undefined ? placeThread(document, sizes, options) : keeps(keep, document, kinds, sizes) ? keep.places : placeThread(document, sizes, { ...options, before: topPlaces(keep) });
   const boxes = placedBoxes(document, sizes, places);
   const edges = document.edges ?? [];
   const proposals = options.proposals ?? "each";
