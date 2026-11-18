@@ -2,6 +2,7 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
   FIT_PADDING,
+  KEEP_IN_VIEW,
   SMALLEST_AREA,
   UNIT_VIEW,
   WHEEL_LINE,
@@ -11,17 +12,21 @@ import {
   fitRect,
   frameRects,
   freeArea,
+  keepRect,
+  middleOf,
   panView,
   pictureMoveAt,
   pinchView,
   rectToScreen,
   revealRects,
+  sameView,
   showsRect,
   toPicture,
   toScreen,
   viewAt,
   viewBetween,
   wheelFactor,
+  zoomLimitsFor,
   zoomView,
   type PictureMove,
   type PictureView,
@@ -256,6 +261,109 @@ describe("fitRect", () => {
         expect(showsRect(view, rect, into, FIT_PADDING - 1e-6)).toBe(true);
       }),
     );
+  });
+});
+
+describe("middleOf", () => {
+  it("gives the middle of a rectangle", () => {
+    expect(middleOf({ x: 200, y: 50, w: 800, h: 600 })).toEqual({ x: 600, y: 350 });
+    expect(middleOf({ x: -10, y: 4, w: 0, h: 0 })).toEqual({ x: -10, y: 4 });
+  });
+});
+
+describe("zoomLimitsFor", () => {
+  const area = { x: 200, y: 50, w: 800, h: 600 };
+
+  it("keeps the limits for a picture that the smallest zoom shows fully", () => {
+    expect(zoomLimitsFor({ x: 0, y: 0, w: 1000, h: 500 }, area)).toBe(ZOOM_LIMITS);
+    expect(zoomLimitsFor({ x: 0, y: 0, w: 15_000, h: 11_000 }, area)).toBe(ZOOM_LIMITS);
+  });
+
+  it("keeps the limits for a picture with no size", () => {
+    expect(zoomLimitsFor({ x: 5, y: 5, w: 0, h: 0 }, area)).toBe(ZOOM_LIMITS);
+  });
+
+  it("gives a smaller smallest zoom for a very large picture, so a camera shows all of it", () => {
+    const bounds = { x: -3000, y: 100, w: 1_000_000, h: 40_000 };
+    const limits = zoomLimitsFor(bounds, area);
+    expect(limits.max).toBe(ZOOM_LIMITS.max);
+    expect(limits.min).toBeCloseTo(752 / 1_000_000, 12);
+    const view = fitRect(bounds, area, { limits });
+    expect(view.k).toBe(limits.min);
+    expect(showsRect(view, bounds, area, FIT_PADDING - 1e-6)).toBe(true);
+    // The default limits do not show all of this picture.
+    expect(showsRect(fitRect(bounds, area), bounds, area)).toBe(false);
+  });
+
+  it("uses the limits and the padding of the options", () => {
+    const limits = { min: 0.5, max: 2 };
+    expect(zoomLimitsFor({ x: 0, y: 0, w: 1000, h: 100 }, area, limits)).toBe(limits);
+    expect(zoomLimitsFor({ x: 0, y: 0, w: 4000, h: 100 }, area, limits, 0)).toEqual({ min: 0.2, max: 2 });
+  });
+});
+
+describe("keepRect", () => {
+  const area = { x: 0, y: 0, w: 800, h: 600 };
+  const rect = { x: 0, y: 0, w: 400, h: 300 };
+
+  it("gives the same view when a part of the rectangle is in the area", () => {
+    const view = { x: 700, y: -200, k: 1 };
+    expect(keepRect(view, rect, area)).toBe(view);
+    expect(keepRect(UNIT_VIEW, rect, area)).toBe(UNIT_VIEW);
+  });
+
+  it("stops a rectangle that goes out of the area at the right and the bottom", () => {
+    expect(keepRect({ x: 2000, y: 0, k: 1 }, rect, area)).toEqual({ x: 800 - KEEP_IN_VIEW, y: 0, k: 1 });
+    expect(keepRect({ x: 100, y: 5000, k: 1 }, rect, area)).toEqual({ x: 100, y: 600 - KEEP_IN_VIEW, k: 1 });
+  });
+
+  it("stops a rectangle that goes out of the area at the left and the top", () => {
+    expect(keepRect({ x: -2000, y: -2000, k: 1 }, rect, area)).toEqual({ x: KEEP_IN_VIEW - 400, y: KEEP_IN_VIEW - 300, k: 1 });
+    expect(keepRect({ x: -2000, y: -2000, k: 2 }, rect, area)).toEqual({ x: KEEP_IN_VIEW - 800, y: KEEP_IN_VIEW - 600, k: 2 });
+  });
+
+  it("uses the free area, not the full picture", () => {
+    const free = { x: 244, y: 58, w: 500, h: 400 };
+    expect(keepRect({ x: 0, y: 0, k: 1 }, { x: -1000, y: -1000, w: 100, h: 100 }, free)).toEqual({ x: 1244 + KEEP_IN_VIEW - 100, y: 1058 + KEEP_IN_VIEW - 100, k: 1 });
+  });
+
+  it("keeps a rectangle that is smaller than the length fully in the area", () => {
+    const small = { x: 0, y: 0, w: 20, h: 10 };
+    expect(keepRect({ x: 900, y: 900, k: 1 }, small, area)).toEqual({ x: 780, y: 590, k: 1 });
+    expect(keepRect({ x: -50, y: -50, k: 1 }, small, area)).toEqual({ x: 0, y: 0, k: 1 });
+    expect(keepRect({ x: 300, y: 300, k: 1 }, small, area)).toEqual({ x: 300, y: 300, k: 1 });
+  });
+
+  it("lets a rectangle touch the area from the outside with a length of 0", () => {
+    expect(keepRect({ x: 2000, y: -2000, k: 1 }, rect, area, 0)).toEqual({ x: 800, y: -300, k: 1 });
+  });
+
+  it("keeps the length in the area for each view, changes no zoom, and changes no view a second time", () => {
+    const size = fc.double({ min: 0, max: 3000, noNaN: true });
+    const rects = fc.record({ x: coordinate, y: coordinate, w: size, h: size });
+    const areas = fc.record({ x: fc.double({ min: 0, max: 300, noNaN: true }), y: fc.double({ min: 0, max: 300, noNaN: true }), w: fc.double({ min: 80, max: 2000, noNaN: true }), h: fc.double({ min: 80, max: 2000, noNaN: true }) });
+    const overlap = (start: number, length: number, from: number, across: number): number => Math.min(start + length, from + across) - Math.max(start, from);
+    fc.assert(
+      fc.property(anyView, rects, areas, fc.double({ min: 0, max: 200, noNaN: true }), (view, of, into, least) => {
+        const kept = keepRect(view, of, into, least);
+        expect(kept.k).toBe(view.k);
+        const shown = rectToScreen(kept, of);
+        expect(overlap(shown.x, shown.w, into.x, into.w)).toBeGreaterThanOrEqual(Math.min(least, shown.w, into.w) - 1e-6);
+        expect(overlap(shown.y, shown.h, into.y, into.h)).toBeGreaterThanOrEqual(Math.min(least, shown.h, into.h) - 1e-6);
+        const again = keepRect(kept, of, into, least);
+        expect(again.x).toBeCloseTo(kept.x, 6);
+        expect(again.y).toBeCloseTo(kept.y, 6);
+      }),
+    );
+  });
+});
+
+describe("sameView", () => {
+  it("tells if two views are equal by their values", () => {
+    expect(sameView({ x: 1, y: 2, k: 3 }, { x: 1, y: 2, k: 3 })).toBe(true);
+    expect(sameView(UNIT_VIEW, { x: 0, y: 0, k: 1.5 })).toBe(false);
+    expect(sameView(UNIT_VIEW, { x: 0, y: 1, k: 1 })).toBe(false);
+    expect(sameView(UNIT_VIEW, { x: 1, y: 0, k: 1 })).toBe(false);
   });
 });
 

@@ -1,5 +1,7 @@
+export { aimAll, aimRects, aimReveal, type AimFrame, type PictureAim } from "./graph/aim.ts";
 export {
   FIT_PADDING,
+  KEEP_IN_VIEW,
   SMALLEST_AREA,
   UNIT_VIEW,
   WHEEL_LINE,
@@ -10,6 +12,7 @@ export {
   fitRect,
   frameRects,
   freeArea,
+  keepRect,
   panView,
   pictureMoveAt,
   pinchView,
@@ -21,6 +24,7 @@ export {
   viewAt,
   viewBetween,
   wheelFactor,
+  zoomLimitsFor,
   zoomView,
   type FitOptions,
   type FrameOptions,
@@ -44,3 +48,16 @@ export {
   type PointerUpResult,
   type Pointers,
 } from "./graph/pointers.ts";
+export { stackPictureContents } from "./graph/stack.ts";
+export {
+  DOUBLE_CLICK_ZOOM,
+  PICK_SLACK,
+  TOUCH_PICK_SLACK,
+  createPictureStage,
+  type PickAt,
+  type PictureContent,
+  type PictureFrame,
+  type PicturePick,
+  type PictureStage,
+  type PictureStageOptions,
+} from "./graph/stage.ts";

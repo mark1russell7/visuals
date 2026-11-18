@@ -1,6 +1,6 @@
 import type { Rect } from "@mark1russell7/layout-contract";
 import { KEY_PART, KEY_ZOOM } from "../keys.ts";
-import { panView, zoomView, type PictureView, type ZoomLimits } from "./camera.ts";
+import { middleOf, panView, zoomView, type PictureView, type ZoomLimits } from "./camera.ts";
 
 /** What a key does on a flat picture: it moves the camera to a view, or it shows a view by its name. */
 export type PictureKeyAction = { readonly type: "move"; readonly to: PictureView } | { readonly type: "view"; readonly view: string };
@@ -25,7 +25,7 @@ export interface PictureKeyOptions {
  */
 export function pictureKeyAction(key: string, now: PictureView, area: Rect, options: PictureKeyOptions): PictureKeyAction | undefined {
   const step = Math.min(area.w, area.h) * KEY_PART;
-  const middle = { x: area.x + area.w / 2, y: area.y + area.h / 2 };
+  const middle = middleOf(area);
   switch (key) {
     // The camera moves in the direction of the arrow, so the picture moves in the opposite direction.
     case "ArrowLeft":

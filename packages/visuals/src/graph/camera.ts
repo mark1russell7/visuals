@@ -146,9 +146,19 @@ export interface FitOptions {
   readonly limits?: ZoomLimits | undefined;
 }
 
-/** This function gives the middle of a rectangle. */
-function middleOf(rect: Rect): Point {
+/**
+ * This function gives the middle of a rectangle.
+ * The home of this function is `@mark1russell7/layout-contract`, which does not have it. It moves there with the records of a picture.
+ */
+export function middleOf(rect: Rect): Point {
   return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+}
+
+/** This function gives the zoom at which a rectangle of the picture fills an area of the screen, with a padding at each edge. */
+function fillZoom(rect: Rect, area: Rect, padding: number): number {
+  const width = Math.max(area.w - 2 * padding, 1);
+  const height = Math.max(area.h - 2 * padding, 1);
+  return Math.min(width / Math.max(rect.w, 0), height / Math.max(rect.h, 0));
 }
 
 /**
@@ -157,11 +167,48 @@ function middleOf(rect: Rect): Point {
  */
 export function fitRect(rect: Rect, area: Rect, options: FitOptions = {}): PictureView {
   const limits = options.limits ?? ZOOM_LIMITS;
-  const padding = options.padding ?? FIT_PADDING;
-  const width = Math.max(area.w - 2 * padding, 1);
-  const height = Math.max(area.h - 2 * padding, 1);
-  const k = clampZoom(Math.min(options.most ?? limits.max, width / Math.max(rect.w, 0), height / Math.max(rect.h, 0)), limits);
+  const k = clampZoom(Math.min(options.most ?? limits.max, fillZoom(rect, area, options.padding ?? FIT_PADDING)), limits);
   return viewAt(middleOf(rect), middleOf(area), k);
+}
+
+/**
+ * This function gives the limits of the zoom for a picture with the bounds `bounds`.
+ *
+ * The smallest zoom of the result shows all of the picture in the area, with a padding at each edge.
+ * A picture that fits at the smallest zoom of `limits` keeps `limits`. Thus a person can show all of a very large picture.
+ */
+export function zoomLimitsFor(bounds: Rect, area: Rect, limits: ZoomLimits = ZOOM_LIMITS, padding: number = FIT_PADDING): ZoomLimits {
+  const all = fillZoom(bounds, area, padding);
+  return all > 0 && all < limits.min ? { min: all, max: limits.max } : limits;
+}
+
+/** The length of a picture that stays in the free area when a person moves the picture, in CSS pixels. */
+export const KEEP_IN_VIEW = 64;
+
+/** This function gives the start of a span of the screen that keeps the length `least` in an area, on one axis. */
+function keepSpan(start: number, length: number, areaStart: number, areaLength: number, least: number): number {
+  const keep = Math.min(Math.max(least, 0), length, areaLength);
+  return Math.min(Math.max(start, areaStart + keep - length), areaStart + areaLength - keep);
+}
+
+/**
+ * This function gives the view that keeps a part of a rectangle of the picture in an area of the screen.
+ * A person who moves the picture then cannot lose it.
+ *
+ * `least` is the length of the rectangle that stays in the area on each axis, in CSS pixels.
+ * A rectangle that is smaller on the screen stays in the area fully. The zoom does not change.
+ * The result is `view` itself when the view keeps the rectangle.
+ */
+export function keepRect(view: PictureView, rect: Rect, area: Rect, least: number = KEEP_IN_VIEW): PictureView {
+  const shown = rectToScreen(view, rect);
+  const x = keepSpan(shown.x, shown.w, area.x, area.w, least);
+  const y = keepSpan(shown.y, shown.h, area.y, area.h, least);
+  return x === shown.x && y === shown.y ? view : { x: view.x + x - shown.x, y: view.y + y - shown.y, k: view.k };
+}
+
+/** This function tells if two views are equal. */
+export function sameView(a: PictureView, b: PictureView): boolean {
+  return a.x === b.x && a.y === b.y && a.k === b.k;
 }
 
 /** The options of `frameRects`. */

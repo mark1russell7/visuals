@@ -6,11 +6,11 @@
 
 ## . (build/index.d.ts): names
 
-CLICK_DISTANCE: build/theme.chunk.d.ts#CLICK_DISTANCE
+CLICK_DISTANCE: build/highlight.chunk.d.ts#CLICK_DISTANCE
 FIELD_OF_VIEW: build/theme.chunk.d.ts#FIELD_OF_VIEW
 FIT_MARGIN: build/theme.chunk.d.ts#FIT_MARGIN
-type Highlight: build/theme.chunk.d.ts#Highlight
-type Highlights: build/theme.chunk.d.ts#Highlights
+type Highlight: build/highlight.chunk.d.ts#Highlight
+type Highlights: build/highlight.chunk.d.ts#Highlights
 KEY_PART: build/index.d.ts#KEY_PART
 KEY_TURN: build/index.d.ts#KEY_TURN
 KEY_ZOOM: build/index.d.ts#KEY_ZOOM
@@ -19,7 +19,7 @@ type KeyOptions: build/index.d.ts#KeyOptions
 type Lifetime: build/replay.chunk.d.ts#Lifetime
 type Move: build/index.d.ts#Move
 type MoveStep: build/index.d.ts#MoveStep
-NO_HIGHLIGHTS: build/theme.chunk.d.ts#NO_HIGHLIGHTS
+NO_HIGHLIGHTS: build/highlight.chunk.d.ts#NO_HIGHLIGHTS
 type Place: build/theme.chunk.d.ts#Place
 type PlaceLimits: build/theme.chunk.d.ts#PlaceLimits
 REPLAY_DURATION: build/replay.chunk.d.ts#REPLAY_DURATION
@@ -48,8 +48,8 @@ clampPlace: build/theme.chunk.d.ts#clampPlace
 easeInOut: build/index.d.ts#easeInOut
 fitDistance: build/theme.chunk.d.ts#fitDistance
 fitView: build/theme.chunk.d.ts#fitView
-highlightOf: build/theme.chunk.d.ts#highlightOf
-isClick: build/theme.chunk.d.ts#isClick
+highlightOf: build/highlight.chunk.d.ts#highlightOf
+isClick: build/highlight.chunk.d.ts#isClick
 isLive: build/replay.chunk.d.ts#isLive
 keyAction: build/index.d.ts#keyAction
 moveAt: build/index.d.ts#moveAt
@@ -199,15 +199,26 @@ file ./labels.css: styles/labels.css
 
 ## ./graph (build/graph.d.ts): names
 
+type AimFrame: build/graph.d.ts#AimFrame
+DOUBLE_CLICK_ZOOM: build/graph.d.ts#DOUBLE_CLICK_ZOOM
 FIT_PADDING: build/graph.d.ts#FIT_PADDING
 type FitOptions: build/graph.d.ts#FitOptions
 type FrameOptions: build/graph.d.ts#FrameOptions
 type Insets: build/graph.d.ts#Insets
+KEEP_IN_VIEW: build/graph.d.ts#KEEP_IN_VIEW
 NO_POINTERS: build/graph.d.ts#NO_POINTERS
+PICK_SLACK: build/graph.d.ts#PICK_SLACK
+type PickAt: build/graph.d.ts#PickAt
+type PictureAim: build/graph.d.ts#PictureAim
+type PictureContent: build/graph.d.ts#PictureContent
+type PictureFrame: build/graph.d.ts#PictureFrame
 type PictureKeyAction: build/graph.d.ts#PictureKeyAction
 type PictureKeyOptions: build/graph.d.ts#PictureKeyOptions
 type PictureMove: build/graph.d.ts#PictureMove
 type PictureMoveStep: build/graph.d.ts#PictureMoveStep
+type PicturePick: build/graph.d.ts#PicturePick
+type PictureStage: build/graph.d.ts#PictureStage
+type PictureStageOptions: build/graph.d.ts#PictureStageOptions
 type PictureView: build/graph.d.ts#PictureView
 type PointerMoveResult: build/graph.d.ts#PointerMoveResult
 type PointerPair: build/graph.d.ts#PointerPair
@@ -216,16 +227,22 @@ type Pointers: build/graph.d.ts#Pointers
 type RevealOptions: build/graph.d.ts#RevealOptions
 SMALLEST_AREA: build/graph.d.ts#SMALLEST_AREA
 TOUCH_CLICK_DISTANCE: build/graph.d.ts#TOUCH_CLICK_DISTANCE
+TOUCH_PICK_SLACK: build/graph.d.ts#TOUCH_PICK_SLACK
 UNIT_VIEW: build/graph.d.ts#UNIT_VIEW
 WHEEL_LINE: build/graph.d.ts#WHEEL_LINE
 WHEEL_PINCH: build/graph.d.ts#WHEEL_PINCH
 WHEEL_SPEED: build/graph.d.ts#WHEEL_SPEED
 ZOOM_LIMITS: build/graph.d.ts#ZOOM_LIMITS
 type ZoomLimits: build/graph.d.ts#ZoomLimits
+aimAll: build/graph.d.ts#aimAll
+aimRects: build/graph.d.ts#aimRects
+aimReveal: build/graph.d.ts#aimReveal
 clampZoom: build/graph.d.ts#clampZoom
+createPictureStage: build/graph.d.ts#createPictureStage
 fitRect: build/graph.d.ts#fitRect
 frameRects: build/graph.d.ts#frameRects
 freeArea: build/graph.d.ts#freeArea
+keepRect: build/graph.d.ts#keepRect
 panView: build/graph.d.ts#panView
 pictureKeyAction: build/graph.d.ts#pictureKeyAction
 pictureMoveAt: build/graph.d.ts#pictureMoveAt
@@ -237,11 +254,13 @@ pointerUp: build/graph.d.ts#pointerUp
 rectToScreen: build/graph.d.ts#rectToScreen
 revealRects: build/graph.d.ts#revealRects
 showsRect: build/graph.d.ts#showsRect
+stackPictureContents: build/graph.d.ts#stackPictureContents
 toPicture: build/graph.d.ts#toPicture
 toScreen: build/graph.d.ts#toScreen
 viewAt: build/graph.d.ts#viewAt
 viewBetween: build/graph.d.ts#viewBetween
 wheelFactor: build/graph.d.ts#wheelFactor
+zoomLimitsFor: build/graph.d.ts#zoomLimitsFor
 zoomView: build/graph.d.ts#zoomView
 
 ## Declarations
@@ -359,6 +378,17 @@ export declare function regionView(regions: readonly Region[], margin?: number):
 ### build/globe.d.ts#surfaceSag
 export declare function surfaceSag(step: number): number;
 
+### build/graph.d.ts#AimFrame
+interface AimFrame {
+  readonly bounds: Rect;
+  readonly area: Rect;
+  readonly view: PictureView;
+  readonly limits: ZoomLimits;
+}
+
+### build/graph.d.ts#DOUBLE_CLICK_ZOOM
+export declare const DOUBLE_CLICK_ZOOM = 2;
+
 ### build/graph.d.ts#FIT_PADDING
 export declare const FIT_PADDING = 24;
 
@@ -382,8 +412,45 @@ interface Insets {
   readonly left: number;
 }
 
+### build/graph.d.ts#KEEP_IN_VIEW
+export declare const KEEP_IN_VIEW = 64;
+
 ### build/graph.d.ts#NO_POINTERS
 export declare const NO_POINTERS: Pointers;
+
+### build/graph.d.ts#PICK_SLACK
+export declare const PICK_SLACK = 5;
+
+### build/graph.d.ts#PickAt
+interface PickAt {
+  readonly point: Point;
+  readonly screen: Point;
+  readonly view: PictureView;
+  readonly slack: number;
+}
+
+### build/graph.d.ts#PictureAim
+type PictureAim = (frame: AimFrame) => PictureView;
+
+### build/graph.d.ts#PictureContent
+interface PictureContent<P, T> {
+  readonly bounds: Rect;
+  has(record: string): boolean;
+  pick(at: PickAt): PicturePick<P> | undefined;
+  draw(context: CanvasRenderingContext2D, frame: PictureFrame, theme: T, highlight: (record: string) => Highlight): boolean;
+  dispose?(): void;
+}
+
+### build/graph.d.ts#PictureFrame
+interface PictureFrame {
+  readonly view: PictureView;
+  readonly width: number;
+  readonly height: number;
+  readonly area: Rect;
+  readonly pixelRatio: number;
+  readonly seconds: number;
+  readonly settle: boolean;
+}
 
 ### build/graph.d.ts#PictureKeyAction
 type PictureKeyAction = {
@@ -413,6 +480,44 @@ interface PictureMove {
 interface PictureMoveStep {
   readonly view: PictureView;
   readonly done: boolean;
+}
+
+### build/graph.d.ts#PicturePick
+interface PicturePick<P> {
+  readonly record: string;
+  readonly value: P;
+}
+
+### build/graph.d.ts#PictureStage
+interface PictureStage<P, T> {
+  readonly canvas: HTMLCanvasElement;
+  setContent(content: PictureContent<P, T>): void;
+  setTheme(theme: T): void;
+  setView(view: string | PictureAim, animate?: boolean): void;
+  setInsets(insets: Partial<Insets>): void;
+  view(): PictureView;
+  area(): Rect;
+  zoomBy(factor: number, animate?: boolean): void;
+  highlight(records: readonly string[]): void;
+  select(record: string | undefined): void;
+  refresh(): void;
+  dispose(): void;
+}
+
+### build/graph.d.ts#PictureStageOptions
+interface PictureStageOptions<P, T> {
+  readonly content: PictureContent<P, T>;
+  readonly theme: T;
+  readonly label: string;
+  readonly views?: Readonly<Record<string, PictureAim>> | undefined;
+  readonly home?: string | undefined;
+  readonly keys?: Readonly<Record<string, string>> | undefined;
+  readonly limits?: ZoomLimits | undefined;
+  readonly insets?: Partial<Insets> | undefined;
+  readonly wheel?: "always" | "in-use" | undefined;
+  readonly onHover?: ((pick: P | undefined) => void) | undefined;
+  readonly onSelect?: ((pick: P | undefined) => void) | undefined;
+  readonly onView?: ((view: PictureView) => void) | undefined;
 }
 
 ### build/graph.d.ts#PictureView
@@ -455,6 +560,9 @@ export declare const SMALLEST_AREA = 80;
 ### build/graph.d.ts#TOUCH_CLICK_DISTANCE
 export declare const TOUCH_CLICK_DISTANCE = 10;
 
+### build/graph.d.ts#TOUCH_PICK_SLACK
+export declare const TOUCH_PICK_SLACK = 12;
+
 ### build/graph.d.ts#UNIT_VIEW
 export declare const UNIT_VIEW: PictureView;
 
@@ -476,8 +584,20 @@ interface ZoomLimits {
   readonly max: number;
 }
 
+### build/graph.d.ts#aimAll
+export declare function aimAll(options?: FitOptions): PictureAim;
+
+### build/graph.d.ts#aimRects
+export declare function aimRects(rects: readonly Rect[], options: FrameOptions): PictureAim;
+
+### build/graph.d.ts#aimReveal
+export declare function aimReveal(rects: readonly Rect[], options: RevealOptions): PictureAim;
+
 ### build/graph.d.ts#clampZoom
 export declare function clampZoom(k: number, limits?: ZoomLimits): number;
+
+### build/graph.d.ts#createPictureStage
+export declare function createPictureStage<P, T>(container: HTMLElement, options: PictureStageOptions<P, T>): PictureStage<P, T> | undefined;
 
 ### build/graph.d.ts#fitRect
 export declare function fitRect(rect: Rect, area: Rect, options?: FitOptions): PictureView;
@@ -490,6 +610,9 @@ export declare function freeArea(size: {
   readonly width: number;
   readonly height: number;
 }, insets?: Partial<Insets>): Rect;
+
+### build/graph.d.ts#keepRect
+export declare function keepRect(view: PictureView, rect: Rect, area: Rect, least?: number): PictureView;
 
 ### build/graph.d.ts#panView
 export declare function panView(view: PictureView, dx: number, dy: number): PictureView;
@@ -524,6 +647,9 @@ export declare function revealRects(view: PictureView, rects: readonly Rect[], a
 ### build/graph.d.ts#showsRect
 export declare function showsRect(view: PictureView, rect: Rect, area: Rect, margin?: number): boolean;
 
+### build/graph.d.ts#stackPictureContents
+export declare function stackPictureContents<P, T>(contents: readonly [PictureContent<P, T>, ...PictureContent<P, T>[]]): PictureContent<P, T>;
+
 ### build/graph.d.ts#toPicture
 export declare function toPicture(view: PictureView, screen: Point): Point;
 
@@ -539,8 +665,39 @@ export declare function viewBetween(from: PictureView, to: PictureView, part: nu
 ### build/graph.d.ts#wheelFactor
 export declare function wheelFactor(deltaY: number, deltaMode?: number, pinch?: boolean): number;
 
+### build/graph.d.ts#zoomLimitsFor
+export declare function zoomLimitsFor(bounds: Rect, area: Rect, limits?: ZoomLimits, padding?: number): ZoomLimits;
+
 ### build/graph.d.ts#zoomView
 export declare function zoomView(view: PictureView, at: Point, factor: number, limits?: ZoomLimits): PictureView;
+
+### build/highlight.chunk.d.ts#CLICK_DISTANCE
+declare const CLICK_DISTANCE = 4;
+
+### build/highlight.chunk.d.ts#Highlight
+type Highlight = 0 | 1 | 2;
+
+### build/highlight.chunk.d.ts#Highlights
+interface Highlights {
+  readonly hovered: string | undefined;
+  readonly selected: string | undefined;
+  readonly highlighted: ReadonlySet<string>;
+}
+
+### build/highlight.chunk.d.ts#NO_HIGHLIGHTS
+declare const NO_HIGHLIGHTS: Highlights;
+
+### build/highlight.chunk.d.ts#highlightOf
+declare function highlightOf(highlights: Highlights, record: string): Highlight;
+
+### build/highlight.chunk.d.ts#isClick
+declare function isClick(down: {
+  readonly x: number;
+  readonly y: number;
+}, up: {
+  readonly x: number;
+  readonly y: number;
+}, limit?: number): boolean;
 
 ### build/index.d.ts#KEY_PART
 export declare const KEY_PART = .125;
@@ -1067,27 +1224,11 @@ interface StagePick<P> {
 ### build/stage.chunk.d.ts#createStage
 declare function createStage<P, T extends StageTheme = StageTheme>(container: HTMLElement, options: StageOptions<P, T>): Stage<P, T> | undefined;
 
-### build/theme.chunk.d.ts#CLICK_DISTANCE
-declare const CLICK_DISTANCE = 4;
-
 ### build/theme.chunk.d.ts#FIELD_OF_VIEW
 declare const FIELD_OF_VIEW = 32;
 
 ### build/theme.chunk.d.ts#FIT_MARGIN
 declare const FIT_MARGIN = 1.06;
-
-### build/theme.chunk.d.ts#Highlight
-type Highlight = 0 | 1 | 2;
-
-### build/theme.chunk.d.ts#Highlights
-interface Highlights {
-  readonly hovered: string | undefined;
-  readonly selected: string | undefined;
-  readonly highlighted: ReadonlySet<string>;
-}
-
-### build/theme.chunk.d.ts#NO_HIGHLIGHTS
-declare const NO_HIGHLIGHTS: Highlights;
 
 ### build/theme.chunk.d.ts#Place
 interface Place extends ViewAngles {
@@ -1167,18 +1308,6 @@ declare function fitDistance(points: readonly Point3[], target: Point3, view: Vi
 
 ### build/theme.chunk.d.ts#fitView
 declare function fitView(angles: ViewAngles, margin?: number): StageView;
-
-### build/theme.chunk.d.ts#highlightOf
-declare function highlightOf(highlights: Highlights, record: string): Highlight;
-
-### build/theme.chunk.d.ts#isClick
-declare function isClick(down: {
-  readonly x: number;
-  readonly y: number;
-}, up: {
-  readonly x: number;
-  readonly y: number;
-}, limit?: number): boolean;
 
 ### build/theme.chunk.d.ts#nearDepth
 declare function nearDepth(limits: StageLimits, extent: StageExtent, distance: number): number;

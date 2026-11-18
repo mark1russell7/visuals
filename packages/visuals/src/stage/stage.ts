@@ -3,7 +3,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { nearDepth, stageLimits, surfaceOf, type StageExtent, type StageLimits, type StageView, type ViewFrame } from "../extent.ts";
 import { keyAction } from "../keys.ts";
 import { isClick, highlightOf, NO_HIGHLIGHTS, type Highlight, type Highlights } from "../highlight.ts";
-import { moveAt, type Move } from "../motion.ts";
+import { lessMotion, moveAt, MOVE_TIME, type Move } from "../motion.ts";
 import type { StageTheme } from "../theme.ts";
 import { cameraPosition, clampPlace, FIELD_OF_VIEW, speedAt, turnAcross, viewOf, type Place } from "../view.ts";
 
@@ -123,9 +123,6 @@ export interface Stage<P, T extends StageTheme = StageTheme> {
 /** The default lights: a strong light from above and below, and a light from the front left. */
 export const STAGE_LIGHTS: StageLights = { sky: 2.2, sun: 1.5, from: { x: -10, y: 24, z: 15 } };
 
-/** The time of the move between two views, in milliseconds. */
-const MOVE_TIME = 380;
-
 /**
  * The largest turn of the camera for a drag across the height of the picture, as a part of a full turn.
  * A camera far from a ball, or with no ball, turns by this part.
@@ -137,11 +134,6 @@ const SMALLEST_POLAR = 0.0005;
 
 /** The default largest polar angle: the camera stays above the plane of the target. */
 const LARGEST_POLAR = Math.PI / 2 - 0.05;
-
-/** This function tells if the person asks for less motion. */
-function lessMotion(): boolean {
-  return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
 
 /**
  * This function makes a stage in a container of a page. The stage fills the container, so give the container a size.
