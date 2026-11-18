@@ -36,7 +36,7 @@ export {
   type RevealOptions,
   type ZoomLimits,
 } from "./graph/camera.ts";
-export { FOCUS_FADE, createPictureContent, type LayoutPictureContent, type PictureContentOptions } from "./graph/content.ts";
+export { FOCUS_FADE, createPictureContent, type LayoutPictureContent, type PictureContentOptions, type SetPictureOptions } from "./graph/content.ts";
 export { drawShapes } from "./graph/draw.ts";
 export { FOCUS_OPACITY, boxFocus, focusOf, routeFocus, type FocusLevel, type FocusOptions, type PictureFocus } from "./graph/focus.ts";
 export { boxDistance, pickRecord, type PickOptions } from "./graph/hit.ts";

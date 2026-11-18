@@ -680,6 +680,7 @@ stage?.refresh();
 - The option `picks` tells which records a person can point at, for example the routes too.
 - The content makes shapes only for the records in view.
 - `setPicture` shows a different picture. Start `refresh` of the stage after it.
+- With the option `fade` of `setPicture`, the colors change in a short time, and a new record comes into the picture. Use it for more routes between the same boxes.
 
 The parts of the content are pure functions. A test in Node.js examines a picture with no canvas:
 
