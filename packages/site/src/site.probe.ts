@@ -283,4 +283,31 @@ if (part !== undefined) {
   check("the button of the card closes it", await until(() => $(CARD)?.hidden === true), cardBox());
 }
 
+// One entry of the sample waits on the person of the page. A button of the view goes to it, and its card has the button of an answer.
+const WAITS = "#thread .thread-waits";
+const FORM = "#thread-form";
+const ANSWER = `${CARD} [data-key="action:answer"]`;
+check("the view counts the entries that wait on the person of the page", $(WAITS)?.hidden === false && text(WAITS) === "Waits on you: 1", text(WAITS));
+check("the form of an answer is hidden at the start", $(FORM)?.hidden === true, $(FORM)?.hidden);
+click(WAITS);
+check("the button goes to the entry that waits", await until(() => cardBox() === "e04"), cardBox());
+check("the card tells who the entry waits on", text(`${CARD} .thread-waiting`) === "Waits on you", text(`${CARD} .thread-waiting`));
+check("the card has the button of an answer", $(ANSWER) !== null, $$(`${CARD} .thread-action`).length);
+if ($(ANSWER) !== null) {
+  const before = partsOf("trench");
+  click(ANSWER);
+  check("the button opens the form, and the card closes", await until(() => $(FORM)?.hidden === false && $(CARD)?.hidden === true), [$(FORM)?.hidden, cardBox()]);
+  check("the form names the entry", text(`${FORM} .thread-form-title`) === "Order two cubic meters of gravel before Saturday.", text(`${FORM} .thread-form-title`));
+  // The form is at the entry, so it is in the picture. A form at the start of the page is a form with no place.
+  const frame = $("#thread")?.getBoundingClientRect();
+  const place = $(FORM)?.getBoundingClientRect();
+  const inside = frame !== undefined && place !== undefined && place.width > 0 && place.left >= frame.left && place.right <= frame.right + 1 && place.top >= frame.top && place.bottom <= frame.bottom + 1;
+  check("the form is in the picture", inside, [frame?.toJSON(), place?.toJSON()]);
+  const field = $(`${FORM} textarea`);
+  if (field instanceof HTMLTextAreaElement) field.value = "I order it on Thursday.";
+  click(`${FORM} button[type="submit"]`);
+  check("an answer closes the form, and no entry waits after it", await until(() => $(FORM)?.hidden === true && $(WAITS)?.hidden === true), [$(FORM)?.hidden, text(WAITS)]);
+  check("the list counts the answer at the topic of its entry", partsOf("trench") === before + 1, [before, partsOf("trench")]);
+}
+
 export {};

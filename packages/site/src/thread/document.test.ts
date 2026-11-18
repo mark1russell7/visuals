@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { actionsOf, choiceOf, choicesOf, edgeKind, isChosen, isDone, isDrawn, isProposal, isSpring, labelOf, linkOf, partStates, relationOf, soundDocument, tagOf, textOf, threadKinds, topicCounts, type ThreadDocument } from "./document.ts";
-import { sampleThread } from "./sample.ts";
+import { actionsOf, choiceOf, choicesOf, edgeKind, isChosen, isDone, isDrawn, isProposal, isSpring, labelOf, linkOf, partStates, relationOf, soundDocument, tagOf, textOf, threadKinds, topicCounts, waitsOf, type ThreadDocument } from "./document.ts";
+import { SAMPLE_ANSWER, sampleThread } from "./sample.ts";
 
 const sample = sampleThread();
 const edges = sample.edges ?? [];
@@ -188,6 +188,21 @@ describe("actionsOf", () => {
     expect(actionsOf({ data: {} })).toEqual([]);
     expect(actionsOf({ data: { actions: "reply" } })).toEqual([]);
     expect(actionsOf({ data: { actions: { id: "reply", title: "Reply" } } })).toEqual([]);
-    for (const entry of sample.boxes) expect(actionsOf(entry)).toEqual([]);
+    for (const entry of sample.boxes) expect(actionsOf(entry)).toEqual(entry.id === "e04" ? [SAMPLE_ANSWER] : []);
+  });
+});
+
+describe("waitsOf", () => {
+  it("gives the id of who a box waits on", () => {
+    expect(waitsOf(box("e04"))).toBe("reader");
+    expect(waitsOf({ data: { waits: "the board" } })).toBe("the board");
+  });
+
+  it("gives no id for a box that waits on no one, and for a value that is not a text", () => {
+    expect(waitsOf(box("e01"))).toBeUndefined();
+    expect(waitsOf({})).toBeUndefined();
+    expect(waitsOf({ data: { waits: "" } })).toBeUndefined();
+    expect(waitsOf({ data: { waits: true } })).toBeUndefined();
+    expect(waitsOf({ data: { waits: ["reader"] } })).toBeUndefined();
   });
 });

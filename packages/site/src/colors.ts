@@ -79,6 +79,8 @@ export function threadTheme(): ThreadTheme {
     topicText: color("--page"),
     open: color("--topic-open"),
     quiet: color("--line"),
+    waits: color("--topic-waits"),
+    waitsFill: color("--topic-waits-fill"),
   };
 }
 

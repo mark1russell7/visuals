@@ -1,5 +1,5 @@
 import type { LayoutEdge } from "@mark1russell7/layout-contract";
-import { actionsOf, choiceOf, choicesOf, edgeKind, edgeState, isChosen, isDone, labelOf, linkOf, tagOf, textOf, timeOf, type ThreadAction, type ThreadDocument, type ThreadKind, type ThreadLegend } from "./document.ts";
+import { actionsOf, choiceOf, choicesOf, edgeKind, edgeState, isChosen, isDone, labelOf, linkOf, tagOf, textOf, timeOf, waitsOf, type ThreadAction, type ThreadDocument, type ThreadKind, type ThreadLegend } from "./document.ts";
 import { timeText, titleOf, type ThreadPicture, type ThreadPictureOptions } from "./picture.ts";
 
 /** A box that a card names: its id and its short name. */
@@ -32,6 +32,8 @@ export interface CardModel extends CardName {
   readonly link: string | undefined;
   /** This value is true for a topic that is done. */
   readonly done: boolean;
+  /** The name of who an entry waits on: the title of the legend, or the id. A box that waits on no one has `undefined`. */
+  readonly waits: string | undefined;
   /** The topics of a part or of an entry, in the order of the sorter. A different box has an empty list. */
   readonly choices: readonly CardChoice[];
   /** The name of who chose the topic of the part. */
@@ -80,6 +82,7 @@ export function cardOf(thread: ThreadPicture, id: string, options: Pick<ThreadPi
   const listed = [...ranked.filter((choice) => choice.chosen), ...ranked.filter((choice) => !choice.chosen).slice(0, MOST_CHOICES)].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
   const choices = listed.map((choice): CardChoice => ({ ...nameOf(choice.target), edge: choice.edge?.id, chosen: choice.chosen, rank: choice.rank, score: choice.score }));
   const shown = new Set(choices.map((choice) => choice.id));
+  const waits = kind === "entry" ? waitsOf(box) : undefined;
   const others = has ? document.boxes.filter((entry) => kinds.get(entry.id) === "topic" && !shown.has(entry.id) && !isDone(entry)).map((entry) => nameOf(entry.id)) : [];
   const parts =
     kind === "message"
@@ -96,6 +99,7 @@ export function cardOf(thread: ThreadPicture, id: string, options: Pick<ThreadPi
     text: textOf(box),
     link: linkOf(box),
     done: isDone(box),
+    waits: waits === undefined ? undefined : titleOf(options.legend?.waits, waits),
     choices,
     by: ranked.find((choice) => choice.chosen)?.by,
     others,

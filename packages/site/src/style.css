@@ -29,6 +29,8 @@
   --room-edge: #8d897c;
   --topic-line: #a9a9a1;
   --topic-open: #a55a00;
+  --topic-waits: #b0235f;
+  --topic-waits-fill: #fdeef4;
   --level-unknown: #55677a;
   --level-ok: #1f5fa8;
   --level-near: #c9740a;
@@ -67,6 +69,8 @@
     --room-edge: #6e6e68;
     --topic-line: #5c5c56;
     --topic-open: #f0b45a;
+    --topic-waits: #f783ac;
+    --topic-waits-fill: #3a1c2f;
     --level-unknown: #a9bfd4;
     --level-ok: #6fb3f2;
     --level-near: #f5a962;
@@ -103,6 +107,8 @@
   --room-edge: #6e6e68;
   --topic-line: #5c5c56;
   --topic-open: #f0b45a;
+  --topic-waits: #f783ac;
+  --topic-waits-fill: #3a1c2f;
   --level-unknown: #a9bfd4;
   --level-ok: #6fb3f2;
   --level-near: #f5a962;
@@ -512,6 +518,74 @@ button {
 @media (max-width: 30rem) {
   .thread-demo {
     height: 70vh;
+  }
+}
+
+/* The frame of the picture of the conversation. The form of an answer is in it, at the entry that the answer is for. */
+.thread-frame {
+  position: relative;
+}
+
+.thread-form {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  gap: 0.5rem;
+  width: min(19rem, calc(100% - 1rem));
+  padding: 0.75rem;
+  border: 1px solid var(--topic-waits);
+  border-radius: 0.5rem;
+  background: var(--page);
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.2);
+  text-align: left;
+}
+
+.thread-form[hidden] {
+  display: none;
+}
+
+.thread-form-title {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.thread-form label {
+  color: var(--quiet);
+  font-size: 0.9375rem;
+}
+
+.thread-form textarea {
+  width: 100%;
+  min-height: 3.5rem;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.375rem;
+  background: var(--page);
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+}
+
+.thread-form-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.thread-form .main {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--page);
+}
+
+/* A narrow page: the form is at the bottom of the picture, and the view moves its entry above the form. */
+@media (max-width: 44rem) {
+  .thread-form {
+    right: 0.5rem;
+    bottom: 0.5rem;
+    left: 0.5rem;
+    width: auto;
   }
 }
 

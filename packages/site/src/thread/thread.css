@@ -103,11 +103,16 @@
   accent-color: var(--thread-accent);
 }
 
-/* The button that goes to the next part with no topic. */
-.thread .thread-open {
+/* The buttons of the walks: to the next entry that waits, and to the next part with no topic. */
+.thread-jumps {
   position: absolute;
   top: var(--thread-edge-gap);
   left: max(var(--thread-edge-gap), env(safe-area-inset-left));
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.thread .thread-jump {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -126,6 +131,17 @@
   height: 9px;
   border-radius: 50%;
   border: 2px solid var(--thread-open);
+}
+/* The button of the entries that wait has the color of those entries, so a person finds it first. */
+.thread .thread-waits {
+  border-color: var(--thread-waits, var(--thread-open));
+}
+.thread-waits::before {
+  content: "";
+  width: 12px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--thread-waits, var(--thread-open));
 }
 
 /* The legend: what each line and each sign tells. */
@@ -182,6 +198,11 @@
   stroke: var(--thread-open);
   stroke-width: 1.5;
 }
+.thread-legend .is-waits {
+  fill: var(--thread-waits-fill, var(--thread-surface));
+  stroke: var(--thread-waits, var(--thread-open));
+  stroke-width: 1.5;
+}
 
 /* The card of the selected box. */
 .thread-card {
@@ -218,6 +239,13 @@
   margin-right: 30px;
   color: var(--thread-muted);
   font-size: 12.5px;
+}
+/* Who the entry of the card waits on. */
+.thread-waiting {
+  display: block;
+  margin-top: 2px;
+  color: var(--thread-waits, var(--thread-open));
+  font-weight: 600;
 }
 .thread .thread-text {
   margin: 5px 0 12px;
@@ -390,7 +418,7 @@
 /* A narrow view, for example a phone: larger controls, and the card is a sheet at the bottom. */
 @container (max-width: 700px) {
   .thread .thread-tool,
-  .thread .thread-open {
+  .thread .thread-jump {
     height: 40px;
     min-width: 40px;
   }
@@ -416,14 +444,22 @@
   }
 }
 
-/* A phone: the button of the parts with no topic has fewer words, so it does not touch the controls. */
+/* A view with no room for the two buttons of the walks and the controls in one row: the buttons are in two rows. */
+@container (max-width: 560px) {
+  .thread-jumps {
+    flex-direction: column;
+    gap: 6px;
+  }
+}
+
+/* A phone: each button of a walk has fewer words, so it does not touch the controls. */
 @container (max-width: 420px) {
-  .thread-open-more {
+  .thread-jump-more {
     display: none;
   }
 }
 @container (max-width: 330px) {
-  .thread-open-words {
+  .thread-jump-words {
     display: none;
   }
 }
