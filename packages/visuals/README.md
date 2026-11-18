@@ -13,7 +13,7 @@ The package has eight entries and two style sheets:
 - The file `/scrubber.css` is the style sheet of the scrubber.
 - The entry `/labels` has the labels of a stage: a short text next to a point, as an element of the page. It needs a browser.
 - The file `/labels.css` is the style sheet of the labels.
-- The entry `/graph` has the camera of a flat picture, for example a graph of boxes and edges. It does not need `three`.
+- The entry `/graph` has the stage of a flat picture, for example a graph of boxes and edges. It does not need `three`.
 
 ## Install
 
@@ -474,7 +474,80 @@ stage?.refresh();
 ## A flat picture
 
 The entry `/graph` is for a flat picture that a person moves and zooms, for example a graph of boxes and edges.
-This version has the maths of its camera, its pointers and its keys. Each function is pure, so a test in Node.js uses it.
+It has a stage on a canvas, and the maths of its camera, its pointers and its keys. It imports no `three`.
+
+```ts
+import { aimRects, createPictureStage, type PictureContent } from "@mark1russell7/visuals/graph";
+
+interface Box {
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+const first: Box = { id: "a", x: 0, y: 0, w: 160, h: 60 };
+const boxes: readonly Box[] = [first, { id: "b", x: 240, y: 120, w: 160, h: 60 }];
+
+// A content draws in CSS pixels. The view of the frame has the zoom and the position of the picture.
+const content: PictureContent<Box, { readonly box: string; readonly selected: string }> = {
+  bounds: { x: 0, y: 0, w: 400, h: 180 },
+  has: (record) => boxes.some((box) => box.id === record),
+  pick: ({ point }) => {
+    const box = boxes.find((b) => point.x >= b.x && point.x <= b.x + b.w && point.y >= b.y && point.y <= b.y + b.h);
+    return box === undefined ? undefined : { record: box.id, value: box };
+  },
+  draw(context, { view }, theme, highlight) {
+    context.translate(view.x, view.y);
+    context.scale(view.k, view.k);
+    for (const box of boxes) {
+      context.fillStyle = highlight(box.id) === 0 ? theme.box : theme.selected;
+      context.fillRect(box.x, box.y, box.w, box.h);
+    }
+    return false;
+  },
+};
+
+const stage = createPictureStage(document.body, {
+  content,
+  theme: { box: "#c8d0d8", selected: "#2f6fd0" },
+  label: "Two boxes",
+  views: { first: aimRects([first], { least: 0.6 }) },
+  keys: { f: "first" },
+  onSelect: (box) => console.log(box?.id),
+});
+stage?.setView("first");
+```
+
+The stage fills its container, so give the container a size. `createPictureStage` gives `undefined` when the browser gives no 2D context.
+
+- A drag moves the picture. The wheel, two fingers and a double click change the zoom at the pointer.
+- A click selects the record below the pointer, and `onSelect` gets its value. `onHover` gets the record below a mouse or a pen.
+- The wheel moves the page until a person uses the picture. Set `wheel` to `always` for a picture that fills the page.
+- A view is an aim: a function that gives the view for a picture and a screen.
+- `aimAll` shows all of the picture, and `aimRects` shows a group of boxes. `aimReveal` moves the camera only for a selection that is out of view.
+- The stage asks the aim again after a change of the size, until a person moves the picture.
+- A part of the picture stays in view: `keepRect` keeps 64 pixels of it in the free area.
+- A very large picture gets a smaller least zoom from `zoomLimitsFor`, so a person can show all of it.
+- `setInsets` tells the stage which parts of the picture the page covers. Each view uses the free area.
+- `stackPictureContents` makes one content from layers, for example boxes below routes below labels.
+- The stage makes a picture only after a change. A content that continues to change gives true from `draw`.
+- A person who asks for less motion gets each view immediately.
+
+| Function of the stage | What it does |
+| --- | --- |
+| `setContent` | It shows a different content, and disposes the old content. |
+| `setTheme` | It changes the colors. |
+| `setView` | It moves the camera to a view: a name of the options, or an aim. |
+| `setInsets` | It sets the parts of the picture that the page covers. |
+| `zoomBy` | It changes the zoom by a factor at the middle of the free area, for the buttons of a page. |
+| `view`, `area` | They give the view of the camera, and the free area. |
+| `highlight`, `select` | They highlight records by their names, and select one record. |
+| `refresh` | It makes a new picture after a change of the content. |
+| `dispose` | It removes the canvas, and disposes the content. |
+
+The maths of the camera are pure functions, so a test in Node.js uses them:
 
 ```ts
 import { fitRect, freeArea, toPicture, viewBetween, zoomView } from "@mark1russell7/visuals/graph";
@@ -499,6 +572,10 @@ A view has the zoom `k` and the screen position of the origin of the picture. A 
 | `pinchView` | The view after the two pointers of a pinch move. Each pointer keeps its point of the picture. |
 | `freeArea` | The part of a picture that the page does not cover. A camera shows a selection there. |
 | `fitRect` | The view that shows a rectangle in an area, as large as the area permits. |
+| `zoomLimitsFor` | The limits of the zoom for a picture, with a least zoom that shows all of it. |
+| `keepRect` | The view that keeps a part of a rectangle in an area, so a person cannot lose the picture. |
+| `aimAll`, `aimRects`, `aimReveal` | The aims of a stage: all of the picture, a group of boxes, and a selection. |
+| `stackPictureContents` | One content from a list of contents. The last content is on top. |
 | `frameRects` | The view for the first rectangle of a list that the area shows at a least zoom or more. |
 | `showsRect` | True when a view shows all of a rectangle in an area. |
 | `revealRects` | The view that shows a selection. It is the view of the camera when the selection is in view, so the camera stays. |

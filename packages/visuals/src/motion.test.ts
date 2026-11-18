@@ -1,12 +1,34 @@
 import fc from "fast-check";
-import { describe, expect, it } from "vitest";
-import { approach, easeInOut, moveAt, partAt, type Move } from "./motion.ts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { approach, easeInOut, lessMotion, moveAt, partAt, type Move } from "./motion.ts";
 import type { Place } from "./view.ts";
 
 const anyPart = fc.double({ min: 0, max: 1, noNaN: true });
 const target = { x: 0, y: 0, z: 0 };
 const from: Place = { target, polar: 0.4, azimuth: 0, distance: 10 };
 const to: Place = { target: { x: 2, y: 0, z: 4 }, polar: 1, azimuth: 1, distance: 40 };
+
+describe("lessMotion", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("is false in a program with no browser", () => {
+    expect(lessMotion()).toBe(false);
+  });
+
+  it("gives the answer of the browser", () => {
+    const asked: string[] = [];
+    vi.stubGlobal("matchMedia", (query: string) => {
+      asked.push(query);
+      return { matches: true };
+    });
+    expect(lessMotion()).toBe(true);
+    expect(asked).toEqual(["(prefers-reduced-motion: reduce)"]);
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    expect(lessMotion()).toBe(false);
+  });
+});
 
 describe("easeInOut", () => {
   it("starts at 0, is 0.5 at the middle and ends at 1", () => {

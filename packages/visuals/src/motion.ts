@@ -17,6 +17,14 @@ export interface MoveStep {
   readonly done: boolean;
 }
 
+/** The time of the move of a camera between two views, in milliseconds. */
+export const MOVE_TIME = 380;
+
+/** This function tells if the person asks for less motion. A program with no browser gets false. */
+export function lessMotion(): boolean {
+  return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 /**
  * This function gives a part of a move with a slow start and a slow end. `part` goes from 0 to 1.
  * The result goes from 0 to 1, and it is 0.5 at the middle.
