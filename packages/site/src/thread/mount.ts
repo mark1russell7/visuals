@@ -65,8 +65,11 @@ const THEME_PROPERTIES: Readonly<Record<keyof ThreadTheme, string>> = {
 /** The largest width of a narrow view, in CSS pixels. The style has the same number. */
 const NARROW = 700;
 
-/** The smallest zoom of the camera for a selected topic. A topic shows where its parts are, so a far view is correct for it. */
-const TOPIC_ZOOM = 0.3;
+/**
+ * The smallest zoom of the camera for a selected topic. A topic shows where its parts are, so a far view is correct for it.
+ * A narrow view shows the parts of a topic only at a small zoom. Below this zoom, the camera shows the topic alone.
+ */
+const TOPIC_ZOOM = 0.06;
 
 /** The largest zoom of the camera for a selection. */
 const MOST_ZOOM = 1.25;

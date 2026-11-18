@@ -142,12 +142,13 @@ describe("a name in a far view", () => {
     const content = createPictureContent(PICTURE, { looks: plain });
     const { calls } = draw(content, { view: far });
     const scale = SMALLEST_TEXT_LINE / (18 * 0.5);
+    // The larger text starts 4 units below the top edge of the view. It moves to the distance of 8 units that a name keeps to an edge.
     expect(calls.slice(-13)).toEqual([
       "globalAlpha = 1",
       "font = 13px sans-serif",
       "textAlign = left",
       "save",
-      "translate 10 15",
+      "translate 10 19",
       `scale ${scale} ${scale}`,
       `strokeStyle = ${theme.paper}`,
       `lineWidth = ${(18 * scale * HALO_WIDTH) / scale}`,

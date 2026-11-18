@@ -669,6 +669,7 @@ stage?.refresh();
 - In `plainLooks`, a text that is too small to read becomes bars. A text below `SMALLEST_BAR_LINE` pixels goes.
 - A label look with `least` keeps the height of a line on the screen in a far view. Such a text is larger about its place, on top of each other shape.
 - Two such texts do not overlap. The text of a record with a highlight comes first, then the text of the larger box.
+- Such a text that an edge of the view cuts moves into the view. A text that is wider than the view keeps its place.
 - In `plainLooks`, the name of a box with children keeps a height that a person can read, until the box is small on the screen.
 - In `plainLooks`, a box with children that has a highlight keeps its name at each size.
 - At the zoom 1 or less, the lines and the signs keep their size on the screen. Above it, they grow with the boxes.
