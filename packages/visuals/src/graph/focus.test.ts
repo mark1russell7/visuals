@@ -42,6 +42,16 @@ describe("focusOf", () => {
     expect(idsOf(focusOf(index, ["row-1", "none", "curve", "row-1"]))).toEqual({ boxes: ["card", "far", "row-1", "row-2", "topic"], routes: ["curve", "link"] });
   });
 
+  it("leaves out a route at a box that the option `routes` refuses, with the box at its other end", () => {
+    // The topic has two routes. With no route to the far box, the far box is not in the focus.
+    expect(idsOf(focusOf(index, ["topic"], { routes: (route) => route.id !== "aside" }))).toEqual({ boxes: ["card", "row-1", "topic"], routes: ["link"] });
+    expect(idsOf(focusOf(index, ["topic"], { routes: () => false }))).toEqual({ boxes: ["topic"], routes: [] });
+  });
+
+  it("keeps a route of the list that the option `routes` refuses", () => {
+    expect(idsOf(focusOf(index, ["curve"], { routes: () => false }))).toEqual({ boxes: ["card", "far", "row-2"], routes: ["curve"] });
+  });
+
   it("keeps a route whose box the picture does not have", () => {
     const less = indexPicture({ ...PICTURE, boxes: [CARD, ROW_1] });
     expect(idsOf(focusOf(less, ["link"]))).toEqual({ boxes: ["card", "row-1"], routes: ["link"] });

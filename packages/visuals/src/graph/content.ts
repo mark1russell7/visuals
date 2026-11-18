@@ -1,4 +1,4 @@
-import { pictureBounds, type LayoutPicture, type Rect } from "@mark1russell7/layout-contract";
+import { pictureBounds, type LayoutPicture, type PictureRoute, type Rect } from "@mark1russell7/layout-contract";
 import type { Highlight } from "../highlight.ts";
 import { approach } from "../motion.ts";
 import { drawShapes } from "./draw.ts";
@@ -132,7 +132,10 @@ export function createPictureContent<T>(picture: LayoutPicture, options: Picture
       const { view } = frame;
       const from = seedsOf(highlight);
       if (fresh || from.length !== seeds.length || from.some((id, i) => id !== seeds[i])) {
-        const next = from.length === 0 ? undefined : focusOf(index, from);
+        // A route that the looks do not show brings no box into the focus. The looks get the state of a picture with no focus.
+        const plain: PaintState = { zoom: view.k, highlight };
+        const shown = (route: PictureRoute): boolean => looks.route(route, routeState(route, plain), theme) !== undefined;
+        const next = from.length === 0 ? undefined : focusOf(index, from, { routes: shown });
         if (fresh || frame.settle) fades.clear();
         else fadeTo(next);
         seeds = from;

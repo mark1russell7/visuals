@@ -10,17 +10,21 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "build:thread": "vite build --config vite.thread.config.ts"
   },
   "devDependencies": {
     "@fontsource/spectral": "^5.3.0",
     "@mark1russell7/cue": "^2.0.0",
     "@mark1russell7/geo": "^0.5.0",
+    "@mark1russell7/highways": "^0.19.0",
+    "@mark1russell7/layout-contract": "^0.10.5",
     "@mark1russell7/site-pages": "^0.7.0",
     "@mark1russell7/visuals": "workspace:*",
     "@types/node": "^26.6.5",
     "@types/three": "^0.187.0",
     "@vitest/coverage-v8": "^5.0.3",
+    "ireko": "^0.2.3",
     "three": "^0.187.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",

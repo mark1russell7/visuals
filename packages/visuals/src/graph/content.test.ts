@@ -5,7 +5,7 @@ import { approach } from "../motion.ts";
 import type { PictureView } from "./camera.ts";
 import { createPictureContent, FOCUS_FADE, type LayoutPictureContent } from "./content.ts";
 import { drawShapes } from "./draw.ts";
-import { FOCUS_OPACITY } from "./focus.ts";
+import { FOCUS_OPACITY, focusOf } from "./focus.ts";
 import { LIGHT_PICTURE_THEME, plainLooks, SMALLEST_TEXT_LINE, type PictureLooks, type PictureTheme } from "./looks.ts";
 import { BAR_HEIGHT, HALO_WIDTH, paintPicture } from "./paint.ts";
 import { indexPicture } from "./records.ts";
@@ -250,6 +250,19 @@ describe("the focus of a picture content", () => {
     // `undefined` gives the focus of the selection again.
     content.setFocus(undefined);
     expect(alphas(draw(content, { settle: true }, { far: 2 }).calls)).toEqual(FAR_FOCUS);
+  });
+
+  it("does not bring a box into the focus by a route that the looks do not show", () => {
+    const looks: PictureLooks<PictureTheme> = { ...plain, route: (route, state, colors) => (route.id === "link" ? undefined : plain.route(route, state, colors)) };
+    const { calls } = draw(createPictureContent(PICTURE, { looks }), {}, { "row-1": 2 });
+    const index = indexPicture(PICTURE);
+    const focus = focusOf(index, ["row-1"], { routes: (route) => route.id !== "link" });
+    // The topic is at the other end of the hidden route, so it is out of the focus.
+    expect(focus?.boxes.has("topic")).toBe(false);
+    const direct = fakeContext();
+    drawShapes(direct.context, paintPicture(index, looks, theme, { zoom: 2, highlight: (record) => (record === "row-1" ? 2 : 0), focus }), VIEW);
+    expect(calls).toEqual(direct.calls);
+    expect(alphas(calls).filter((share) => share === out).length).toBeGreaterThan(ROW_FOCUS.filter((share) => share === out).length);
   });
 
   it("has no focus from the selection with the option `none`", () => {

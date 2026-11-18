@@ -22,15 +22,25 @@ export type FocusLevel = "all" | "in" | "beside" | "out";
 /** The share of the color that a record keeps at each focus level. */
 export const FOCUS_OPACITY: Readonly<Record<FocusLevel, number>> = { all: 1, in: 1, beside: 0.55, out: 0.2 };
 
+/** The options of `focusOf`. */
+export interface FocusOptions {
+  /**
+   * This function tells if a route at a box of the list is in the focus. The default permits each route.
+   * A content gives the routes that its looks show, so a route with no line brings no box. A route of the list is in the focus in each case.
+   */
+  readonly routes?: ((route: PictureRoute) => boolean) | undefined;
+}
+
 /**
  * This function gives the focus of a list of records, or `undefined` when the picture has none of them.
  *
  * - A box brings each box below it in the tree.
- * - Each route at one of these boxes is in the focus, with the box at its other end.
+ * - Each route at one of these boxes is in the focus, with the box at its other end. The option `routes` can refuse a route.
  * - A route brings its two boxes.
  * - Each box of the focus brings each box above it in the tree, so the card of a row stays clear.
  */
-export function focusOf(index: PictureIndex, seeds: Iterable<string>): PictureFocus | undefined {
+export function focusOf(index: PictureIndex, seeds: Iterable<string>, options: FocusOptions = {}): PictureFocus | undefined {
+  const permits = options.routes;
   const boxes = new Set<string>();
   const routes = new Set<string>();
   /** The boxes of the list, and each box below them. */
@@ -53,7 +63,7 @@ export function focusOf(index: PictureIndex, seeds: Iterable<string>): PictureFo
       for (const child of index.children.get(id) ?? []) stack.push(child.id);
     }
   }
-  for (const id of own) for (const route of index.routesAt.get(id) ?? []) addRoute(route);
+  for (const id of own) for (const route of index.routesAt.get(id) ?? []) if (permits === undefined || permits(route)) addRoute(route);
   for (const route of seedRoutes) addRoute(route);
   for (const id of [...boxes]) {
     // A box that is in the focus stops the way up: a different step adds the boxes above it.

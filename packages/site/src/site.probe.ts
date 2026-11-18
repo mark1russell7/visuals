@@ -241,4 +241,43 @@ if (room !== null) {
   check("the line of the mark is empty after the pointer goes out of the picture", text("#room-readout") === "", text("#room-readout"));
 }
 
+// The conversation. Its picture is a canvas, and the card of a box is HTML. So the probe uses the list of the topics and the card.
+const CARD = "#thread .thread-card";
+const WATER = '#thread-topics .kind[data-topic="water"]';
+const cardBox = (): string | undefined => $(CARD)?.dataset["box"];
+const partsOf = (topic: string): number => Number(text(`#thread-topics .kind[data-topic="${topic}"] .count`));
+
+$("#thread")?.scrollIntoView();
+const thread = await until(() => $("#thread canvas"), 15000);
+check("the page shows the conversation", thread, "The picture has no canvas.");
+const threadHeight = (thread as Element | null)?.getBoundingClientRect().height ?? 0;
+check("the picture of the conversation has a height of 150 pixels or more", threadHeight >= 150, threadHeight);
+check("the list has each topic of the sample", $$("#thread-topics .kind").length === 10, $$("#thread-topics .kind").length);
+check("no box is selected at the start", $$('#thread-topics .kind[aria-pressed="true"]').length === 0 && $(CARD)?.hidden === true, cardBox());
+
+click(WATER);
+check("a topic of the list is selected, and the card shows it", await until(() => pressed(WATER) === "true" && cardBox() === "water"), cardBox());
+check("the card names the topic", text(`${CARD} .thread-text`) === "Water and drainage", text(`${CARD} .thread-text`));
+const parts = $$(`${CARD} .thread-part`);
+check("the card of a topic has each part of the topic", parts.length > 0 && parts.length === partsOf("water"), [parts.length, partsOf("water")]);
+
+// A part of the card opens the card of the part. There, a person gives the part a different topic.
+const part = parts[0];
+if (part !== undefined) {
+  click(part);
+  check("a part of the card opens the card of the part", await until(() => cardBox() !== undefined && cardBox() !== "water"), cardBox());
+  check("the list has no selected topic then", pressed(WATER) === "false", pressed(WATER));
+  check("the part has one topic", $$(`${CARD} [role="radio"][aria-checked="true"]`).length === 1, $$(`${CARD} [role="radio"]`).length);
+  const free = $$(`${CARD} [role="radio"][aria-checked="false"]`)[0];
+  const key = free?.dataset["key"] ?? "";
+  const topic = key.replace("choice:", "");
+  const before = [partsOf(topic), partsOf("water")];
+  if (free !== undefined) click(free);
+  check("a choice gives the topic to the part", await until(() => $(`${CARD} [data-key="${key}"]`)?.getAttribute("aria-checked") === "true"), key);
+  check("the part has one topic after the choice", $$(`${CARD} [role="radio"][aria-checked="true"]`).length === 1, $$(`${CARD} [role="radio"][aria-checked="true"]`).length);
+  check("the list counts the part at its new topic", partsOf(topic) === (before[0] ?? 0) + 1 && partsOf("water") === (before[1] ?? 0) - 1, [topic, before, partsOf(topic), partsOf("water")]);
+  click(`${CARD} .thread-close`);
+  check("the button of the card closes it", await until(() => $(CARD)?.hidden === true), cardBox());
+}
+
 export {};

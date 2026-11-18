@@ -213,6 +213,7 @@ FOCUS_OPACITY: build/graph.d.ts#FOCUS_OPACITY
 FREE_LABELS: build/graph.d.ts#FREE_LABELS
 type FitOptions: build/graph.d.ts#FitOptions
 type FocusLevel: build/graph.d.ts#FocusLevel
+type FocusOptions: build/graph.d.ts#FocusOptions
 type FrameOptions: build/graph.d.ts#FrameOptions
 HALO_WIDTH: build/graph.d.ts#HALO_WIDTH
 type Insets: build/graph.d.ts#Insets
@@ -500,6 +501,11 @@ interface FitOptions {
 
 ### build/graph.d.ts#FocusLevel
 type FocusLevel = "all" | "in" | "beside" | "out";
+
+### build/graph.d.ts#FocusOptions
+interface FocusOptions {
+  readonly routes?: ((route: PictureRoute) => boolean) | undefined;
+}
 
 ### build/graph.d.ts#FrameOptions
 interface FrameOptions extends FitOptions {
@@ -920,7 +926,7 @@ export declare function drawShapes(context: CanvasRenderingContext2D, shapes: re
 export declare function fitRect(rect: Rect, area: Rect, options?: FitOptions): PictureView;
 
 ### build/graph.d.ts#focusOf
-export declare function focusOf(index: PictureIndex, seeds: Iterable<string>): PictureFocus | undefined;
+export declare function focusOf(index: PictureIndex, seeds: Iterable<string>, options?: FocusOptions): PictureFocus | undefined;
 
 ### build/graph.d.ts#frameRects
 export declare function frameRects(rects: readonly Rect[], area: Rect, options: FrameOptions): PictureView | undefined;

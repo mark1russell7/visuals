@@ -1,0 +1,407 @@
+/* The style of a thread view. The mount sets each color of the theme as a property `--thread-*` on the element `.thread`. */
+.thread {
+  --thread-line: color-mix(in srgb, var(--thread-text) 13%, transparent);
+  --thread-wash: color-mix(in srgb, var(--thread-text) 7%, transparent);
+  --thread-shadow: 0 1px 2px rgb(0 0 0 / 0.1), 0 10px 30px rgb(0 0 0 / 0.16);
+  --thread-edge-gap: 10px;
+  position: relative;
+  height: 100%;
+  min-height: 320px;
+  overflow: hidden;
+  isolation: isolate;
+  container-type: inline-size;
+  border-radius: inherit;
+  background: var(--thread-background);
+  color: var(--thread-text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+}
+.thread *,
+.thread *::before,
+.thread *::after {
+  box-sizing: border-box;
+}
+.thread button {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.thread button:disabled {
+  cursor: default;
+}
+.thread :focus-visible {
+  outline: 2px solid var(--thread-accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+.thread ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.thread p,
+.thread h3 {
+  margin: 0;
+}
+.thread [hidden] {
+  display: none !important;
+}
+
+.thread-stage {
+  position: absolute;
+  inset: 0;
+}
+.thread-stage canvas:focus-visible {
+  outline-offset: -3px;
+}
+
+.thread-note {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--thread-muted);
+  text-align: center;
+  pointer-events: none;
+}
+
+/* The controls of the camera and the switch of the proposals. */
+.thread-tools {
+  position: absolute;
+  top: var(--thread-edge-gap);
+  right: max(var(--thread-edge-gap), env(safe-area-inset-right));
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.thread .thread-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0 11px;
+  border-radius: 9px;
+  border: 1px solid var(--thread-line);
+  background: var(--thread-surface);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+  font-weight: 500;
+  white-space: nowrap;
+  user-select: none;
+}
+.thread .thread-tool:hover {
+  border-color: var(--thread-stroke);
+}
+.thread-switch {
+  cursor: pointer;
+}
+.thread-switch input {
+  margin: 0;
+  accent-color: var(--thread-accent);
+}
+
+/* The button that goes to the next part with no topic. */
+.thread .thread-open {
+  position: absolute;
+  top: var(--thread-edge-gap);
+  left: max(var(--thread-edge-gap), env(safe-area-inset-left));
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px 0 10px;
+  border-radius: 9px;
+  border: 1px solid var(--thread-line);
+  background: var(--thread-surface);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+  font-weight: 550;
+  white-space: nowrap;
+}
+.thread-open::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--thread-open);
+}
+
+/* The legend: what each line and each sign tells. */
+.thread-legend {
+  position: absolute;
+  left: max(var(--thread-edge-gap), env(safe-area-inset-left));
+  bottom: max(var(--thread-edge-gap), env(safe-area-inset-bottom));
+  max-width: min(260px, calc(100% - 2 * var(--thread-edge-gap)));
+  border-radius: 10px;
+  border: 1px solid var(--thread-line);
+  background: var(--thread-surface);
+  color: var(--thread-muted);
+  font-size: 12px;
+}
+.thread-legend summary {
+  padding: 5px 11px;
+  cursor: pointer;
+  font-weight: 500;
+  user-select: none;
+}
+.thread-legend ul {
+  display: grid;
+  gap: 3px;
+  padding: 2px 11px 9px;
+}
+.thread-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.thread-legend svg {
+  flex: none;
+  overflow: visible;
+}
+.thread-legend path {
+  fill: none;
+  stroke: var(--thread-edge);
+  stroke-width: 1.5;
+}
+.thread-legend .is-strong {
+  stroke: var(--thread-edge-strong);
+  fill: var(--thread-edge-strong);
+  stroke-width: 1.25;
+}
+.thread-legend .is-end {
+  fill: var(--thread-edge);
+  stroke: none;
+}
+.thread-legend .is-changed {
+  fill: var(--thread-accent);
+}
+.thread-legend .is-open {
+  fill: none;
+  stroke: var(--thread-open);
+  stroke-width: 1.5;
+}
+
+/* The card of the selected box. */
+.thread-card {
+  position: absolute;
+  top: 54px;
+  right: max(var(--thread-edge-gap), env(safe-area-inset-right));
+  width: min(340px, 46%);
+  max-height: calc(100% - 54px - var(--thread-edge-gap));
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 15px 16px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--thread-line);
+  background: var(--thread-surface);
+  box-shadow: var(--thread-shadow);
+}
+.thread .thread-close {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--thread-muted);
+  font-size: 20px;
+  line-height: 1;
+}
+.thread .thread-close:hover {
+  background: var(--thread-wash);
+}
+.thread-meta {
+  margin-right: 30px;
+  color: var(--thread-muted);
+  font-size: 12.5px;
+}
+.thread .thread-text {
+  margin: 5px 0 12px;
+  font-size: 15.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+.thread .thread-text.is-name {
+  margin-bottom: 6px;
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+.thread .thread-about {
+  margin: 0 0 12px;
+  color: var(--thread-muted);
+  overflow-wrap: anywhere;
+}
+.thread-link {
+  display: inline-block;
+  margin: -4px 0 12px;
+  color: var(--thread-accent);
+  font-weight: 500;
+  text-underline-offset: 3px;
+}
+.thread .thread-heading {
+  margin: 0 0 4px;
+  color: var(--thread-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.thread-choices,
+.thread-parts {
+  margin: 0 -8px;
+}
+.thread .thread-choice {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 8px;
+  border-radius: 9px;
+}
+.thread .thread-choice:not(:disabled):hover,
+.thread .thread-part:hover {
+  background: var(--thread-wash);
+}
+.thread .thread-choice[aria-checked="true"] {
+  background: var(--thread-wash);
+}
+.thread-mark {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--thread-stroke);
+}
+[aria-checked="true"] > .thread-mark {
+  border: 5px solid var(--thread-accent);
+}
+.thread-name {
+  display: grid;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+.thread-name small {
+  color: var(--thread-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.thread-score {
+  display: grid;
+  grid-template-columns: 52px 30px;
+  align-items: center;
+  gap: 8px;
+}
+.thread-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--thread-line);
+}
+.thread-bar::before {
+  content: "";
+  display: block;
+  width: calc(var(--share) * 100%);
+  min-width: 2px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--thread-edge-strong);
+}
+.thread-score-value {
+  color: var(--thread-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+.thread-others {
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--thread-line);
+}
+.thread-others summary {
+  padding: 8px 0;
+  color: var(--thread-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.thread .thread-part {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.thread-parts li + li {
+  border-top: 1px solid var(--thread-line);
+}
+
+/* The text of the box below the pointer, when the picture is too small to read. */
+.thread-tip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: min(280px, 70%);
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--thread-topic-fill);
+  color: var(--thread-topic-text);
+  box-shadow: var(--thread-shadow);
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+/* A narrow view, for example a phone: larger controls, and the card is a sheet at the bottom. */
+@container (max-width: 700px) {
+  .thread .thread-tool,
+  .thread .thread-open {
+    height: 40px;
+    min-width: 40px;
+  }
+  .thread-zoom {
+    display: none !important;
+  }
+  .thread-card {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    max-height: 58%;
+    padding: 16px 16px max(14px, env(safe-area-inset-bottom));
+    border-width: 1px 0 0;
+    border-radius: 18px 18px 0 0;
+  }
+  .thread-card:not([hidden]) ~ .thread-legend {
+    display: none;
+  }
+}
+
+/* A phone: the button of the parts with no topic has fewer words, so it does not touch the controls. */
+@container (max-width: 420px) {
+  .thread-open-more {
+    display: none;
+  }
+}
+@container (max-width: 330px) {
+  .thread-open-words {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .thread-card:not([hidden]) {
+    animation: thread-rise 160ms ease-out;
+  }
+  @keyframes thread-rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+}

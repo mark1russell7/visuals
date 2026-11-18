@@ -1,5 +1,6 @@
 import type { GlobeTheme } from "@mark1russell7/visuals/globe";
 import type { RoomTheme } from "./room-solids.ts";
+import type { ThreadTheme } from "./thread/looks.ts";
 
 /** This function reads a color of the page: the value of a custom property of the root element, as a CSS hex color. */
 function color(name: string): string {
@@ -56,6 +57,28 @@ export function roomTheme(): RoomTheme {
     accent: color("--highlight-strong"),
     field: Array.from({ length: FIELD_COLORS }, (_, index) => color(`--field-${String(index + 1)}`)),
     fieldOpacity: 0.85,
+  };
+}
+
+/**
+ * This function makes the theme of the conversation from the colors of the page.
+ * A card has the color of the page, and the card of a message has the color of a panel.
+ */
+export function threadTheme(): ThreadTheme {
+  return {
+    background: color("--page"),
+    surface: color("--page"),
+    tray: color("--panel"),
+    stroke: color("--line"),
+    text: color("--ink"),
+    muted: color("--quiet"),
+    edge: color("--topic-line"),
+    edgeStrong: color("--quiet"),
+    accent: color("--link"),
+    topicFill: color("--ink"),
+    topicText: color("--page"),
+    open: color("--topic-open"),
+    quiet: color("--line"),
   };
 }
 
