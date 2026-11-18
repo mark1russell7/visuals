@@ -2,8 +2,8 @@ import { PICTURE_SCHEMA, pathOf, type PictureBox, type PictureLabel, type Pictur
 import { describe, expect, it } from "vitest";
 import type { Highlight } from "../highlight.ts";
 import { FOCUS_OPACITY, focusOf } from "./focus.ts";
-import { LIGHT_PICTURE_THEME, plainLooks, type PictureLooks, type PictureTheme, type RecordState } from "./looks.ts";
-import { ARROW_SPREAD, BAR_HEIGHT, boxState, FREE_LABELS, HALO_WIDTH, paintPicture, recordKey, routeState, VIEW_MARGIN, type PaintOutline, type PaintOutlined, type PaintShape, type PaintState, type PaintText } from "./paint.ts";
+import { LIGHT_PICTURE_THEME, MOST_KEPT_LINE, plainLooks, SMALLEST_TEXT_LINE, type LabelLook, type PictureLooks, type PictureTheme, type RecordState } from "./looks.ts";
+import { ARROW_SPREAD, BAR_HEIGHT, boxState, FREE_LABELS, HALO_WIDTH, KEPT_GAP, paintPicture, recordKey, routeState, VIEW_MARGIN, type PaintOutline, type PaintOutlined, type PaintShape, type PaintState, type PaintText } from "./paint.ts";
 import { indexPicture, type PictureIndex, type PictureRecord } from "./records.ts";
 import { ASIDE, CARD, CURVE, FAR, LINK, PICTURE, ROW_1, ROW_2, TOPIC } from "./sample.ts";
 
@@ -524,10 +524,11 @@ describe("the shapes of a label", () => {
   });
 
   it("puts a bar at the left, the middle or the right of its label, as the text", () => {
-    // At the zoom 0.5, each text of the sample is a bar. The text of the route has 4 letters, and the note has 6 letters.
+    // At the zoom 0.5, each text of the sample is a bar, but not the name of the card: it keeps its height, on top of each other shape.
+    // The text of the route has 4 letters, and the note has 6 letters.
     const tall = 16 * BAR_HEIGHT;
     const shapes = paint({ zoom: 0.5, measure: (_font, text) => text.length * 4 });
-    expect(shapes.slice(-2)).toEqual([
+    expect(shapes.slice(-3, -1)).toEqual([
       { type: "shape", outline: { kind: "rect", x: 225 + 0.5 * (40 - 16), y: 50 - tall / 2, w: 16, h: tall, radius: tall / 2 }, fill: theme.containerLine, opacity: 1 },
       { type: "shape", outline: { kind: "rect", x: 400 + (120 - 24), y: 8 - tall / 2, w: 24, h: tall, radius: tall / 2 }, fill: theme.containerLine, opacity: 1 },
     ]);
@@ -541,6 +542,224 @@ describe("the shapes of a label", () => {
     expect(paint({ zoom: 1 }, plain, only)).toEqual([]);
     // A bar that is less wide than high has round ends of half its width.
     expect(outlines(paint({ zoom: 1, measure: () => 2 }, plain, only))).toEqual([{ kind: "rect", x: 5, y: 4 - tall / 2, w: 2, h: tall, radius: 1 }]);
+  });
+});
+
+describe("a label that keeps a height on the screen", () => {
+  const FONT = "16px sans-serif";
+  /** A label with one line of 20 units. At the zoom 0.25, the line is 5 pixels high. */
+  const NAME: PictureLabel = { id: "name", x: 100, y: 50, w: 80, h: 20, lines: ["Group"], lineHeight: 20, font: FONT };
+  /** The text of the name with a least height of 10 pixels, at the zoom 0.25: it is 2 times larger about the middle of its height. */
+  const NAME_TEXT: PaintText = { type: "text", text: "Group", x: 100, y: 60, font: FONT, align: "left", fill: "#111", opacity: 1, scale: 2 };
+  const only = pictureWith([], [], [NAME]);
+
+  /** This function gives the plain looks with one look for each label. */
+  function labelLooks(look: LabelLook | (() => LabelLook)): PictureLooks<PictureTheme> {
+    return looksWith({ label: () => (typeof look === "function" ? look() : look) });
+  }
+
+  /** The looks in which each label keeps a height of 10 pixels. */
+  const least10 = labelLooks({ color: "#111", least: 10 });
+  const inPlace = labelLooks({ color: "#111" });
+
+  /** This function gives the paint list at the zoom 0.25, where one unit of a look is 4 units of the picture. */
+  function far(of: PictureIndex, state: Partial<PaintState> = {}, looks: PictureLooks<PictureTheme> = least10): PaintShape[] {
+    return paint({ zoom: 0.25, ...state }, looks, of);
+  }
+
+  /** This function gives the text of each text of a paint list. */
+  function texts(shapes: readonly PaintShape[]): string[] {
+    return shapes.flatMap((shape) => (shape.type === "text" ? [shape.text] : []));
+  }
+
+  it("makes the text larger about the middle of its height, so that a line has the least height", () => {
+    expect(far(only)).toEqual([NAME_TEXT]);
+    expect(far(only, {}, labelLooks({ color: "#111", least: 20 }))).toEqual([{ ...NAME_TEXT, scale: 4 }]);
+  });
+
+  it("leaves a text that is high enough at its place, with no factor", () => {
+    const atPlace: PaintText = { type: "text", text: "Group", x: 100, y: 60, font: FONT, align: "left", fill: "#111", opacity: 1 };
+    // At the zoom 0.5, the line is 10 pixels high.
+    const shapes = paint({ zoom: 0.5 }, least10, only);
+    expect(shapes).toEqual([atPlace]);
+    expect(shapes[0]).not.toHaveProperty("scale");
+    expect(paint({ zoom: 2 }, least10, only)[0]).not.toHaveProperty("scale");
+    // A zoom that is not above 0 gives no factor.
+    expect(paint({ zoom: 0 }, least10, only)[0]).not.toHaveProperty("scale");
+  });
+
+  it("keeps the left end, the middle or the right end of a line, as the label aligns it", () => {
+    for (const [align, x] of [
+      ["left", 100],
+      ["center", 140],
+      ["right", 180],
+    ] as const) {
+      expect(far(pictureWith([], [], [{ ...NAME, align }]))).toEqual([{ ...NAME_TEXT, align, x }]);
+    }
+  });
+
+  it("puts the lines of a text about the middle of the height of all the lines", () => {
+    const two: PictureLabel = { ...NAME, h: 40, lines: ["One", "Two"] };
+    expect(far(pictureWith([], [], [two]))).toEqual([
+      { ...NAME_TEXT, text: "One", y: 50 },
+      { ...NAME_TEXT, text: "Two", y: 90 },
+    ]);
+    // A line that is empty has no text, and it keeps its place in the label.
+    expect(far(pictureWith([], [], [{ ...two, lines: ["", "Two"] }]))).toEqual([{ ...NAME_TEXT, text: "Two", y: 90 }]);
+    expect(far(pictureWith([], [], [{ ...two, lines: ["", " "] }]))).toEqual([]);
+  });
+
+  it("gives the line around the letters the width of the larger text", () => {
+    expect(far(only, {}, labelLooks({ color: "#111", halo: "#fff", least: 10 }))).toEqual([{ ...NAME_TEXT, halo: { color: "#fff", width: 40 * HALO_WIDTH } }]);
+  });
+
+  it("keeps a height of `MOST_KEPT_LINE` at most", () => {
+    // A line of this label is 4 pixels high.
+    const small: PictureLabel = { id: "top", x: 0, y: 0, w: 50, h: 16, lines: ["Top"], lineHeight: 16, font: FONT };
+    const shapes = far(pictureWith([], [], [small]), {}, labelLooks({ color: "#111", least: 100 }));
+    expect(shapes).toEqual([{ type: "text", text: "Top", x: 0, y: 8, font: FONT, align: "left", fill: "#111", opacity: 1, scale: MOST_KEPT_LINE / 4 }]);
+  });
+
+  it("does not change bars, and gives no text to a label with no color", () => {
+    const bars = far(only, {}, labelLooks({ color: "#111", as: "bars", least: 10 }));
+    expect(outlines(bars)).toEqual([{ kind: "rect", x: 100, y: 60 - (20 * BAR_HEIGHT) / 2, w: 80, h: 20 * BAR_HEIGHT, radius: (20 * BAR_HEIGHT) / 2 }]);
+    expect(far(only, {}, labelLooks({ color: "#111", least: 10, opacity: 0 }))).toEqual([]);
+    expect(far(only, { fade: () => 0 })).toEqual([]);
+    // The opacity of the look and the share of the focus multiply, as for a text at its place.
+    expect(far(only, { fade: () => 0.5 }, labelLooks({ color: "#111", least: 10, opacity: 0.5 }))).toEqual([{ ...NAME_TEXT, opacity: 0.25 }]);
+  });
+
+  it("puts the text on top of each other shape", () => {
+    // At the zoom 0.5, a line of the name of the card is 9 pixels high, and each other text of the sample is a bar.
+    const shapes = paint({ zoom: 0.5 });
+    const scale = SMALLEST_TEXT_LINE / (18 * 0.5);
+    expect(shapes.at(-1)).toEqual({ ...CARD_TEXT, halo: { color: theme.paper, width: 18 * scale * HALO_WIDTH }, scale });
+    expect(texts(shapes)).toEqual(["Card"]);
+    // The body of the card is first, and the next shape is a route: the name is not at its place.
+    expect(shapes[0]).toEqual({ ...CARD_BODY, lineWidth: 2 });
+    expect(shapes[1]).toEqual({ ...LINK_LINE, lineWidth: 2.5 });
+  });
+
+  describe("with more labels", () => {
+    const small: PictureBox = { id: "small", x: 0, y: 0, w: 100, h: 100 };
+    const large: PictureBox = { id: "large", x: 0, y: 0, w: 300, h: 300 };
+    const smallName: PictureLabel = { id: "small-name", box: "small", x: 10, y: 10, w: 60, h: 20, lines: ["Small"], lineHeight: 20, font: FONT };
+    const largeName: PictureLabel = { id: "large-name", box: "large", x: 20, y: 20, w: 60, h: 20, lines: ["Large"], lineHeight: 20, font: FONT };
+    const way: PictureRoute = {
+      id: "way",
+      source: "small",
+      target: "large",
+      path: pathOf([
+        { x: 0, y: 400 },
+        { x: 100, y: 400 },
+      ]),
+    };
+    const wayName: PictureLabel = { id: "way-name", route: "way", x: 20, y: 390, w: 60, h: 20, lines: ["Way"], lineHeight: 20, font: FONT };
+
+    it("gives no paint to a text on a text that has its place, and the first choice to the label of the larger box", () => {
+      // The two larger texts overlap. The small box is first in the picture.
+      const crowd = pictureWith([small, large], [], [smallName, largeName]);
+      expect(texts(far(crowd))).toEqual(["Large"]);
+      // Two labels of the same rank are in the order of the picture.
+      const same = pictureWith([], [], [NAME, { ...NAME, id: "second", lines: ["Second"] }]);
+      expect(texts(far(same))).toEqual(["Group"]);
+    });
+
+    it("gives the first choice to the label of a record with a highlight", () => {
+      const crowd = pictureWith([small, large], [], [smallName, largeName]);
+      expect(texts(far(crowd, { highlight: highlights({ small: 1 }) }))).toEqual(["Small"]);
+      expect(texts(far(crowd, { highlight: highlights({ small: 1, large: 2 }) }))).toEqual(["Large"]);
+    });
+
+    it("puts the texts with free places in the order of their rank: the boxes from large to small, then the routes", () => {
+      const apart = pictureWith([small, large], [way], [wayName, smallName, { ...largeName, y: 200 }]);
+      expect(texts(far(apart))).toEqual(["Large", "Small", "Way"]);
+      expect(texts(far(apart, { highlight: highlights({ way: 1 }) }))).toEqual(["Way", "Large", "Small"]);
+    });
+
+    it("keeps a distance of `KEPT_GAP` units of a look between two texts", () => {
+      // The larger text of the name is from 40 to 80 on the y axis. A larger text starts 10 units above its label.
+      const gap = KEPT_GAP * 4;
+      const below = (y: number): PictureIndex => pictureWith([], [], [NAME, { ...NAME, id: "below", y, lines: ["Below"] }]);
+      expect(texts(far(below(80 + gap + 10)))).toEqual(["Group", "Below"]);
+      expect(texts(far(below(80 + gap + 9)))).toEqual(["Group"]);
+    });
+
+    it("uses the measured width of the widest line, to the width of the label at most", () => {
+      // With no measure, a text has the width of its label: the two larger texts overlap.
+      const pair = pictureWith([], [], [NAME, { ...NAME, id: "beside", x: 180, lines: ["Beside"] }]);
+      expect(texts(far(pair))).toEqual(["Group"]);
+      expect(texts(far(pair, { measure: () => 20 }))).toEqual(["Group", "Beside"]);
+      expect(texts(far(pair, { measure: () => 500 }))).toEqual(["Group"]);
+      const lines = pictureWith([], [], [
+        { ...NAME, h: 40, lines: ["A", "Wide line"] },
+        { ...NAME, id: "beside", x: 180, lines: ["Beside"] },
+      ]);
+      expect(texts(far(lines, { measure: (_font, text) => text.length * 2 }))).toEqual(["A", "Wide line", "Beside"]);
+      expect(texts(far(lines, { measure: (_font, text) => text.length * 8 }))).toEqual(["A", "Wide line"]);
+    });
+
+    it("measures each line with the font of its label", () => {
+      const asked: string[] = [];
+      far(pictureWith([], [], [{ ...NAME, h: 60, lines: ["One", "", "Two"] }]), {
+        measure(font, text) {
+          asked.push(`${font}: ${text}`);
+          return 20;
+        },
+      });
+      expect(asked).toEqual([`${FONT}: One`, `${FONT}: Two`]);
+    });
+
+    it("takes the place of a larger text from the side of its label that the text keeps", () => {
+      // Each text is 40 units wide. The text at the left is from 60 to 100 on the x axis.
+      const left: PictureLabel = { ...NAME, id: "left", x: 60, lines: ["Left"] };
+      const measure = (): number => 20;
+      // The name starts at 100: the two texts are too near.
+      expect(texts(far(pictureWith([], [], [NAME, left]), { measure }))).toEqual(["Group"]);
+      // The name is from 120 to 160 about its middle, and from 140 to 180 from its right end.
+      expect(texts(far(pictureWith([], [], [{ ...NAME, align: "center" }, left]), { measure }))).toEqual(["Group", "Left"]);
+      expect(texts(far(pictureWith([], [], [{ ...NAME, align: "right" }, left]), { measure }))).toEqual(["Group", "Left"]);
+    });
+  });
+
+  describe("and the view", () => {
+    /** This function gives the paint list for a view of 100 by 100 units that starts at a place on the x axis. */
+    const from = (x: number, looks: PictureLooks<PictureTheme> = least10, of: PictureIndex = only): PaintShape[] => far(of, { visible: { x, y: 0, w: 100, h: 100 } }, looks);
+    /** The margin of the view at the zoom 0.25, in the unit of the picture. */
+    const margin = 4 * VIEW_MARGIN;
+
+    it("shows a text whose larger rectangle is in the view, and not a text out of it", () => {
+      // The label ends at 180 on the x axis, and its larger text ends at 260.
+      expect(from(180 + margin + 1)).toEqual([NAME_TEXT]);
+      expect(from(260 + margin)).toEqual([NAME_TEXT]);
+      expect(from(260 + margin + 1)).toEqual([]);
+    });
+
+    it("gives a text at its place the view of its place", () => {
+      expect(from(180 + margin, inPlace)).toHaveLength(1);
+      expect(from(180 + margin + 1, inPlace)).toEqual([]);
+    });
+
+    it("shows the larger text of a box that is out of the view, with no shape for the box", () => {
+      const group: PictureBox = { id: "g", x: 0, y: 0, w: 200, h: 100 };
+      const picture = pictureWith([group], [], [{ ...NAME, box: "g" }]);
+      // The box ends at 200 on the x axis.
+      expect(from(200 + margin, least10, picture)).toHaveLength(2);
+      expect(from(200 + margin + 1, least10, picture)).toEqual([NAME_TEXT]);
+    });
+
+    it("does not ask the look of a label that cannot be in the view at the largest height", () => {
+      let asked = 0;
+      const counting = labelLooks(() => {
+        asked += 1;
+        return { color: "#111", least: 10 };
+      });
+      // At the largest height of 32 pixels, the text is 6.4 times larger: it ends at 612 on the x axis.
+      expect(from(612 + margin - 1, counting)).toEqual([]);
+      expect(asked).toBe(1);
+      expect(from(612 + margin + 1, counting)).toEqual([]);
+      expect(asked).toBe(1);
+    });
   });
 });
 

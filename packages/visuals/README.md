@@ -667,6 +667,10 @@ stage?.refresh();
 - A route is a path of lines, curves and arcs. Its look can add an arrow or a dot at each end.
 - A label has the lines and the place that the layout gives. The content breaks no line.
 - In `plainLooks`, a text that is too small to read becomes bars. A text below `SMALLEST_BAR_LINE` pixels goes.
+- A label look with `least` keeps the height of a line on the screen in a far view. Such a text is larger about its place, on top of each other shape.
+- Two such texts do not overlap. The text of a record with a highlight comes first, then the text of the larger box.
+- In `plainLooks`, the name of a box with children keeps a height that a person can read, until the box is small on the screen.
+- In `plainLooks`, a box with children that has a highlight keeps its name at each size.
 - At the zoom 1 or less, the lines and the signs keep their size on the screen. Above it, they grow with the boxes.
 - The selected record and the records at it stay clear. Each other record has less color, and the colors change in a short time.
 - `setFocus` sets the records of the focus from the page. The option `focus: "none"` stops the focus of the selection.

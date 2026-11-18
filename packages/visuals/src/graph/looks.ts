@@ -100,7 +100,18 @@ export interface LabelLook {
   readonly halo?: string | undefined;
   /** With `bars`, each line is a bar of its width: a person sees the form of a text that is too small to read. The default is `text`. */
   readonly as?: "text" | "bars" | undefined;
+  /**
+   * The smallest height of a line of the label on the screen, in CSS pixels. Use it for a name that a person reads in a far view.
+   * At a zoom with a smaller line, the text keeps this height. It becomes larger about its place, and it is on top of each other shape.
+   *
+   * Two such texts do not overlap. The text of a record with a highlight has the first choice, then the text of the larger box.
+   * A text with no free place has no paint. The value is at most `MOST_KEPT_LINE`, and it has no effect on bars.
+   */
+  readonly least?: number | undefined;
 }
+
+/** The largest height on the screen that a label keeps with `least`, in CSS pixels. A larger value of `least` becomes this value. */
+export const MOST_KEPT_LINE = 32;
 
 /**
  * The looks of a picture: one function for each type of record. `T` is the type of the theme.
@@ -166,6 +177,9 @@ export const SMALLEST_TEXT_LINE = 11;
 /** The smallest height of a line of text on the screen that a plain picture shows as a bar, in CSS pixels. */
 export const SMALLEST_BAR_LINE = 2.5;
 
+/** The smallest width on the screen of a box with children whose name stays a text in a plain picture, in CSS pixels. */
+export const SMALLEST_NAMED_BOX = 48;
+
 /** The options of `plainLooks`. */
 export interface PlainLookOptions {
   /** The radius of the corners of each box, in the unit of the picture. The default is 6. */
@@ -181,6 +195,8 @@ export interface PlainLookOptions {
  * - A box with children has the colors of a container, and its label has the muted color.
  * - The label of a route has a line of the color `paper` around its letters.
  * - A text that is too small to read is a row of bars. A text that is smaller than a bar has no paint.
+ * - The name of a box with children stays a text in a far view, while the box is `SMALLEST_NAMED_BOX` wide or more on the screen.
+ *   The name of such a box with a highlight stays a text at each size.
  */
 export function plainLooks(options: PlainLookOptions = {}): PictureLooks<PictureTheme> {
   const radius = options.radius ?? 6;
@@ -199,6 +215,10 @@ export function plainLooks(options: PlainLookOptions = {}): PictureLooks<Picture
     },
     label(label, state, theme, of) {
       const tall = label.lineHeight * state.zoom;
+      // The name of a group keeps a height that a person can read, until the group is small. The pointer shows the name of a small group.
+      if (tall < SMALLEST_TEXT_LINE && state.container && of?.type === "box" && (state.highlight > 0 || of.box.w * state.zoom >= SMALLEST_NAMED_BOX)) {
+        return { color: theme.mutedText, halo: theme.paper, least: SMALLEST_TEXT_LINE };
+      }
       if (tall < SMALLEST_BAR_LINE) return undefined;
       if (tall < SMALLEST_TEXT_LINE) return { color: theme.containerLine, as: "bars" };
       if (of?.type === "route") return { color: theme.text, halo: theme.paper };

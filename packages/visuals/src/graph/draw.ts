@@ -68,17 +68,28 @@ export function drawShapes(context: CanvasRenderingContext2D, shapes: readonly P
     if (shape.type === "text") {
       context.font = shape.font;
       context.textAlign = shape.align;
+      if (shape.halo !== undefined && dashed) {
+        context.setLineDash([]);
+        dashed = false;
+      }
+      const scale = shape.scale !== undefined && shape.scale > 0 ? shape.scale : 1;
+      let { x, y } = shape;
+      if (scale !== 1) {
+        // The text is larger about its point: the point becomes the origin of the context.
+        context.save();
+        context.translate(x, y);
+        context.scale(scale, scale);
+        x = 0;
+        y = 0;
+      }
       if (shape.halo !== undefined) {
-        if (dashed) {
-          context.setLineDash([]);
-          dashed = false;
-        }
         context.strokeStyle = shape.halo.color;
-        context.lineWidth = shape.halo.width;
-        context.strokeText(shape.text, shape.x, shape.y);
+        context.lineWidth = shape.halo.width / scale;
+        context.strokeText(shape.text, x, y);
       }
       context.fillStyle = shape.fill;
-      context.fillText(shape.text, shape.x, shape.y);
+      context.fillText(shape.text, x, y);
+      if (scale !== 1) context.restore();
       continue;
     }
     trace(context, shape.outline);
