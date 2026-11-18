@@ -47,6 +47,19 @@ describe("the kinds of the boxes", () => {
     expect(linkOf(box("water"))).toBe("#water");
     expect(linkOf({ data: { ref: "#a", url: "https://example.com/a" } })).toBe("https://example.com/a");
   });
+
+  it("gives an address only for a value that a link can go to", () => {
+    for (const address of ["https://example.com/a", "HTTP://example.com", "/a/page/", "./a", "../a", "#a", "?topic=a"]) {
+      expect(linkOf({ data: { ref: address } })).toBe(address);
+    }
+    // An id is not an address: a link to it goes to no page.
+    for (const other of ["water", "chat-1#3", "javascript:alert(1)", "data:text/html,a", "mailto:a@example.com", ""]) {
+      expect(linkOf({ data: { ref: other } })).toBeUndefined();
+      expect(linkOf({ data: { url: other } })).toBeUndefined();
+    }
+    expect(linkOf({ data: { ref: "#a", url: "an id" } })).toBe("#a");
+    expect(linkOf({})).toBeUndefined();
+  });
 });
 
 describe("the edges", () => {
