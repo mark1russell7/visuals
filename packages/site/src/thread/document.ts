@@ -16,6 +16,7 @@ export type ThreadBox = Omit<LayoutBox, "w" | "h"> & { readonly w?: number | und
  * It has the form of a `layout-input/1` document with no sizes and no places.
  *
  * - A box has `data.label` (one line), `data.kinds` (the main kind first), and can have `data.text`, `data.at` and `data.ref`.
+ * - A box can have `data.actions`: a list of buttons, each with an `id` and a `title`. The card of the box shows them.
  * - A part has its message as `parent`.
  * - A topic has `topic` as its first kind. Its second kind is a tag, and its `data.state` can be `done`.
  * - An entry is a box with no part and no parent that is not a topic. Its tag is its second kind.
@@ -122,6 +123,31 @@ const ADDRESS = /^(https?:\/\/|\/|\.{1,2}\/|#|\?)/i;
  */
 export function linkOf(box: WithData): string | undefined {
   return [field(box, "url"), field(box, "ref")].find((value) => value !== undefined && ADDRESS.test(value));
+}
+
+/** An action of a box: a button of the card of the box. The page does the action, and the view writes no data. */
+export interface ThreadAction {
+  /** The id of the action, for example `reply`. A page reads it in the event of the view. */
+  readonly id: string;
+  /** The text of the button. */
+  readonly title: string;
+}
+
+/**
+ * This function gives the actions of a box: its `data.actions`, a list of records with an `id` and a `title`.
+ * A record with no id or no title is not in the result. An id that the list has two times is in the result one time.
+ */
+export function actionsOf(box: WithData): ThreadAction[] {
+  const actions: unknown = box.data?.["actions"];
+  if (!Array.isArray(actions)) return [];
+  const out = new Map<string, ThreadAction>();
+  for (const action of actions as readonly unknown[]) {
+    if (typeof action !== "object" || action === null) continue;
+    const { id, title } = action as { readonly id?: unknown; readonly title?: unknown };
+    if (typeof id !== "string" || id === "" || typeof title !== "string" || title === "" || out.has(id)) continue;
+    out.set(id, { id, title });
+  }
+  return [...out.values()];
 }
 
 /** This function gives the id of the relation type of an edge `relates`, or `undefined` for an edge with no relation type. */

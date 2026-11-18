@@ -104,6 +104,20 @@ describe("chooseTopic", () => {
   });
 });
 
+describe("the buttons of a card", () => {
+  it("gives the actions of the box, and no action for a box with no list", () => {
+    const actions = [
+      { id: "answer", title: "Answer" },
+      { id: "comment", title: "Comment" },
+    ];
+    const boxes = sample.boxes.map((box) => (box.id === "water" ? { ...box, data: { ...box.data, actions } } : box));
+    const withActions = threadPicture({ ...sample, boxes }, fakeAdvance, options);
+    expect(cardOf(withActions, "water", options)?.actions).toEqual(actions);
+    expect(cardOf(withActions, "m01#0", options)?.actions).toEqual([]);
+    expect(cardOf(thread, "water", options)?.actions).toEqual([]);
+  });
+});
+
 describe("relationNames", () => {
   it("gives the title of each relation type of the document, or its id", () => {
     expect(relationNames(sample, SAMPLE_LEGEND)).toEqual([

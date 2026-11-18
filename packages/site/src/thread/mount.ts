@@ -1,13 +1,28 @@
 import { pictureBounds, type Rect } from "@mark1russell7/layout-contract";
 import { canvasAdvance } from "@mark1russell7/layout-contract/text";
 import { h, svg } from "@mark1russell7/site-pages/chrome";
-import { aimAll, aimReveal, createPictureContent, createPictureStage, type Insets, type PictureAim, type PictureContent, type PictureRecord, type PictureStage } from "@mark1russell7/visuals/graph";
+import { aimAll, aimReveal, createPictureContent, createPictureStage, freeArea, revealRects, type Insets, type PictureAim, type PictureContent, type PictureRecord, type PictureStage, type PictureView } from "@mark1russell7/visuals/graph";
+import { anchorRect } from "./anchor.ts";
 import { cardOf, relationNames, type CardChoice, type CardModel, type CardName, type TopicChoiceEvent } from "./card.ts";
 import { choiceOf, edgeKind, edgeState, isChosen, isProposal, labelOf, type ThreadBox, type ThreadDocument, type ThreadLegend } from "./document.ts";
 import { TEXT_ZOOM, threadLooks, type ThreadLookState, type ThreadTheme } from "./looks.ts";
 import { phaseTeller, type ThreadPhaseEvent } from "./phases.ts";
 import { routedProposals, threadPicture, withProposals, type ThreadPicture, type ThreadPictureOptions } from "./picture.ts";
 import style from "./thread.css?inline";
+
+/** A person used a button of the card of a box: an action of `data.actions`. */
+export interface ThreadActionEvent {
+  /** The box of the card. */
+  readonly box: ThreadBox;
+  /** The id of the action: the `id` of a record of `data.actions`. */
+  readonly action: string;
+  /**
+   * The rectangle of the box in the viewport of the page, in the form of `getBoundingClientRect`.
+   * The camera shows the box before the event, so a form at the rectangle is next to the box.
+   * It is `undefined` for a view that cannot draw.
+   */
+  readonly anchor: DOMRect | undefined;
+}
 
 /** The options of `mountThreadView`. */
 export interface ThreadViewOptions extends Pick<ThreadPictureOptions, "router" | "proposalRouter" | "curve" | "force" | "locale" | "timeZone"> {
@@ -31,6 +46,16 @@ export interface ThreadViewOptions extends Pick<ThreadPictureOptions, "router" |
    */
   readonly onChoose?: ((event: TopicChoiceEvent) => void) | undefined;
   /**
+   * The view starts this function when a person uses a button of the card of a box. The view has no form and writes no data.
+   * The page does the action, for example with a form at the anchor of the event. With no function, a card has no buttons.
+   */
+  readonly onAction?: ((event: ThreadActionEvent) => void) | undefined;
+  /**
+   * The view starts this function after each change of the camera, one time for each drawing at most.
+   * A page that keeps a form at a box reads `anchorOf` again. A scroll of the page gives no event.
+   */
+  readonly onCamera?: ((view: PictureView) => void) | undefined;
+  /**
    * The view starts this function at the end of each step of a picture: the layout, then the first drawing.
    * An event with an error tells that the step stopped. The view does not throw that error: it shows a note.
    */
@@ -47,6 +72,16 @@ export interface ThreadView {
   setTheme(theme: ThreadTheme): void;
   /** This function selects a box by its id, as a click does, and moves the camera to it. It does not start `onPick`. */
   select(id: string | undefined): void;
+  /**
+   * This function gives the rectangle of a box in the viewport of the page at this time, in the form of `getBoundingClientRect`.
+   * It gives `undefined` for an id that is not a box, and when no part of the box is in the picture.
+   */
+  anchorOf(id: string): DOMRect | undefined;
+  /**
+   * This function moves the camera until the free area shows a box. The camera stays when it shows the box.
+   * `covered` has more parts of the view that the page covers at this time, for example a form at the bottom.
+   */
+  reveal(id: string, covered?: Partial<Insets>): void;
   /** This function removes the view from the page. */
   dispose(): void;
 }
@@ -169,12 +204,13 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   setColors(options.theme);
   element.append(root);
 
-  /** This function gives the parts of the view that the page and the card cover. */
-  const insetsNow = (): Insets => {
+  /** This function gives the parts of the view that the page and the card cover. `more` has parts that the page covers for one move of the camera. */
+  const insetsNow = (more: Partial<Insets> = {}): Insets => {
     const narrow = root.clientWidth <= NARROW;
     const own = narrow ? { top: 56, right: 0, bottom: card.hidden ? 0 : card.offsetHeight, left: 0 } : { top: 52, right: card.hidden ? 0 : card.offsetWidth + 20, bottom: 0, left: 0 };
     const outer = options.covered ?? {};
-    return { top: Math.max(own.top, outer.top ?? 0), right: Math.max(own.right, outer.right ?? 0), bottom: Math.max(own.bottom, outer.bottom ?? 0), left: Math.max(own.left, outer.left ?? 0) };
+    const most = (edge: keyof Insets): number => Math.max(own[edge], outer[edge] ?? 0, more[edge] ?? 0);
+    return { top: most("top"), right: most("right"), bottom: most("bottom"), left: most("left") };
   };
 
   /**
@@ -233,6 +269,8 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   let documentText = JSON.stringify(options.document);
   /** This value is true until the view had a size. */
   let first = true;
+  /** This value is true when the page has the view. Before that, the page cannot use the view in a function of the options. */
+  let mounted = false;
   proposalsInput.checked = proposals;
 
   /** This function gives the selected box if a person can give a topic to it: a part, or an entry. */
@@ -290,8 +328,9 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     onSelect: (pick) => {
       show(pick?.type === "box" ? pick.id : undefined, true, true);
     },
-    onView: () => {
+    onView: (view) => {
       showTip();
+      if (mounted) options.onCamera?.(view);
     },
   });
   if (stage === undefined) phases.noPaint("The browser gave no 2D context for a canvas.");
@@ -335,8 +374,44 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     return aimReveal(rects, { least: kind === "topic" ? TOPIC_ZOOM : TEXT_ZOOM, most: MOST_ZOOM, margin: 24 });
   };
 
+  /**
+   * This function gives the view that shows a box in the free area, or `undefined` for an id with no place.
+   * The result is the view of the camera when that view shows the box. `covered` has more parts that the page covers.
+   */
+  const viewOf = (id: string, covered?: Partial<Insets>): PictureView | undefined => {
+    const place = thread.places.get(id);
+    if (stage === undefined || place === undefined) return undefined;
+    const area = freeArea({ width: stage.canvas.clientWidth, height: stage.canvas.clientHeight }, insetsNow(covered));
+    return revealRects(stage.view(), [place], area, { least: thread.kinds.get(id) === "topic" ? TOPIC_ZOOM : TEXT_ZOOM, most: MOST_ZOOM, margin: 24 });
+  };
+
+  /** This function moves the camera to the view that shows a box, and gives that view. The camera stays when it shows the box. */
+  const bring = (id: string, covered?: Partial<Insets>): PictureView | undefined => {
+    const to = viewOf(id, covered);
+    const at = stage?.view();
+    if (to !== undefined && at !== undefined && (to.x !== at.x || to.y !== at.y || to.k !== at.k)) stage?.setView(() => to);
+    return to;
+  };
+
+  /** This function gives the rectangle of a box in the viewport of the page for a view of the camera. */
+  const anchorAt = (id: string, view: PictureView): DOMRect | undefined => {
+    const place = thread.places.get(id);
+    if (stage === undefined || place === undefined) return undefined;
+    const frame = stage.canvas.getBoundingClientRect();
+    const rect = anchorRect(view, place, { x: frame.left, y: frame.top, w: frame.width, h: frame.height });
+    return rect === undefined ? undefined : new DOMRect(rect.x, rect.y, rect.w, rect.h);
+  };
+
+  /** This function tells the page an action of the card of a box. The camera shows the box first, so the anchor is in the picture. */
+  const act = (id: string, action: string): void => {
+    const box = boxes.get(id);
+    if (box === undefined) return;
+    const to = bring(id);
+    options.onAction?.({ box, action, anchor: to === undefined ? undefined : anchorAt(id, to) });
+  };
+
   /** This function gives the parts and the entries that have proposals and no topic, in the order of the document. */
-  const openParts = (): string[] => thread.document.boxes.filter((box) => thread.states.get(box.id) === "open").map((box) => box.id);
+  const openParts =(): string[] => thread.document.boxes.filter((box) => thread.states.get(box.id) === "open").map((box) => box.id);
 
   /** This function shows the text of the box below the pointer, when the picture is too small to read. */
   function showTip(): void {
@@ -435,13 +510,26 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     };
     const meta = h("p", { class: "thread-meta" }, [model.title, model.date, model.done && "done"].filter((text): text is string => typeof text === "string").join(", "));
     const link = model.link !== undefined && h("a", { class: "thread-link", href: model.link }, "Open");
+    // A page with no function for an action gets no button: a button that does nothing misleads a person.
+    const actions =
+      options.onAction !== undefined &&
+      model.actions.length > 0 &&
+      h(
+        "div",
+        { class: "thread-actions", role: "group", "aria-label": "Actions" },
+        model.actions.map((action) =>
+          button("thread-action", { "data-key": `action:${action.id}` }, [action.title], () => {
+            act(model.id, action.id);
+          }),
+        ),
+      );
     if (model.kind === "topic" || model.kind === "message") {
       const about = model.kind === "topic" && model.text !== model.label && h("p", { class: "thread-about" }, model.text);
       card.replaceChildren(
         close,
         meta,
         h("p", { class: model.kind === "topic" ? "thread-text is-name" : "thread-text" }, model.kind === "topic" ? model.label : model.text),
-        ...[about, link].filter((node): node is HTMLParagraphElement | HTMLAnchorElement => node !== false),
+        ...[about, link, actions].filter((node): node is HTMLParagraphElement | HTMLAnchorElement | HTMLDivElement => node !== false),
         h("h3", { class: "thread-heading" }, `Parts (${String(model.parts.length)})`),
         partList(model.parts),
       );
@@ -463,6 +551,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
       meta,
       h("p", { class: "thread-text" }, model.text),
       ...(link === false ? [] : [link]),
+      ...(actions === false ? [] : [actions]),
       h("h3", { class: "thread-heading" }, model.choices.some((choice) => choice.chosen) ? "Topic" : "Choose a topic"),
       h(
         "ul",
@@ -575,6 +664,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   observer.observe(card);
   drawFrame();
   setInsets();
+  mounted = true;
 
   return {
     setDocument(document) {
@@ -594,6 +684,12 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     },
     select(id) {
       show(id, false, true);
+    },
+    anchorOf(id) {
+      return stage === undefined ? undefined : anchorAt(id, stage.view());
+    },
+    reveal(id, covered) {
+      bring(id, covered);
     },
     dispose() {
       observer.disconnect();

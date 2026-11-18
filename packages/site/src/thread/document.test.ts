@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { choiceOf, choicesOf, edgeKind, isChosen, isDone, isDrawn, isProposal, isSpring, labelOf, linkOf, partStates, relationOf, soundDocument, tagOf, textOf, threadKinds, topicCounts, type ThreadDocument } from "./document.ts";
+import { actionsOf, choiceOf, choicesOf, edgeKind, isChosen, isDone, isDrawn, isProposal, isSpring, labelOf, linkOf, partStates, relationOf, soundDocument, tagOf, textOf, threadKinds, topicCounts, type ThreadDocument } from "./document.ts";
 import { sampleThread } from "./sample.ts";
 
 const sample = sampleThread();
@@ -162,5 +162,32 @@ describe("soundDocument", () => {
     const sound = soundDocument(sample);
     expect(sound.boxes).toEqual(sample.boxes);
     expect(sound.edges).toEqual(sample.edges);
+  });
+});
+
+describe("actionsOf", () => {
+  it("gives the buttons of a box in the order of the list", () => {
+    const actions = [
+      { id: "answer", title: "Answer" },
+      { id: "comment", title: "Comment" },
+    ];
+    expect(actionsOf({ data: { actions } })).toEqual(actions);
+  });
+
+  it("gives only the id and the title of a record", () => {
+    expect(actionsOf({ data: { actions: [{ id: "reply", title: "Reply", form: "<script>" }] } })).toEqual([{ id: "reply", title: "Reply" }]);
+  });
+
+  it("gives no button for a record with no id or no title, and one button for an id", () => {
+    const actions = [null, "reply", 3, {}, { id: "", title: "Empty" }, { id: "a" }, { id: "a", title: "" }, { id: 4, title: "Four" }, { id: "a", title: "First" }, { id: "a", title: "Second" }];
+    expect(actionsOf({ data: { actions } })).toEqual([{ id: "a", title: "First" }]);
+  });
+
+  it("gives no button for a box with no list", () => {
+    expect(actionsOf({})).toEqual([]);
+    expect(actionsOf({ data: {} })).toEqual([]);
+    expect(actionsOf({ data: { actions: "reply" } })).toEqual([]);
+    expect(actionsOf({ data: { actions: { id: "reply", title: "Reply" } } })).toEqual([]);
+    for (const entry of sample.boxes) expect(actionsOf(entry)).toEqual([]);
   });
 });
