@@ -112,9 +112,16 @@ export function isDone(box: WithData): boolean {
   return box.data?.["state"] === "done";
 }
 
-/** This function gives the address of a box: its `data.url`, or its `data.ref`. */
+/** The start of a text that is an address for a link: `http`, `https`, a path, a fragment or a query. */
+const ADDRESS = /^(https?:\/\/|\/|\.{1,2}\/|#|\?)/i;
+
+/**
+ * This function gives the address of a box: its `data.url`, or its `data.ref`.
+ * A value that is not an address gives no result, for example an id or a text with a different scheme.
+ * Thus a card has no link that goes to no page, and no link that starts a script.
+ */
 export function linkOf(box: WithData): string | undefined {
-  return field(box, "url") ?? field(box, "ref");
+  return [field(box, "url"), field(box, "ref")].find((value) => value !== undefined && ADDRESS.test(value));
 }
 
 /** This function gives the id of the relation type of an edge `relates`, or `undefined` for an edge with no relation type. */

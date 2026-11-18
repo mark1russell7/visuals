@@ -77,6 +77,9 @@ const MOST_ZOOM = 1.25;
 /** The factor of one step of a zoom button. */
 const ZOOM_STEP = 1.4;
 
+/** The aim that keeps the view of the camera. The stage has it when no box is selected, so the aim of the last selection ends. */
+const aimStay: PictureAim = (frame) => frame.view;
+
 /** The style sheet of each document and of each shadow tree that has a view. */
 const sheets = new WeakMap<Document | ShadowRoot, CSSStyleSheet>();
 
@@ -131,8 +134,11 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   const stageBox = h("div", { class: "thread-stage" });
   const note = h("p", { class: "thread-note", hidden: true });
   const openButton = button("thread-open", { hidden: true }, [], () => {
-    const open = openParts();
-    const next = open[(open.indexOf(selected ?? "") + 1) % open.length];
+    // The walk goes on after the selected box, in the order of the document. Thus a part that got a topic does not start the walk again.
+    const open = new Set(openParts());
+    const order = thread.document.boxes.map((box) => box.id);
+    const from = order.indexOf(selected ?? "") + 1;
+    const next = [...order.slice(from), ...order.slice(0, from)].find((id) => open.has(id));
     if (next !== undefined) show(next, true, true);
   });
   const proposalsInput = h("input", { type: "checkbox" });
@@ -190,8 +196,12 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   /** The position of the pointer in the view, in CSS pixels from its top left corner. */
   let pointer = { x: 0, y: 0 };
   let hovered: ThreadBox | undefined;
+  /** The insets of the stage at its start. The stage has them from its first picture, so the camera does not move after the start. */
+  const firstInsets = insetsNow();
   /** The insets that the stage has, as a text. */
-  let insetsText = "";
+  let insetsText = JSON.stringify(firstInsets);
+  /** The last document that the page gave, as a text. The same document again changes nothing. */
+  let documentText = JSON.stringify(options.document);
   /** This value is true until the view had a size. */
   let first = true;
   proposalsInput.checked = proposals;
@@ -211,6 +221,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     theme: options.theme,
     label: options.label ?? "The messages of a conversation and their topics",
     views: { all: aimAll({ most: 1 }) },
+    insets: firstInsets,
     onHover: (pick) => {
       hovered = pick?.type === "box" ? boxes.get(pick.id) : undefined;
       showTip();
@@ -256,7 +267,8 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
       const own = edges.filter((edge) => edgeKind(edge) === "touches" && edgeState(edge) !== "refused" && choiceOf(edge) === id);
       const base = [topOf(id), id];
       const chosen = own.filter(isChosen).map((edge) => edge.target);
-      groups = [[...base, ...chosen, ...own.filter(isProposal).map((edge) => edge.target)], [...base, ...chosen], base];
+      // The last group is the part alone. Thus a card that is larger than the free area does not hide its selected part.
+      groups = [[...base, ...chosen, ...own.filter(isProposal).map((edge) => edge.target)], [...base, ...chosen], base, [id]];
     }
     const rects = groups.map(boundsOf).filter((rect): rect is Rect => rect !== undefined);
     return aimReveal(rects, { least: kind === "topic" ? TOPIC_ZOOM : TEXT_ZOOM, most: MOST_ZOOM, margin: 24 });
@@ -342,11 +354,15 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     card.hidden = model === undefined;
     if (model === undefined) {
       delete card.dataset["box"];
+      delete card.dataset["chosen"];
       card.replaceChildren();
       return;
     }
-    if (card.dataset["box"] !== model.id) card.scrollTop = 0;
+    // A choice moves its row to the first list. The card goes to its top, so a person reads the new topic of the part.
+    const chosen = model.kind === "topic" || model.kind === "message" ? "" : (model.choices.find((choice) => choice.chosen)?.id ?? "");
+    if (card.dataset["box"] !== model.id || card.dataset["chosen"] !== chosen) card.scrollTop = 0;
     card.dataset["box"] = model.id;
+    card.dataset["chosen"] = chosen;
     const close = button("thread-close", { "aria-label": "Close" }, ["×"], () => {
       show(undefined, true, false);
       stage?.canvas.focus({ preventScroll: true });
@@ -431,6 +447,8 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     stage?.select(selected);
     drawCard();
     showTip();
+    // With no selection, the camera stays where it is: a change of the free area does not start the aim of the last selection.
+    if (selected === undefined) stage?.setView(aimStay, false);
     setInsets();
     if (selected !== undefined && move) stage?.setView(aimOf(selected));
     stage?.refresh();
@@ -439,16 +457,23 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
 
   /** This function makes the picture again from a document. Each box keeps its place when the boxes are the same and `fresh` is not true. */
   const remake = (document: ThreadDocument, fresh = false): void => {
+    const before = selected === undefined ? undefined : JSON.stringify(boundsOf([selected]));
     thread = threadPicture(document, advance, fresh ? making() : { ...making(), keep: thread });
     boxes = new Map(thread.document.boxes.map((box) => [box.id, box]));
     content.setPicture(thread.picture);
-    if (selected !== undefined && !thread.kinds.has(selected)) selected = undefined;
+    const gone = selected !== undefined && !thread.kinds.has(selected);
+    if (gone) selected = undefined;
     hint = undefined;
     stage?.select(selected);
     drawFrame();
     drawCard();
+    if (gone) stage?.setView(aimStay, false);
     setInsets();
+    // The aim of the stage has the places of the old picture. A selected box with a different place gets the camera again.
+    if (selected !== undefined && JSON.stringify(boundsOf([selected])) !== before) stage?.setView(aimOf(selected));
     stage?.refresh();
+    // The page did not select: the view tells it that the selected box is not in the new document.
+    if (gone) options.onPick?.(undefined);
   };
 
   proposalsInput.addEventListener("change", () => {
@@ -462,8 +487,9 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     pointer = { x: event.clientX - box.left, y: event.clientY - box.top };
     showTip();
   });
-  card.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
+  // The key Escape closes the card from each part of the view: the picture, a tool or the card.
+  root.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || selected === undefined) return;
     show(undefined, true, false);
     stage?.canvas.focus({ preventScroll: true });
   });
@@ -483,12 +509,20 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     setInsets();
   });
   observer.observe(root);
+  // The card of a narrow view covers the bottom of the picture. Its height changes when a person opens a list in it.
+  observer.observe(card);
   drawFrame();
   setInsets();
 
   return {
-    setDocument: remake,
+    setDocument(document) {
+      const text = JSON.stringify(document);
+      if (text === documentText) return;
+      documentText = text;
+      remake(document);
+    },
     setLegend(next) {
+      if (JSON.stringify(next) === JSON.stringify(legend)) return;
       legend = next;
       remake(thread.document);
     },
