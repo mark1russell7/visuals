@@ -101,7 +101,7 @@ export function isTopicLook(look: TextLook | TopicLook): look is TopicLook {
 }
 
 /** This function gives the width of the longest line of a text, as a whole number. */
-export function textWidth(text: TextLayout): number {
+export function widestLine(text: TextLayout): number {
   return Math.ceil(Math.max(0, ...text.widths));
 }
 
@@ -135,7 +135,7 @@ export function threadSizes(document: ThreadDocument, advance: AdvanceFn, keep?:
       const look = topicLook(most === least ? EQUAL_SHARE : (count - least) / (most - least));
       const text = layoutText(label, { font: look.font, measurer, lineHeight: look.lineHeight, wrapWidth: look.wrapWidth, maxLines: look.maxLines, wordBreak: "anywhere" });
       const countWidth = Math.ceil(advance(String(count), look.countFont));
-      out.set(box.id, { kind, label, text, look, count, countWidth, w: textWidth(text) + look.countGap + countWidth + 2 * look.padX, h: Math.max(1, text.lineCount) * look.lineHeight + 2 * look.padY });
+      out.set(box.id, { kind, label, text, look, count, countWidth, w: widestLine(text) + look.countGap + countWidth + 2 * look.padX, h: Math.max(1, text.lineCount) * look.lineHeight + 2 * look.padY });
       continue;
     }
     const look = PART_LOOK;

@@ -4,7 +4,7 @@ import type { AdvanceFn } from "@mark1russell7/layout-contract/text";
 import { isDrawn, isProposal, partStates, soundDocument, tagOf, threadKinds, timeOf, type PartState, type ThreadBox, type ThreadDocument, type ThreadKind, type ThreadLegend } from "./document.ts";
 import { entryRow, placeThread, sizedBoxes, type PlaceOptions } from "./place.ts";
 import { routeThread } from "./route.ts";
-import { isTopicLook, MESSAGE_LOOK, PART_LOOK, textWidth, threadSizes, type LeafSize } from "./sizes.ts";
+import { isTopicLook, MESSAGE_LOOK, PART_LOOK, widestLine, threadSizes, type LeafSize } from "./sizes.ts";
 
 /** The options of `threadPicture`. */
 export interface ThreadPictureOptions extends PlaceOptions {
@@ -102,7 +102,7 @@ function threadLabels(document: ThreadDocument, kinds: ReadonlyMap<string, Threa
     if (kind === "entry") out.push(...headerLabels(box, place, options), textLabel(box.id, entryRow(place, size), size));
     if (kind !== "topic") continue;
     const { look, text } = size;
-    out.push({ id: labelId("text", box.id), box: box.id, x: place.x + look.padX, y: place.y + look.padY, w: Math.max(1, textWidth(text)), h: Math.max(1, text.lineCount) * look.lineHeight, lines: text.lines, lineHeight: look.lineHeight, font: look.font, data: { role: "text" } });
+    out.push({ id: labelId("text", box.id), box: box.id, x: place.x + look.padX, y: place.y + look.padY, w: Math.max(1, widestLine(text)), h: Math.max(1, text.lineCount) * look.lineHeight, lines: text.lines, lineHeight: look.lineHeight, font: look.font, data: { role: "text" } });
     if (size.count === 0 || !isTopicLook(look)) continue;
     out.push({ id: labelId("count", box.id), box: box.id, x: place.x + place.w - look.padX - size.countWidth, y: place.y + (place.h - look.lineHeight) / 2, w: Math.max(1, size.countWidth), h: look.lineHeight, lines: [String(size.count)], lineHeight: look.lineHeight, font: look.countFont, align: "right", data: { role: "count" } });
   }
