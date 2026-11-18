@@ -1,8 +1,9 @@
 import type { Rect } from "@mark1russell7/layout-contract";
+import { MAX_THETA } from "ireko/strategies/force";
 import { describe, expect, it } from "vitest";
 import { fakeAdvance } from "./advance.test-util.ts";
 import type { ThreadDocument } from "./document.ts";
-import { ASPECT_RANGE, entryRow, firstScale, mostLayouts, placeThread, sizedBoxes } from "./place.ts";
+import { ASPECT_RANGE, entryRow, EXACT_MOST, FAR_THETA, farTheta, firstScale, mostLayouts, placeThread, sizedBoxes } from "./place.ts";
 import { sampleThread } from "./sample.ts";
 import { MESSAGE_LOOK, threadSizes } from "./sizes.ts";
 
@@ -128,9 +129,27 @@ describe("the search of placeThread", () => {
     expect([159, 300, 5000].map(mostLayouts)).toEqual([1, 1, 1]);
   });
 
+  const many: ThreadDocument = { id: "many", boxes: Array.from({ length: 170 }, (_, at) => ({ id: `entry-${String(at).padStart(3, "0")}`, data: { kinds: ["entry", "ask"], text: `The entry ${String(at)} of a test` } })), edges: [] };
+  const manySizes = threadSizes(many, fakeAdvance);
+
+  it("reads each pair of boxes in a small picture, and groups the far boxes in a picture of many cards", () => {
+    expect([0, 1, 100, EXACT_MOST].map(farTheta)).toEqual([0, 0, 0, 0]);
+    expect([EXACT_MOST + 1, 800, 5000].map(farTheta)).toEqual([FAR_THETA, FAR_THETA, FAR_THETA]);
+    expect(FAR_THETA).toBeGreaterThan(0);
+    expect(FAR_THETA).toBeLessThanOrEqual(MAX_THETA);
+  });
+
+  it("gives a picture of many cards other places than a test of each pair, and the option force replaces theta", () => {
+    const far = placeThread(many, manySizes);
+    const exact = placeThread(many, manySizes, { force: { theta: 0 } });
+    expect(far.size).toBe(170);
+    expect([...far]).not.toEqual([...exact]);
+    expect([...placeThread(many, manySizes, { force: { theta: FAR_THETA } })]).toEqual([...far]);
+    // The sample is a small picture, so the option changes nothing there.
+    expect([...placeThread(sample, sizes, { force: { theta: 0 } })]).toEqual([...places]);
+  });
+
   it("gives a picture of many cards a wider shape for a wide area, with no card on a different one", () => {
-    const many: ThreadDocument = { id: "many", boxes: Array.from({ length: 170 }, (_, at) => ({ id: `entry-${String(at).padStart(3, "0")}`, data: { kinds: ["entry", "ask"], text: `The entry ${String(at)} of a test` } })), edges: [] };
-    const manySizes = threadSizes(many, fakeAdvance);
     const shapeOf = (result: ReadonlyMap<string, Rect>): number => {
       const rects = [...result.values()];
       const width = Math.max(...rects.map((rect) => rect.x + rect.w)) - Math.min(...rects.map((rect) => rect.x));

@@ -51,6 +51,15 @@ const NEAR = 1.1;
  */
 const SEARCH_WORK = MOST_ROUNDS * 100 ** 2;
 
+/**
+ * The option `theta` of the strategy `force` for a picture of many cards. A far group of boxes then pushes a box as one box.
+ * Thus the time of the forces grows much less than the square of the number of the cards and the topics.
+ */
+export const FAR_THETA = 0.9;
+
+/** The most cards and topics of a picture in which the forces read each pair of boxes. Such a picture keeps its exact places. */
+export const EXACT_MOST = 150;
+
 /** The id of the box that contains each box with no parent. A document cannot contain it. */
 const ROOT = "\u0000root";
 
@@ -91,6 +100,14 @@ export function mostLayouts(count: number): number {
   return Math.min(MOST_ROUNDS, Math.max(1, Math.floor(SEARCH_WORK / (count * count))));
 }
 
+/**
+ * This function gives the option `theta` of the strategy `force` from the count of the cards and the topics.
+ * It is 0 for `EXACT_MOST` boxes or fewer, and `FAR_THETA` for more.
+ */
+export function farTheta(count: number): number {
+  return count > EXACT_MOST ? FAR_THETA : 0;
+}
+
 /** This function gives the boxes of a document with the size of each measured box. A box with no measure gets the size 0. */
 export function sizedBoxes(document: ThreadDocument, sizes: ReadonlyMap<string, LeafSize>): LayoutBox[] {
   return document.boxes.map((box): LayoutBox => {
@@ -113,6 +130,7 @@ export function sizedBoxes(document: ThreadDocument, sizes: ReadonlyMap<string, 
  * Thus the scale changes the shape of the picture, and no two boxes overlap.
  * `firstScale` gives the scale of the first layout. A short search then moves the scale to the shape of the area.
  * `mostLayouts` gives the most layouts of the search: a picture of many cards gets only the first layout.
+ * `farTheta` gives the option `theta` of the forces: in a picture of many cards, a far group of boxes pushes as one box.
  *
  * The same document and the same options give the same places.
  */
@@ -141,7 +159,7 @@ export function placeThread(document: ThreadDocument, sizes: ReadonlyMap<string,
     .map((edge): EdgeSpec => ({ id: edge.id, source: edge.source, target: edge.target }));
   const arrange = (scale: number): Arrangement => {
     const children = tree.map((node): NodeSpec => ({ id: node.box.id, size: { width: cards.get(node.box.id)?.w ?? 0, height: (cards.get(node.box.id)?.h ?? 0) * scale } }));
-    const root: NodeSpec = { id: ROOT, mode: "nested", layout: { type: "force", ...THREAD_FORCE, header: 0, ...options.force }, children };
+    const root: NodeSpec = { id: ROOT, mode: "nested", layout: { type: "force", ...THREAD_FORCE, theta: farTheta(tree.length), header: 0, ...options.force }, children };
     const corners = new Map<string, { x: number; y: number }>();
     const bounds = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
     for (const node of engine.layout({ root, edges: springs }, SETTINGS).nodes) {
