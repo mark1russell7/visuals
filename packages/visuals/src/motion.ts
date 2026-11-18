@@ -17,10 +17,7 @@ export interface MoveStep {
   readonly done: boolean;
 }
 
-/**
- * The time of the move of a camera between two views, in milliseconds.
- * The probe of the site waits for a longer time (`MOVE_WAIT` of `site.probe.ts`) before it reads a picture after a move.
- */
+/** The time of the move of a camera between two views, in milliseconds. */
 export const MOVE_TIME = 380;
 
 /** This function tells if the person asks for less motion. A program with no browser gets false. */
