@@ -9,7 +9,7 @@ import { FOCUS_OPACITY, focusOf } from "./focus.ts";
 import { LIGHT_PICTURE_THEME, plainLooks, SMALLEST_TEXT_LINE, type PictureLooks, type PictureTheme } from "./looks.ts";
 import { BAR_HEIGHT, HALO_WIDTH, paintPicture } from "./paint.ts";
 import { indexPicture } from "./records.ts";
-import { CARD, FAR, fakeContext, linesOf, LINK, PICTURE, ROW_1 } from "./sample.ts";
+import { ASIDE, CARD, CARD_LABEL, CURVE, FAR, fakeContext, linesOf, LINK, NOTE, PICTURE, ROW_1, ROW_LABEL } from "./sample.ts";
 import type { PickAt, PictureFrame } from "./stage.ts";
 
 const theme = LIGHT_PICTURE_THEME;
@@ -362,6 +362,51 @@ describe("setPicture", () => {
     expect(alphas(first.calls)).toEqual(ROW_FOCUS);
     // A different picture ends a change that continues.
     expect(draw(content).again).toBe(true);
+    content.setPicture(PICTURE);
+    const second = draw(content);
+    expect(second.again).toBe(false);
+    expect(alphas(second.calls)).toEqual(CLEAR);
+  });
+
+  /** The sample picture with no straight route and no name of that route. */
+  const less: LayoutPicture = { ...PICTURE, routes: [CURVE, ASIDE], labels: [CARD_LABEL, ROW_LABEL, NOTE] };
+  /** The share of a record after one picture of a change to a goal: from clear, and from no color. */
+  const step = (goal: number, from = 1): number => approach(from, goal, SECONDS, FOCUS_FADE);
+
+  it("changes the colors in a short time with the option `fade`, and a new record starts with no color", () => {
+    const content = createPictureContent(less, { looks: plain });
+    draw(content);
+    content.setPicture(PICTURE, { fade: true });
+    expect(content.has("link")).toBe(true);
+    const first = draw(content, {}, { "row-1": 2 });
+    expect(first.again).toBe(true);
+    // The straight route and its name are new. Each other record starts from its color in the picture before.
+    expect(alphas(first.calls)).toEqual([1, 1, step(out), step(out), step(1, 0), 1, 1, 1, step(beside), 1, step(out), step(1, 0), step(out)]);
+    expect(step(1, 0)).toBeGreaterThan(0);
+    expect(step(1, 0)).toBeLessThan(1);
+    const end = draw(content, { settle: true }, { "row-1": 2 });
+    expect(end.again).toBe(false);
+    expect(alphas(end.calls)).toEqual(ROW_FOCUS);
+  });
+
+  it("finds the focus again with the option `fade` when the selection stays", () => {
+    const content = createPictureContent(less, { looks: plain });
+    draw(content, {}, { "row-1": 2 });
+    content.setPicture(PICTURE, { fade: true });
+    const next = draw(content, {}, { "row-1": 2 });
+    expect(next.again).toBe(true);
+    // The topic is the 10th shape. The new route brings it into the focus, so its color goes from the share of a record out of the focus.
+    expect(alphas(next.calls)[9]).toBe(step(1, out));
+    expect(alphas(draw(content, { settle: true }, { "row-1": 2 }).calls)).toEqual(ROW_FOCUS);
+  });
+
+  it("has no change in time with the option `fade` before the first drawing, and after a picture with no `fade`", () => {
+    const content = createPictureContent(less, { looks: plain });
+    content.setPicture(PICTURE, { fade: true });
+    const first = draw(content, {}, { "row-1": 2 });
+    expect(first.again).toBe(false);
+    expect(alphas(first.calls)).toEqual(ROW_FOCUS);
+    content.setPicture(less, { fade: true });
     content.setPicture(PICTURE);
     const second = draw(content);
     expect(second.again).toBe(false);

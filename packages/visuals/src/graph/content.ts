@@ -6,7 +6,7 @@ import { boxFocus, FOCUS_OPACITY, focusOf, routeFocus, type PictureFocus } from 
 import { pickRecord } from "./hit.ts";
 import type { PictureLooks } from "./looks.ts";
 import { boxState, FREE_LABELS, paintPicture, recordKey, routeState, type PaintState } from "./paint.ts";
-import { indexPicture, type PictureRecord } from "./records.ts";
+import { indexPicture, type PictureIndex, type PictureRecord } from "./records.ts";
 import type { PictureContent } from "./stage.ts";
 
 /** The time in which the color of a record goes most of the way to its goal after a change of the focus, in seconds. */
@@ -33,10 +33,20 @@ export interface PictureContentOptions<T> {
   readonly focus?: "selection" | "none" | undefined;
 }
 
+/** The options of `setPicture` of a picture content. */
+export interface SetPictureOptions {
+  /**
+   * With `true`, the colors go from the picture before to this picture in a short time, as after a change of the focus.
+   * A record that the picture before did not have starts with no color. Use it for a picture with more routes between the same boxes.
+   * The default is `false`: the first drawing of the picture has its colors at their goals.
+   */
+  readonly fade?: boolean | undefined;
+}
+
 /** The content of a flat stage that shows a picture of `@mark1russell7/layout-contract`. The value of a pick is the record. */
 export interface LayoutPictureContent<T> extends PictureContent<PictureRecord, T> {
   /** This function shows a different picture, for example after a new layout. Start `refresh` of the stage after it. */
-  setPicture(picture: LayoutPicture): void;
+  setPicture(picture: LayoutPicture, options?: SetPictureOptions): void;
   /**
    * This function sets the records of the focus by their names. An empty list gives no focus.
    * `undefined` gives the focus of the options again. Start `refresh` of the stage after it.
@@ -69,6 +79,8 @@ export function createPictureContent<T>(picture: LayoutPicture, options: Picture
   let focus: PictureFocus | undefined;
   /** This value is true until the first picture of a picture. The first focus has no change with time. */
   let fresh = true;
+  /** The records of the picture before a `setPicture` with `fade`, until the next drawing. */
+  let before: PictureIndex | undefined;
   /** The color share of each record whose share changes, by the key of the record. */
   const fades = new Map<string, { value: number; goal: number }>();
   /** The theme and the state of the last picture. A person cannot point at a record that the last picture did not show. */
@@ -106,8 +118,10 @@ export function createPictureContent<T>(picture: LayoutPicture, options: Picture
       if (value === goal) fades.delete(key);
       else fades.set(key, { value, goal });
     };
-    for (const box of index.picture.boxes) add(recordKey("box", box.id), FOCUS_OPACITY[boxFocus(focus, box)], FOCUS_OPACITY[boxFocus(next, box)]);
-    for (const route of index.picture.routes) add(recordKey("route", route.id), FOCUS_OPACITY[routeFocus(focus, route)], FOCUS_OPACITY[routeFocus(next, route)]);
+    // A record that the picture before did not have starts with no color.
+    const was = before;
+    for (const box of index.picture.boxes) add(recordKey("box", box.id), was !== undefined && !was.boxes.has(box.id) ? 0 : FOCUS_OPACITY[boxFocus(focus, box)], FOCUS_OPACITY[boxFocus(next, box)]);
+    for (const route of index.picture.routes) add(recordKey("route", route.id), was !== undefined && !was.routes.has(route.id) ? 0 : FOCUS_OPACITY[routeFocus(focus, route)], FOCUS_OPACITY[routeFocus(next, route)]);
     if (index.freeLabels.length > 0) add(FREE_LABELS, FOCUS_OPACITY[focus === undefined ? "all" : "out"], FOCUS_OPACITY[next === undefined ? "all" : "out"]);
   };
 
@@ -131,7 +145,7 @@ export function createPictureContent<T>(picture: LayoutPicture, options: Picture
     draw(context, frame, theme, highlight) {
       const { view } = frame;
       const from = seedsOf(highlight);
-      if (fresh || from.length !== seeds.length || from.some((id, i) => id !== seeds[i])) {
+      if (fresh || before !== undefined || from.length !== seeds.length || from.some((id, i) => id !== seeds[i])) {
         // A route that the looks do not show brings no box into the focus. The looks get the state of a picture with no focus.
         const plain: PaintState = { zoom: view.k, highlight };
         const shown = (route: PictureRoute): boolean => looks.route(route, routeState(route, plain), theme) !== undefined;
@@ -141,6 +155,7 @@ export function createPictureContent<T>(picture: LayoutPicture, options: Picture
         seeds = from;
         focus = next;
         fresh = false;
+        before = undefined;
       }
       if (frame.settle) fades.clear();
       for (const [key, fade] of fades) {
@@ -159,12 +174,15 @@ export function createPictureContent<T>(picture: LayoutPicture, options: Picture
       drawShapes(context, paintPicture(index, looks, theme, state), view);
       return fades.size > 0;
     },
-    setPicture(next) {
+    setPicture(next, more) {
+      // A picture with a fade keeps the records of the last picture that the content drew. A picture with no drawing has nothing to change from.
+      before = more?.fade === true && !fresh ? (before ?? index) : undefined;
       index = indexPicture(next);
       bounds = pictureBounds(next) ?? NO_BOUNDS;
+      last = undefined;
+      if (before !== undefined) return;
       fades.clear();
       fresh = true;
-      last = undefined;
     },
     setFocus(records) {
       asked = records === undefined ? undefined : [...records];

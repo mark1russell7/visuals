@@ -7,7 +7,7 @@ import { cardOf, relationNames, type CardChoice, type CardModel, type CardName, 
 import { choiceOf, edgeKind, edgeState, isChosen, isProposal, labelOf, waitsOf, type ThreadBox, type ThreadDocument, type ThreadLegend } from "./document.ts";
 import { TEXT_ZOOM, threadLooks, type ThreadLookState, type ThreadTheme } from "./looks.ts";
 import { phaseTeller, type ThreadPhaseEvent } from "./phases.ts";
-import { routedProposals, threadPicture, waitsText, withProposals, type ThreadPicture, type ThreadPictureOptions } from "./picture.ts";
+import { proposalRouter, routedProposals, threadPicture, waitsText, withProposals, type ProposalRouter, type ThreadPicture, type ThreadPictureOptions, type ThreadRouteOptions } from "./picture.ts";
 import style from "./thread.css?inline";
 
 /** A person used a button of the card of a box: an action of `data.actions`. */
@@ -127,6 +127,12 @@ const MOST_ZOOM = 1.25;
 
 /** The factor of one step of a zoom button. */
 const ZOOM_STEP = 1.4;
+
+/** The longest wait for a free moment of the browser before the view prepares the router of the proposals, in milliseconds. */
+const IDLE_MOST = 2000;
+
+/** The wait before that work in a browser that does not tell its free moments, in milliseconds. */
+const IDLE_WAIT = 200;
 
 /** The aim that keeps the view of the camera. The stage has it when no box is selected, so the aim of the last selection ends. */
 const aimStay: PictureAim = (frame) => frame.view;
@@ -339,16 +345,66 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
 
   const content = createPictureContent(thread.picture, { looks: threadLooks(() => ({ thread, proposals, part: chooser(), hint })) });
 
+  /** The options of the routes of the proposals that the view adds after the start. */
+  const routeOptions: ThreadRouteOptions = { proposalRouter: options.proposalRouter, curve: options.curve };
+  /** The router of the proposals of a large picture. It keeps the ways around the boxes between two selections. */
+  let router: ProposalRouter | undefined;
+  /** The places of the picture for which `planRouter` made its plan. */
+  let plannedFor: ThreadPicture["places"] | undefined;
+  /** This function stops the wait of `planRouter`, while that wait continues. */
+  let stopPlan: (() => void) | undefined;
+
+  /** This function gives the router of the proposals of the picture. A router of a different picture goes. */
+  const routerOf = (): ProposalRouter => {
+    if (router?.fits(thread) === false) {
+      router.dispose();
+      router = undefined;
+    }
+    return (router ??= proposalRouter(thread, routeOptions));
+  };
+
   /**
    * This function gives the picture the routes of the proposals that the looks show. It tells if the picture changed.
    * A picture of many proposals has a route only for the proposals that a person looks at.
    */
   const routeProposals = (): boolean => {
-    const next = withProposals(thread, routedProposals(thread.document, shownParts(), proposals), { proposalRouter: options.proposalRouter, curve: options.curve });
+    // A picture with a route for each proposal needs no router.
+    const next = withProposals(thread, routedProposals(thread.document, shownParts(), proposals), routeOptions, thread.proposals === "each" ? undefined : routerOf());
     if (next === thread) return false;
     thread = next;
-    content.setPicture(thread.picture);
+    // The boxes are the same, so the colors change in a short time, and each new line comes into the picture.
+    content.setPicture(thread.picture, { fade: true });
     return true;
+  };
+
+  /**
+   * This function prepares the router of the proposals of a large picture when the browser has no other work.
+   * Thus the first selection of a part does not wait for the ways around the boxes.
+   */
+  const planRouter = (): void => {
+    if (plannedFor === thread.places || thread.proposals === "each") return;
+    plannedFor = thread.places;
+    stopPlan?.();
+    const work = (): void => {
+      stopPlan = undefined;
+      if (thread.proposals === "each") return;
+      try {
+        routerOf().prepare();
+      } catch {
+        // The selection of a part makes the router again, and the error comes there, as with no router.
+      }
+    };
+    if (typeof requestIdleCallback === "function") {
+      const id = requestIdleCallback(work, { timeout: IDLE_MOST });
+      stopPlan = () => {
+        cancelIdleCallback(id);
+      };
+    } else {
+      const id = setTimeout(work, IDLE_WAIT);
+      stopPlan = () => {
+        clearTimeout(id);
+      };
+    }
   };
 
   /** The content that the stage draws: `content`, with the time of the first drawing of each picture. */
@@ -358,7 +414,12 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     },
     has: (record) => content.has(record),
     pick: (at) => content.pick(at),
-    draw: (context, frame, theme, highlight) => phases.paint(() => content.draw(context, frame, theme, highlight)),
+    draw: (context, frame, theme, highlight) => {
+      const again = phases.paint(() => content.draw(context, frame, theme, highlight));
+      // The plan comes after the drawing, so the first picture does not wait for it.
+      planRouter();
+      return again;
+    },
     dispose: () => {
       content.dispose?.();
     },
@@ -751,6 +812,11 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   const remake = (document: ThreadDocument, fresh = false): void => {
     const before = selected === undefined ? undefined : JSON.stringify(boundsOf([selected]));
     thread = pictureFor(document, shownParts(), fresh ? undefined : thread);
+    // A router of other places or other proposals gives wrong routes, so it goes. A panel that pushes no box keeps it.
+    if (router?.fits(thread) === false) {
+      router.dispose();
+      router = undefined;
+    }
     boxes = new Map(thread.document.boxes.map((box) => [box.id, box]));
     content.setPicture(thread.picture);
     syncSlots();
@@ -772,7 +838,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   proposalsInput.addEventListener("change", () => {
     proposals = proposalsInput.checked;
     // The focus of the picture depends on the lines that the looks show, so the content finds it again.
-    if (!routeProposals()) content.setPicture(thread.picture);
+    if (!routeProposals()) content.setPicture(thread.picture, { fade: true });
     stage?.refresh();
   });
   stageBox.addEventListener("pointermove", (event) => {
@@ -844,6 +910,8 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     dispose() {
       observer.disconnect();
       slotObserver.disconnect();
+      stopPlan?.();
+      router?.dispose();
       stage?.dispose();
       root.remove();
     },

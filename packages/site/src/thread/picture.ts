@@ -4,7 +4,7 @@ import type { AdvanceFn } from "@mark1russell7/layout-contract/text";
 import { choiceOf, edgeKind, isDrawn, isProposal, partStates, soundDocument, tagOf, threadKinds, timeOf, waitsOf, type PartState, type ThreadBox, type ThreadDocument, type ThreadKind, type ThreadLegend } from "./document.ts";
 import { placePanels, splitPanels, type PanelSide } from "./panels.ts";
 import { entryRow, placeThread, sizedBoxes, type PlaceOptions } from "./place.ts";
-import { routeThread } from "./route.ts";
+import { routeThread, threadRouter, type ThreadRouter } from "./route.ts";
 import { isTopicLook, MESSAGE_LOOK, PART_LOOK, widestLine, threadSizes, type LeafSize } from "./sizes.ts";
 
 /** The proposals of a thread picture that have a route: `each` proposal, or the proposals of a list of parts and entries. */
@@ -212,11 +212,7 @@ function keepsLines(keep: ThreadPicture, plain: ThreadDocument, places: Readonly
   if (was.router !== made.router || was.proposalRouter !== made.proposalRouter || was.curve !== made.curve || was.locale !== made.locale || was.timeZone !== made.timeZone) return false;
   if (was.legend !== made.legend && JSON.stringify(was.legend) !== JSON.stringify(made.legend)) return false;
   if (!sameRecords(keep.plain.boxes, plain.boxes) || !sameRecords(keep.plain.edges ?? [], plain.edges ?? [])) return false;
-  return plain.boxes.every((box) => {
-    const now = places.get(box.id);
-    const then = keep.places.get(box.id);
-    return now === then || (now !== undefined && then !== undefined && now.x === then.x && now.y === then.y && now.w === then.w && now.h === then.h);
-  });
+  return plain.boxes.every((box) => sameRect(places.get(box.id), keep.places.get(box.id)));
 }
 
 /** This function gives the boxes of a document with the place and the size of each box that has a place. */
@@ -248,8 +244,73 @@ function panelRoutes(id: string, boxes: readonly LayoutBox[], edges: readonly La
 function proposalRoutes(document: ThreadDocument, boxes: readonly LayoutBox[], proposals: Proposals, options: ThreadRouteOptions): PictureRouteSource[] {
   const of = proposals === "each" ? undefined : new Set(proposals);
   if (of?.size === 0) return [];
-  const edges = (document.edges ?? []).filter((edge) => isProposal(edge) && (of === undefined || of.has(choiceOf(edge))));
+  const edges = proposalsOf(document).filter((edge) => of === undefined || of.has(choiceOf(edge)));
   return routeThread(document.id, boxes, edges, { router: options.proposalRouter ?? "corners", curve: options.curve });
+}
+
+/** The routes of the proposals of one thread picture, for a view that routes the proposals of a few parts at a time. */
+export interface ProposalRouter {
+  /** This function tells if the router is of a picture: the same boxes at the same places, and the same proposals. */
+  fits(thread: ThreadPicture): boolean;
+  /** This function makes the work that the router keeps. The first `routes` makes it too. */
+  prepare(): void;
+  /** This function gives the routes of the proposals that `proposals` names. */
+  routes(proposals: Proposals): PictureRouteSource[];
+  /** This function releases the work that the router keeps. */
+  dispose(): void;
+}
+
+/** This function gives the proposals of a document, in the order of its edges. */
+function proposalsOf(document: ThreadDocument): LayoutEdge[] {
+  return (document.edges ?? []).filter(isProposal);
+}
+
+/** This function tells if two rectangles are the same rectangle. */
+function sameRect(a: Rect | undefined, b: Rect | undefined): boolean {
+  return a === b || (a !== undefined && b !== undefined && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h);
+}
+
+/** This function tells if two pictures have the same boxes at the same places and the same proposals. The routes of the proposals read only these. */
+function sameGround(a: ThreadPicture, b: ThreadPicture): boolean {
+  if (!sameRecords(a.plain.boxes, b.plain.boxes) || !sameRecords(proposalsOf(a.plain), proposalsOf(b.plain))) return false;
+  return a.plain.boxes.every((box) => sameRect(a.places.get(box.id), b.places.get(box.id)));
+}
+
+/**
+ * This function makes the router of the proposals of a thread picture. Give it the options that `withProposals` gets.
+ *
+ * - `routes` gives the routes that `withProposals` makes with no router.
+ * - The router keeps the work that reads only the boxes (`threadRouter`). Thus the routes of one part take a short time in a large picture.
+ * - The work starts at `prepare` or at the first `routes`. A view can prepare it when the browser has no other work.
+ *
+ * A picture with a different place of a box or a different proposal needs a new router: `fits` tells it.
+ */
+export function proposalRouter(thread: ThreadPicture, options: ThreadRouteOptions = {}): ProposalRouter {
+  const all = proposalsOf(thread.plain);
+  /** The last picture that the router fits. A picture with its places and its document needs no comparison. */
+  let seen = thread;
+  let router: ThreadRouter | undefined;
+  const made = (): ThreadRouter => (router ??= threadRouter(thread.plain.id, placedBoxes(thread.plain, thread.sizes, thread.places), all, { router: options.proposalRouter ?? "corners", curve: options.curve }));
+  return {
+    fits(next) {
+      if (next.places === seen.places && next.plain === seen.plain) return true;
+      if (!sameGround(seen, next)) return false;
+      seen = next;
+      return true;
+    },
+    prepare() {
+      made();
+    },
+    routes(proposals) {
+      const of = proposals === "each" ? undefined : new Set(proposals);
+      if (of?.size === 0) return [];
+      return made().route(of === undefined ? all : all.filter((edge) => of.has(choiceOf(edge))));
+    },
+    dispose() {
+      router?.dispose();
+      router = undefined;
+    },
+  };
 }
 
 /** This function tells if the routes of the proposals `have` contain the routes of the proposals `want`. */
@@ -317,12 +378,14 @@ export function threadPicture(input: ThreadDocument, advance: AdvanceFn, options
 /**
  * This function gives a thread picture with the routes of other proposals. Each box, each label and each other route stays.
  * It gives the same picture when that picture has the routes of `proposals`. A picture with each proposal has them always.
+ * With a `router` that fits the picture, the routes come from that router. The result is the same, in less time.
  */
-export function withProposals(thread: ThreadPicture, proposals: Proposals, options: ThreadRouteOptions = {}): ThreadPicture {
+export function withProposals(thread: ThreadPicture, proposals: Proposals, options: ThreadRouteOptions = {}, router?: ProposalRouter): ThreadPicture {
   if (hasProposals(thread.proposals, proposals)) return thread;
   const { plain, picture } = thread;
   const boxes = placedBoxes(plain, thread.sizes, thread.places);
+  const routes = router?.fits(thread) === true ? router.routes(proposals) : proposalRoutes(plain, boxes, proposals, options);
   // `pictureOf` gives each route the ends and the data of its edge. A picture of the boxes and these routes is good, so its routes go into the picture.
-  const behind = pictureOf({ id: plain.id, boxes, edges: plain.edges ?? [] }, { routes: proposalRoutes(plain, boxes, proposals, options) }).routes;
+  const behind = pictureOf({ id: plain.id, boxes, edges: plain.edges ?? [] }, { routes }).routes;
   return { ...thread, proposals, picture: { ...picture, routes: [...behind, ...picture.routes.filter((route) => !isProposal(route) || isPanelLine(route, thread.kinds))] } };
 }

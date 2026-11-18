@@ -4,7 +4,8 @@ import { fakeAdvance } from "./advance.test-util.ts";
 import { chooseTopic } from "./card.ts";
 import { panelBox, panelEdge, panelId, withPanels } from "./panel.test-util.ts";
 import { PANEL_GAP } from "./panels.ts";
-import { HEADER_GAP, isPanelLine, labelId, ROUTED_MOST, routedProposals, TAG_FONT, threadPicture, timeText, titleOf, waitsText, withProposals, type ThreadPicture } from "./picture.ts";
+import { choiceOf, isProposal } from "./document.ts";
+import { HEADER_GAP, isPanelLine, labelId, proposalRouter, ROUTED_MOST, routedProposals, TAG_FONT, threadPicture, timeText, titleOf, waitsText, withProposals, type ThreadPicture } from "./picture.ts";
 import { SAMPLE_LEGEND, sampleThread } from "./sample.ts";
 import { PANEL_LOOK } from "./sizes.ts";
 
@@ -192,6 +193,41 @@ describe("the proposals of a picture", () => {
     const all = withProposals(none, "each");
     expect(all.proposals).toBe("each");
     expect(all.picture).toEqual(thread.picture);
+  });
+
+  it("gives the same routes with a router of the proposals, for each part and for each proposal", () => {
+    const router = proposalRouter(none);
+    const parts = [...new Set((sample.edges ?? []).filter(isProposal).map(choiceOf))];
+    expect(parts.length).toBeGreaterThan(2);
+    for (const part of parts) {
+      const next = withProposals(none, [part], {}, router);
+      expect(next.picture).toEqual(withProposals(none, [part]).picture);
+      expect(proposed(next).length).toBeGreaterThan(0);
+    }
+    expect(withProposals(none, "each", {}, router).picture).toEqual(thread.picture);
+    expect(router.routes([])).toEqual([]);
+    // The work comes again after a release.
+    router.dispose();
+    router.prepare();
+    expect(withProposals(none, ["m12#1"], {}, router).picture).toEqual(one.picture);
+    router.dispose();
+  });
+
+  it("tells if a router of the proposals fits a picture, and does not use a router that does not fit", () => {
+    const router = proposalRouter(none);
+    expect(router.fits(none)).toBe(true);
+    // A picture with more routes, and a second picture of the same document, have the same boxes at the same places.
+    expect(router.fits(withProposals(none, ["m12#1"]))).toBe(true);
+    expect(router.fits(threadPicture(sample, fakeAdvance, { ...options, proposals: [] }))).toBe(true);
+    // A box at a different place does not fit.
+    const moved: ThreadPicture = { ...none, places: new Map([...none.places].map(([id, place]) => [id, { ...place, x: place.x + 40 }])) };
+    expect(router.fits(moved)).toBe(false);
+    // A document with a proposal less does not fit.
+    const fewer = threadPicture({ ...sample, edges: (sample.edges ?? []).filter((edge) => edge.id !== "touches:m11#0:shed") }, fakeAdvance, { ...options, proposals: [] });
+    expect(router.fits(fewer)).toBe(false);
+    expect(proposed(withProposals(fewer, ["m11#0"], {}, router))).toEqual(proposed(withProposals(fewer, ["m11#0"])));
+    expect(withProposals(fewer, ["m12#1"], {}, router).picture).toEqual(withProposals(fewer, ["m12#1"]).picture);
+    router.dispose();
   });
 
   it("routes each proposal of a document with few proposals, and only the shown proposals of a document with many", () => {
