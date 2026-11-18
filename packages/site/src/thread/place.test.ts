@@ -1,7 +1,8 @@
 import type { Rect } from "@mark1russell7/layout-contract";
 import { describe, expect, it } from "vitest";
 import { fakeAdvance } from "./advance.test-util.ts";
-import { ASPECT_RANGE, entryRow, placeThread, sizedBoxes } from "./place.ts";
+import type { ThreadDocument } from "./document.ts";
+import { ASPECT_RANGE, entryRow, firstScale, mostLayouts, placeThread, sizedBoxes } from "./place.ts";
 import { sampleThread } from "./sample.ts";
 import { MESSAGE_LOOK, threadSizes } from "./sizes.ts";
 
@@ -107,6 +108,41 @@ describe("placeThread with a shape", () => {
     expect([...placeThread(sample, sizes, { aspect: 2 })]).toEqual([...wide]);
     expect([...placeThread(sample, sizes, { aspect: 100 })]).toEqual([...placeThread(sample, sizes, { aspect: ASPECT_RANGE.most })]);
     expect([...placeThread(sample, sizes, { aspect: Number.NaN })]).toEqual([...places]);
+  });
+});
+
+describe("the search of placeThread", () => {
+  it("starts at the scale 1 for a tall area or no shape, and at a larger scale for a wide area", () => {
+    expect(firstScale(undefined)).toBe(1);
+    expect(firstScale(Number.NaN)).toBe(1);
+    expect(firstScale(0.4)).toBe(1);
+    expect(firstScale(0.6)).toBe(1);
+    expect(firstScale(1.2)).toBeCloseTo(2, 9);
+    expect(firstScale(1.9)).toBe(3);
+    expect(firstScale(100)).toBe(3);
+  });
+
+  it("gives each layout to a small picture and one layout to a picture of many cards", () => {
+    expect([0, 1, 71, 100].map(mostLayouts)).toEqual([5, 5, 5, 5]);
+    expect([101, 112, 130, 158].map(mostLayouts)).toEqual([4, 3, 2, 2]);
+    expect([159, 300, 5000].map(mostLayouts)).toEqual([1, 1, 1]);
+  });
+
+  it("gives a picture of many cards a wider shape for a wide area, with no card on a different one", () => {
+    const many: ThreadDocument = { id: "many", boxes: Array.from({ length: 170 }, (_, at) => ({ id: `entry-${String(at).padStart(3, "0")}`, data: { kinds: ["entry", "ask"], text: `The entry ${String(at)} of a test` } })), edges: [] };
+    const manySizes = threadSizes(many, fakeAdvance);
+    const shapeOf = (result: ReadonlyMap<string, Rect>): number => {
+      const rects = [...result.values()];
+      const width = Math.max(...rects.map((rect) => rect.x + rect.w)) - Math.min(...rects.map((rect) => rect.x));
+      const height = Math.max(...rects.map((rect) => rect.y + rect.h)) - Math.min(...rects.map((rect) => rect.y));
+      return width / height;
+    };
+    const free = placeThread(many, manySizes);
+    const wide = placeThread(many, manySizes, { aspect: 1.9 });
+    expect(wide.size).toBe(170);
+    expect(shapeOf(wide)).toBeGreaterThan(shapeOf(free));
+    const rects = [...wide.values()];
+    expect(rects.flatMap((a, i) => rects.slice(i + 1).filter((b) => overlap(a, b))).length).toBe(0);
   });
 });
 
