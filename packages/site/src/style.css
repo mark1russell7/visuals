@@ -27,6 +27,8 @@
   --room-floor: #e6e3da;
   --room-solid: #d6d2c6;
   --room-edge: #8d897c;
+  --topic-line: #a9a9a1;
+  --topic-open: #a55a00;
   --level-unknown: #55677a;
   --level-ok: #1f5fa8;
   --level-near: #c9740a;
@@ -63,6 +65,8 @@
     --room-floor: #242422;
     --room-solid: #3a3a36;
     --room-edge: #6e6e68;
+    --topic-line: #5c5c56;
+    --topic-open: #f0b45a;
     --level-unknown: #a9bfd4;
     --level-ok: #6fb3f2;
     --level-near: #f5a962;
@@ -97,6 +101,8 @@
   --room-floor: #242422;
   --room-solid: #3a3a36;
   --room-edge: #6e6e68;
+  --topic-line: #5c5c56;
+  --topic-open: #f0b45a;
   --level-unknown: #a9bfd4;
   --level-ok: #6fb3f2;
   --level-near: #f5a962;
@@ -461,6 +467,47 @@ button {
   position: relative;
   width: 100%;
   aspect-ratio: 4 / 3;
+}
+
+/* The conversation: the third plate. Its picture is as wide as the page, so the card of a box has a column in the picture. */
+.plate-thread {
+  margin-top: 4rem;
+}
+
+.plate-thread h2 {
+  margin-top: 0;
+}
+
+@media (min-width: 56rem) {
+  .plate-thread {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    grid-template-areas:
+      "title"
+      "chart"
+      "panel";
+  }
+
+  .plate-thread .title {
+    padding-top: 0;
+  }
+
+  .plate-thread .chart {
+    position: static;
+  }
+}
+
+/* The box of the picture of the conversation. The view fills it. */
+.thread-demo {
+  height: 35rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+}
+
+@media (max-width: 30rem) {
+  .thread-demo {
+    height: 70vh;
+  }
 }
 
 /* The key of the picture: the shape of each level, and the colors of the light. */

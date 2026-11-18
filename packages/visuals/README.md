@@ -674,6 +674,7 @@ stage?.refresh();
 - At the zoom 1 or less, the lines and the signs keep their size on the screen. Above it, they grow with the boxes.
 - The selected record and the records at it stay clear. Each other record has less color, and the colors change in a short time.
 - `setFocus` sets the records of the focus from the page. The option `focus: "none"` stops the focus of the selection.
+- A route that the looks do not show brings no box into the focus. The option `routes` of `focusOf` does the same in a test.
 - A person points at the top box below the pointer. A box with no child comes before the box around it.
 - The option `picks` tells which records a person can point at, for example the routes too.
 - The content makes shapes only for the records in view.
