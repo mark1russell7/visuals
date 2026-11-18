@@ -2,7 +2,7 @@ import { checkPicture } from "@mark1russell7/layout-contract";
 import { describe, expect, it } from "vitest";
 import { fakeAdvance } from "./advance.test-util.ts";
 import { chooseTopic } from "./card.ts";
-import { labelId, threadPicture, timeText, titleOf } from "./picture.ts";
+import { labelId, ROUTED_MOST, routedProposals, threadPicture, timeText, titleOf, withProposals, type ThreadPicture } from "./picture.ts";
 import { SAMPLE_LEGEND, sampleThread } from "./sample.ts";
 
 const sample = sampleThread();
@@ -98,6 +98,70 @@ describe("threadPicture", () => {
     const empty = threadPicture({ id: "empty", boxes: [] }, fakeAdvance);
     expect(empty.picture.boxes).toEqual([]);
     expect(empty.picture.routes).toEqual([]);
+  });
+});
+
+describe("the proposals of a picture", () => {
+  const isProposed = (route: { readonly data?: Readonly<Record<string, unknown>> | undefined }): boolean => route.data?.["state"] === "proposed";
+  const proposed = (of: ThreadPicture): string[] => of.picture.routes.filter(isProposed).map((route) => route.id).sort();
+  const others = (of: ThreadPicture) => of.picture.routes.filter((route) => !isProposed(route));
+  const none = threadPicture(sample, fakeAdvance, { ...options, proposals: [] });
+  const one = threadPicture(sample, fakeAdvance, { ...options, proposals: ["m12#1"] });
+
+  it("routes each proposal with no option, and only the proposals of the parts of the option", () => {
+    expect(thread.proposals).toBe("each");
+    expect(proposed(thread).length).toBeGreaterThan(2);
+    expect(proposed(none)).toEqual([]);
+    expect(proposed(one)).toEqual(["touches:m12#1:shed", "touches:m12#1:trench"]);
+    for (const some of [none, one]) {
+      expect(checkPicture(some.picture)).toEqual([]);
+      expect(others(some)).toEqual(others(thread));
+      expect(some.picture.boxes).toEqual(thread.picture.boxes);
+      expect(some.picture.labels).toEqual(thread.picture.labels);
+    }
+  });
+
+  it("adds the routes of the proposals of a part to a picture, behind the other routes", () => {
+    const next = withProposals(none, ["m12#1"]);
+    expect(next.proposals).toEqual(["m12#1"]);
+    expect(next.picture).toEqual(one.picture);
+    expect(next.picture.boxes).toBe(none.picture.boxes);
+    expect(next.picture.labels).toBe(none.picture.labels);
+    expect(checkPicture(next.picture)).toEqual([]);
+    const states = next.picture.routes.map(isProposed);
+    expect(states.lastIndexOf(true)).toBeLessThan(states.indexOf(false));
+  });
+
+  it("replaces the routes of the proposals of a different part", () => {
+    const next = withProposals(withProposals(none, ["m12#1"]), ["m11#0"]);
+    expect(proposed(next)).toEqual(["touches:m11#0:shed"]);
+    expect(others(next)).toEqual(others(thread));
+  });
+
+  it("gives the same picture when the picture has the routes", () => {
+    const next = withProposals(none, ["m12#1"]);
+    expect(withProposals(next, ["m12#1"])).toBe(next);
+    expect(withProposals(next, [])).toBe(next);
+    expect(withProposals(none, [])).toBe(none);
+    expect(withProposals(thread, ["m12#1"])).toBe(thread);
+    expect(withProposals(thread, "each")).toBe(thread);
+  });
+
+  it("gives each proposal a route, as a picture with no option", () => {
+    const all = withProposals(none, "each");
+    expect(all.proposals).toBe("each");
+    expect(all.picture).toEqual(thread.picture);
+  });
+
+  it("routes each proposal of a document with few proposals, and only the shown proposals of a document with many", () => {
+    const edges = Array.from({ length: ROUTED_MOST + 1 }, (_, at) => ({ id: `p${String(at)}`, source: "m01#0", target: "water", data: { kind: "touches", state: "proposed", choice: "m01#0" } }));
+    const many = { ...sample, edges };
+    expect(routedProposals(sample, ["m01#0"])).toBe("each");
+    expect(routedProposals({ ...sample, edges: edges.slice(1) }, ["m01#0"])).toBe("each");
+    expect(routedProposals(many, ["m01#0"])).toEqual(["m01#0"]);
+    expect(routedProposals(many, [])).toEqual([]);
+    expect(routedProposals(many, [], true)).toBe("each");
+    expect(routedProposals({ id: "empty", boxes: [] }, [])).toBe("each");
   });
 });
 

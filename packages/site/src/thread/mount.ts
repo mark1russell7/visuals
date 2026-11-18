@@ -5,7 +5,7 @@ import { aimAll, aimReveal, createPictureContent, createPictureStage, type Inset
 import { cardOf, relationNames, type CardChoice, type CardModel, type CardName, type TopicChoiceEvent } from "./card.ts";
 import { choiceOf, edgeKind, edgeState, isChosen, isProposal, labelOf, type ThreadBox, type ThreadDocument, type ThreadLegend } from "./document.ts";
 import { TEXT_ZOOM, threadLooks, type ThreadLookState, type ThreadTheme } from "./looks.ts";
-import { threadPicture, type ThreadPicture, type ThreadPictureOptions } from "./picture.ts";
+import { routedProposals, threadPicture, withProposals, type ThreadPicture, type ThreadPictureOptions } from "./picture.ts";
 import style from "./thread.css?inline";
 
 /** The options of `mountThreadView`. */
@@ -186,12 +186,23 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   let legend = options.legend;
   /** The shape of the area at the time of the first picture. A later change of the size keeps the place of each box. */
   let aspect = shapeNow();
-  const making = (): ThreadPictureOptions => ({ router: options.router, proposalRouter: options.proposalRouter, curve: options.curve, force: options.force, aspect, locale: options.locale, timeZone: options.timeZone, legend });
-  const advance = measure === null ? (text: string): number => text.length * 7 : canvasAdvance(measure);
-  let thread: ThreadPicture = threadPicture(options.document, advance, making());
-  let boxes = new Map(thread.document.boxes.map((box) => [box.id, box]));
   let proposals = options.proposals ?? false;
   let selected: string | undefined;
+  /** This function gives the options of the picture of a document. `shown` has the parts and the entries whose proposals the looks show. */
+  const making = (document: ThreadDocument, shown: readonly string[] = []): ThreadPictureOptions => ({
+    router: options.router,
+    proposalRouter: options.proposalRouter,
+    curve: options.curve,
+    force: options.force,
+    aspect,
+    locale: options.locale,
+    timeZone: options.timeZone,
+    legend,
+    proposals: routedProposals(document, shown, proposals),
+  });
+  const advance = measure === null ? (text: string): number => text.length * 7 : canvasAdvance(measure);
+  let thread: ThreadPicture = threadPicture(options.document, advance, making(options.document));
+  let boxes = new Map(thread.document.boxes.map((box) => [box.id, box]));
   let hint: ThreadLookState["hint"];
   /** The position of the pointer in the view, in CSS pixels from its top left corner. */
   let pointer = { x: 0, y: 0 };
@@ -212,7 +223,25 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     return kind === "part" || kind === "entry" ? selected : undefined;
   };
 
+  /** This function gives the parts and the entries whose proposals the looks show with the switch off: the selected part or entry. */
+  const shownParts = (): readonly string[] => {
+    const part = chooser();
+    return part === undefined ? [] : [part];
+  };
+
   const content = createPictureContent(thread.picture, { looks: threadLooks(() => ({ thread, proposals, part: chooser(), hint })) });
+
+  /**
+   * This function gives the picture the routes of the proposals that the looks show. It tells if the picture changed.
+   * A picture of many proposals has a route only for the proposals that a person looks at.
+   */
+  const routeProposals = (): boolean => {
+    const next = withProposals(thread, routedProposals(thread.document, shownParts(), proposals), { proposalRouter: options.proposalRouter, curve: options.curve });
+    if (next === thread) return false;
+    thread = next;
+    content.setPicture(thread.picture);
+    return true;
+  };
 
   // The variable is here before the stage, so a function that the stage starts in its making reads `undefined`.
   let stage: PictureStage<PictureRecord, ThreadTheme> | undefined;
@@ -444,6 +473,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     selected = id !== undefined && thread.kinds.has(id) ? id : undefined;
     hint = undefined;
     hovered = undefined;
+    routeProposals();
     stage?.select(selected);
     drawCard();
     showTip();
@@ -458,7 +488,8 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   /** This function makes the picture again from a document. Each box keeps its place when the boxes are the same and `fresh` is not true. */
   const remake = (document: ThreadDocument, fresh = false): void => {
     const before = selected === undefined ? undefined : JSON.stringify(boundsOf([selected]));
-    thread = threadPicture(document, advance, fresh ? making() : { ...making(), keep: thread });
+    const next = making(document, shownParts());
+    thread = threadPicture(document, advance, fresh ? next : { ...next, keep: thread });
     boxes = new Map(thread.document.boxes.map((box) => [box.id, box]));
     content.setPicture(thread.picture);
     const gone = selected !== undefined && !thread.kinds.has(selected);
@@ -479,7 +510,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   proposalsInput.addEventListener("change", () => {
     proposals = proposalsInput.checked;
     // The focus of the picture depends on the lines that the looks show, so the content finds it again.
-    content.setPicture(thread.picture);
+    if (!routeProposals()) content.setPicture(thread.picture);
     stage?.refresh();
   });
   stageBox.addEventListener("pointermove", (event) => {
