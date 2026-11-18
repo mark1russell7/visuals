@@ -748,6 +748,69 @@ describe("a label that keeps a height on the screen", () => {
       expect(from(200 + margin + 1, least10, picture)).toEqual([NAME_TEXT]);
     });
 
+    describe("that an edge cuts", () => {
+      /** The larger text is 40 units wide and 40 units high: from 100 to 140 on the x axis, and from 40 to 80 on the y axis. */
+      const measure = (): number => 20;
+      /** The distance that stays between a text and an edge of the view, at the zoom 0.25. */
+      const pad = KEPT_GAP * 4;
+      const cut = (visible: PaintState["visible"], of: PictureIndex = only, state: Partial<PaintState> = { measure }): PaintShape[] => far(of, { visible, ...state });
+
+      it("moves the text into the view, with a distance of `KEPT_GAP` units of a look to the edge", () => {
+        // The right edge is at 130, the left edge at 120, the top edge at 60 and the bottom edge at 76.
+        expect(cut({ x: 0, y: 0, w: 130, h: 200 })).toEqual([{ ...NAME_TEXT, x: 130 - pad - 40 }]);
+        expect(cut({ x: 120, y: 0, w: 200, h: 200 })).toEqual([{ ...NAME_TEXT, x: 120 + pad }]);
+        expect(cut({ x: 0, y: 60, w: 400, h: 200 })).toEqual([{ ...NAME_TEXT, y: 60 + pad + 20 }]);
+        expect(cut({ x: 0, y: 0, w: 400, h: 76 })).toEqual([{ ...NAME_TEXT, y: 76 - pad - 20 }]);
+        // A corner of the view moves the text on the two axes.
+        expect(cut({ x: 0, y: 60, w: 130, h: 200 })).toEqual([{ ...NAME_TEXT, x: 130 - pad - 40, y: 60 + pad + 20 }]);
+      });
+
+      it("moves the point of a line with its text, for each alignment", () => {
+        // About its middle, the text is from 120 to 160. From its right end, it is from 140 to 180. It moves to the place from 94 to 134.
+        expect(cut({ x: 0, y: 0, w: 150, h: 200 }, pictureWith([], [], [{ ...NAME, align: "center" }]))).toEqual([{ ...NAME_TEXT, align: "center", x: 114 }]);
+        expect(cut({ x: 0, y: 0, w: 150, h: 200 }, pictureWith([], [], [{ ...NAME, align: "right" }]))).toEqual([{ ...NAME_TEXT, align: "right", x: 134 }]);
+      });
+
+      it("moves each line of a text by the same distance", () => {
+        const two: PictureLabel = { ...NAME, h: 40, lines: ["One", "Two"] };
+        // The two lines are from 30 to 110 on the y axis. The top edge is at 50.
+        expect(cut({ x: 0, y: 50, w: 130, h: 200 }, pictureWith([], [], [two]))).toEqual([
+          { ...NAME_TEXT, text: "One", x: 130 - pad - 40, y: 50 + pad + 20 },
+          { ...NAME_TEXT, text: "Two", x: 130 - pad - 40, y: 50 + pad + 60 },
+        ]);
+      });
+
+      it("leaves a text that is longer than the view on an axis at its place on that axis", () => {
+        // With no measure, the text is 160 units wide.
+        expect(cut({ x: 0, y: 0, w: 130, h: 200 }, only, {})).toEqual([NAME_TEXT]);
+        expect(cut({ x: 0, y: 60, w: 130, h: 200 }, only, {})).toEqual([{ ...NAME_TEXT, y: 60 + pad + 20 }]);
+        // The text is 40 units high, and the view has 39 units between its two distances.
+        expect(cut({ x: 0, y: 30, w: 400, h: 39 + 2 * pad })).toEqual([NAME_TEXT]);
+        expect(cut({ x: 0, y: 30, w: 400, h: 40 + 2 * pad })).toEqual([{ ...NAME_TEXT, y: 30 + pad + 20 }]);
+      });
+
+      it("leaves a text with no part in the view at its place", () => {
+        // The text ends at 140 on the x axis. It is in the margin of the view, so it has its paint.
+        expect(cut({ x: 140, y: 0, w: 200, h: 200 })).toEqual([NAME_TEXT]);
+        expect(cut({ x: 141, y: 0, w: 200, h: 200 })).toEqual([NAME_TEXT]);
+        expect(cut({ x: 139, y: 0, w: 200, h: 200 })).toEqual([{ ...NAME_TEXT, x: 139 + pad }]);
+      });
+
+      it("leaves a text that is all in the view, at the distance or more, at its place", () => {
+        expect(cut({ x: 100 - pad, y: 40 - pad, w: 40 + 2 * pad, h: 40 + 2 * pad })).toEqual([NAME_TEXT]);
+        expect(cut({ x: 0, y: 0, w: 400, h: 400 })).toEqual([NAME_TEXT]);
+      });
+
+      it("takes the place of the text after the move", () => {
+        // The second text is from 30 to 70 on the x axis: it is 30 units from the name.
+        const other: PictureLabel = { ...NAME, id: "other", x: 30, lines: ["Other"] };
+        const pair = pictureWith([], [], [NAME, other]);
+        expect(texts(cut({ x: 0, y: 0, w: 400, h: 200 }, pair))).toEqual(["Group", "Other"]);
+        // The name moves to the place from 74 to 114: it is 4 units from the second text, and it has the first choice.
+        expect(texts(cut({ x: 0, y: 0, w: 130, h: 200 }, pair))).toEqual(["Group"]);
+      });
+    });
+
     it("does not ask the look of a label that cannot be in the view at the largest height", () => {
       let asked = 0;
       const counting = labelLooks(() => {

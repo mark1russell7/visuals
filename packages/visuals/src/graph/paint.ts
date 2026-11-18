@@ -200,12 +200,32 @@ interface KeptLabel {
   readonly area: number;
 }
 
-/** This function adds the texts of a label that keeps a height on the screen. `rect` is the rectangle of its lines. */
-function addKept(shapes: PaintShape[], kept: KeptLabel, rect: Rect): void {
+/** This function gives the start of a span that is in an area, on one axis. A span that is longer than the area keeps its start. */
+function startIn(start: number, length: number, areaStart: number, areaLength: number): number {
+  if (length > areaLength) return start;
+  return Math.min(Math.max(start, areaStart), areaStart + areaLength - length);
+}
+
+/**
+ * This function moves a rectangle that an edge of the view cuts, so that all of it is in the view.
+ * `pad` is the distance that stays between the rectangle and each edge of the view.
+ * A rectangle that is longer than the view on an axis keeps its place on that axis. A rectangle with no part in the view keeps its place.
+ */
+function movedIn(rect: Rect, view: Rect, pad: number): Rect {
+  const overlap = overlapOf(rect, view);
+  if (!(overlap.x > 0 && overlap.y > 0)) return rect;
+  return { ...rect, x: startIn(rect.x, rect.w, view.x + pad, view.w - 2 * pad), y: startIn(rect.y, rect.h, view.y + pad, view.h - 2 * pad) };
+}
+
+/**
+ * This function adds the texts of a label that keeps a height on the screen. `rect` is the rectangle of its lines.
+ * `dx` is the distance that the rectangle moved on the x axis, into the view.
+ */
+function addKept(shapes: PaintShape[], kept: KeptLabel, rect: Rect, dx: number): void {
   const { label, look, scale, opacity } = kept;
   const tall = label.lineHeight * scale;
   const halo = look.halo === undefined ? undefined : { color: look.halo, width: tall * HALO_WIDTH };
-  const x = label.x + leftShare(label) * label.w;
+  const x = label.x + leftShare(label) * label.w + dx;
   for (let i = 0; i < label.lines.length; i++) {
     const text = label.lines[i]!;
     if (text.trim() === "") continue;
@@ -372,8 +392,10 @@ export function paintPicture<T>(index: PictureIndex, looks: PictureLooks<T>, the
       if (lines.length === 0) continue;
       let wide = measure === undefined ? label.w : Math.max(...lines.map((line) => measure(label.font, line)));
       if (label.w > 0) wide = Math.min(wide, label.w);
-      const rect = keptRect(label, wide, item.scale);
-      if (!inView(rect)) continue;
+      const natural = keptRect(label, wide, item.scale);
+      if (!inView(natural)) continue;
+      // A text that an edge of the view cuts moves into the view, before it takes its place.
+      const rect = visible === undefined ? natural : movedIn(natural, visible, gap);
       const space = grow(rect, gap);
       const clear = taken.every((other) => {
         const overlap = overlapOf(space, other);
@@ -381,7 +403,7 @@ export function paintPicture<T>(index: PictureIndex, looks: PictureLooks<T>, the
       });
       if (!clear) continue;
       taken.push(rect);
-      addKept(top, item, rect);
+      addKept(top, item, rect, rect.x - natural.x);
     }
   }
   return containers.concat(back, front, leaves, routeLabels, free, top);

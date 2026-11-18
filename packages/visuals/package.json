@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package",
   "name": "@mark1russell7/visuals",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "description": "3D stages for data on three.js: a camera that a person moves, views by name, picking, highlights and themes, a globe of the Earth, and the shared marks of the viewers as data.",
   "license": "MIT",
   "repository": {

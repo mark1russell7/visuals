@@ -106,6 +106,8 @@ export interface LabelLook {
    *
    * Two such texts do not overlap. The text of a record with a highlight has the first choice, then the text of the larger box.
    * A text with no free place has no paint. The value is at most `MOST_KEPT_LINE`, and it has no effect on bars.
+   *
+   * A text that an edge of the view cuts moves into the view. A text that is wider than the view keeps its place.
    */
   readonly least?: number | undefined;
 }
