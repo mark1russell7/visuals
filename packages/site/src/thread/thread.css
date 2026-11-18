@@ -58,10 +58,12 @@
 }
 
 /* The slots of the panels are above the picture. The layer takes no pointer, so the picture below it gets each pointer outside a slot. */
+/* A browser scrolls to a focus. The layer cannot scroll, so a focus in a slot moves no slot: the camera goes to the panel. */
 .thread-slots {
   position: absolute;
   inset: 0;
   overflow: hidden;
+  overflow: clip;
   pointer-events: none;
 }
 /* The picture draws the box of a panel, so a slot has no background and no border. The view sets its width and its transform. */
@@ -72,9 +74,12 @@
   transform-origin: 0 0;
   pointer-events: auto;
 }
-/* In a far view a person cannot read the content of a slot. The content stays in the page, so its text and its state stay. */
+/*
+ * In a far view a person cannot read the content of a slot, so the content has no color and takes no pointer.
+ * The content stays in the page and can have the focus. Thus its text, its state and its focus stay.
+ */
 .thread-slot.is-far {
-  visibility: hidden;
+  opacity: 0;
   pointer-events: none;
 }
 

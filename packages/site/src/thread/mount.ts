@@ -85,9 +85,11 @@ export interface ThreadView {
   reveal(id: string, covered?: Partial<Insets>): void;
   /**
    * This function gives the element of a panel. The page puts the content of the panel in it, and the element moves with the camera.
-   * The same element stays for the same id until the document has no such panel. Thus the content keeps its focus and its text.
    * The view sets the width of the element, and it gives the panel the height of the content.
    * It gives `undefined` for an id that is not a panel of the picture, and for a view that cannot draw.
+   *
+   * The same element stays for the same id until the document has no such panel. Thus the content keeps its focus and its text.
+   * A far view shows no content, but the content keeps its focus. The camera goes to a panel when the focus goes into content that is not in view.
    */
   slot(id: string): HTMLElement | undefined;
   /** This function removes the view from the page. */
@@ -451,7 +453,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
 
   /**
    * This function puts each slot on the box of its panel for a view of the camera. The slot has the width of the panel and the scale of the camera.
-   * In a far view, and for a panel with no place, the slot is not visible.
+   * In a far view, and for a panel with no place, the slot shows nothing. Its content stays in the page and keeps its focus.
    */
   function placeSlots(view: PictureView | undefined = stage?.view()): void {
     for (const [id, slot] of slots) {
@@ -853,6 +855,20 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     if (event.target instanceof Node && slotLayer.contains(event.target)) return;
     show(undefined, true, false);
     stage?.canvas.focus({ preventScroll: true });
+  });
+  // The focus can go into content that a person cannot see: with the key Tab, or from the page. The camera goes to the panel then, as a page scrolls to its focus.
+  // A pointer gives the focus only to content in view, so this move takes no target from below a pointer.
+  slotLayer.addEventListener("focusin", (event) => {
+    const { target } = event;
+    const slot = target instanceof Element ? target.closest<HTMLElement>(".thread-slot") : null;
+    const id = slot?.dataset["panel"];
+    if (!(target instanceof Element) || slot === null || id === undefined) return;
+    const at = target.getBoundingClientRect();
+    const frame = root.getBoundingClientRect();
+    const inView = at.right > frame.left && at.left < frame.right && at.bottom > frame.top && at.top < frame.bottom;
+    if (inView && !slot.classList.contains("is-far")) return;
+    measureSlots();
+    bring(id);
   });
   const observer = new ResizeObserver(() => {
     if (first && root.clientWidth > 0) {
