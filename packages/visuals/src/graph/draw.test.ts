@@ -162,6 +162,57 @@ describe("drawShapes", () => {
     ]);
   });
 
+  it("draws a text with a factor larger about its point: the point becomes the origin for the text", () => {
+    expect(drawn([{ ...PLAIN_TEXT, scale: 2 }])).toEqual(["globalAlpha = 1", "font = 12px sans-serif", "textAlign = right", "save", "translate 520 8", "scale 2 2", "fillStyle = #111", "fillText A note 0 0", "restore"]);
+  });
+
+  it("gives the line around the letters of a larger text its width after the factor", () => {
+    // The width of the line is 4 units of the picture, and the context multiplies each width by 4.
+    expect(drawn([{ ...HALO_TEXT, scale: 4 }])).toEqual([
+      "globalAlpha = 0.5",
+      "font = 12px sans-serif",
+      "textAlign = center",
+      "save",
+      "translate 245 50",
+      "scale 4 4",
+      "strokeStyle = #fff",
+      "lineWidth = 1",
+      "strokeText uses 0 0",
+      "fillStyle = #111",
+      "fillText uses 0 0",
+      "restore",
+    ]);
+  });
+
+  it("draws a text with the factor 1, or with a factor that is not above 0, at its point", () => {
+    const plain = drawn([PLAIN_TEXT]);
+    expect(drawn([{ ...PLAIN_TEXT, scale: 1 }])).toEqual(plain);
+    expect(drawn([{ ...PLAIN_TEXT, scale: 0 }])).toEqual(plain);
+    expect(drawn([{ ...PLAIN_TEXT, scale: -2 }])).toEqual(plain);
+    expect(drawn([{ ...PLAIN_TEXT, scale: Number.NaN }])).toEqual(plain);
+  });
+
+  it("removes the dashes before it keeps the state of the context for a larger text, so they do not come back", () => {
+    const calls = drawn([square({ dash: [8, 4] }), { ...HALO_TEXT, scale: 2 }, square()]);
+    expect(calls.slice(7)).toEqual([
+      "globalAlpha = 0.5",
+      "font = 12px sans-serif",
+      "textAlign = center",
+      "setLineDash []",
+      "save",
+      "translate 245 50",
+      "scale 2 2",
+      "strokeStyle = #fff",
+      "lineWidth = 2",
+      "strokeText uses 0 0",
+      "fillStyle = #111",
+      "fillText uses 0 0",
+      "restore",
+      // The context has no dash at this time.
+      ...SQUARE,
+    ]);
+  });
+
   it("draws the paint list of a picture in its order", () => {
     const shapes = paintPicture(indexPicture(PICTURE), plainLooks(), LIGHT_PICTURE_THEME, { zoom: 2, highlight: () => 0 });
     const calls = drawn(shapes);

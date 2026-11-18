@@ -6,8 +6,8 @@ import type { PictureView } from "./camera.ts";
 import { createPictureContent, FOCUS_FADE, type LayoutPictureContent } from "./content.ts";
 import { drawShapes } from "./draw.ts";
 import { FOCUS_OPACITY } from "./focus.ts";
-import { LIGHT_PICTURE_THEME, plainLooks, type PictureLooks, type PictureTheme } from "./looks.ts";
-import { BAR_HEIGHT, paintPicture } from "./paint.ts";
+import { LIGHT_PICTURE_THEME, plainLooks, SMALLEST_TEXT_LINE, type PictureLooks, type PictureTheme } from "./looks.ts";
+import { BAR_HEIGHT, HALO_WIDTH, paintPicture } from "./paint.ts";
 import { indexPicture } from "./records.ts";
 import { CARD, FAR, fakeContext, linesOf, LINK, PICTURE, ROW_1 } from "./sample.ts";
 import type { PickAt, PictureFrame } from "./stage.ts";
@@ -131,6 +131,43 @@ describe("the width of a bar", () => {
     expect(second.calls).toEqual(first.calls.slice(6));
     content.dispose?.();
     expect(linesOf(draw(content, { view: near }).calls, "measureText")).toEqual(["measureText First line", "measureText Second"]);
+  });
+});
+
+describe("a name in a far view", () => {
+  /** At the zoom 0.5, a line of the name of the card is 9 pixels high: too small to read. Each other text of the sample is a bar. */
+  const far: PictureView = { x: 0, y: 0, k: 0.5 };
+
+  it("keeps a height that a person can read: the content draws it larger about its place, after each other shape", () => {
+    const content = createPictureContent(PICTURE, { looks: plain });
+    const { calls } = draw(content, { view: far });
+    const scale = SMALLEST_TEXT_LINE / (18 * 0.5);
+    expect(calls.slice(-13)).toEqual([
+      "globalAlpha = 1",
+      "font = 13px sans-serif",
+      "textAlign = left",
+      "save",
+      "translate 10 15",
+      `scale ${scale} ${scale}`,
+      `strokeStyle = ${theme.paper}`,
+      `lineWidth = ${(18 * scale * HALO_WIDTH) / scale}`,
+      "strokeText Card 0 0",
+      `fillStyle = ${theme.mutedText}`,
+      "fillText Card 0 0",
+      "restore",
+      "restore",
+    ]);
+    expect(linesOf(calls, "fillText")).toEqual(["fillText Card 0 0"]);
+    // The content measures the bars, then the name: the width of the name is necessary for its place among the other names.
+    expect(linesOf(calls, "measureText")).toEqual(["measureText First line", "measureText Second", "measureText uses", "measureText A note", "measureText Card"]);
+  });
+
+  it("does not measure its text again in a different far view", () => {
+    const content = createPictureContent(PICTURE, { looks: plain });
+    draw(content, { view: far });
+    const { calls } = draw(content, { view: { x: 0, y: 0, k: 0.375 } });
+    expect(linesOf(calls, "measureText")).toEqual([]);
+    expect(linesOf(calls, "fillText")).toEqual(["fillText Card 0 0"]);
   });
 });
 

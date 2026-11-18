@@ -217,9 +217,11 @@ type FrameOptions: build/graph.d.ts#FrameOptions
 HALO_WIDTH: build/graph.d.ts#HALO_WIDTH
 type Insets: build/graph.d.ts#Insets
 KEEP_IN_VIEW: build/graph.d.ts#KEEP_IN_VIEW
+KEPT_GAP: build/graph.d.ts#KEPT_GAP
 LIGHT_PICTURE_THEME: build/graph.d.ts#LIGHT_PICTURE_THEME
 type LabelLook: build/graph.d.ts#LabelLook
 type LayoutPictureContent: build/graph.d.ts#LayoutPictureContent
+MOST_KEPT_LINE: build/graph.d.ts#MOST_KEPT_LINE
 NO_POINTERS: build/graph.d.ts#NO_POINTERS
 PICK_SLACK: build/graph.d.ts#PICK_SLACK
 type PaintOutline: build/graph.d.ts#PaintOutline
@@ -258,6 +260,7 @@ type RouteLine: build/graph.d.ts#RouteLine
 type RouteLook: build/graph.d.ts#RouteLook
 SMALLEST_AREA: build/graph.d.ts#SMALLEST_AREA
 SMALLEST_BAR_LINE: build/graph.d.ts#SMALLEST_BAR_LINE
+SMALLEST_NAMED_BOX: build/graph.d.ts#SMALLEST_NAMED_BOX
 SMALLEST_TEXT_LINE: build/graph.d.ts#SMALLEST_TEXT_LINE
 TOUCH_CLICK_DISTANCE: build/graph.d.ts#TOUCH_CLICK_DISTANCE
 TOUCH_PICK_SLACK: build/graph.d.ts#TOUCH_PICK_SLACK
@@ -517,6 +520,9 @@ interface Insets {
 ### build/graph.d.ts#KEEP_IN_VIEW
 export declare const KEEP_IN_VIEW = 64;
 
+### build/graph.d.ts#KEPT_GAP
+export declare const KEPT_GAP = 4;
+
 ### build/graph.d.ts#LIGHT_PICTURE_THEME
 export declare const LIGHT_PICTURE_THEME: PictureTheme;
 
@@ -526,6 +532,7 @@ interface LabelLook {
   readonly opacity?: number | undefined;
   readonly halo?: string | undefined;
   readonly as?: "text" | "bars" | undefined;
+  readonly least?: number | undefined;
 }
 
 ### build/graph.d.ts#LayoutPictureContent
@@ -533,6 +540,9 @@ interface LayoutPictureContent<T> extends PictureContent<PictureRecord, T> {
   setPicture(picture: LayoutPicture): void;
   setFocus(records: readonly string[] | undefined): void;
 }
+
+### build/graph.d.ts#MOST_KEPT_LINE
+export declare const MOST_KEPT_LINE = 32;
 
 ### build/graph.d.ts#NO_POINTERS
 export declare const NO_POINTERS: Pointers;
@@ -600,6 +610,7 @@ interface PaintText {
     readonly width: number;
   } | undefined;
   readonly opacity: number;
+  readonly scale?: number | undefined;
 }
 
 ### build/graph.d.ts#PickAt
@@ -838,6 +849,9 @@ export declare const SMALLEST_AREA = 80;
 
 ### build/graph.d.ts#SMALLEST_BAR_LINE
 export declare const SMALLEST_BAR_LINE = 2.5;
+
+### build/graph.d.ts#SMALLEST_NAMED_BOX
+export declare const SMALLEST_NAMED_BOX = 48;
 
 ### build/graph.d.ts#SMALLEST_TEXT_LINE
 export declare const SMALLEST_TEXT_LINE = 11;

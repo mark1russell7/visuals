@@ -16,7 +16,7 @@ import {
 } from "@mark1russell7/layout-contract";
 import type { Highlight } from "../highlight.ts";
 import { boxFocus, FOCUS_OPACITY, routeFocus, type FocusLevel, type PictureFocus } from "./focus.ts";
-import { lookUnit, type BoxLook, type LabelLook, type PictureLooks, type RecordState, type RouteEnd, type RouteLook } from "./looks.ts";
+import { lookUnit, MOST_KEPT_LINE, type BoxLook, type LabelLook, type PictureLooks, type RecordState, type RouteEnd, type RouteLook } from "./looks.ts";
 import { routeLine, type PictureIndex, type PictureRecord } from "./records.ts";
 
 /** The outline of a shape of a paint list, in the unit of the picture. */
@@ -58,6 +58,11 @@ export interface PaintText {
   readonly halo?: { readonly color: string; readonly width: number } | undefined;
   /** The share of its color that the text keeps, above 0 and to 1. */
   readonly opacity: number;
+  /**
+   * The factor by which the text is larger than its font, about its point (`x`, `y`). The default is 1.
+   * A label that keeps a height on the screen has it. The width of `halo` is the width after this factor.
+   */
+  readonly scale?: number | undefined;
 }
 
 /** One shape of a paint list. The list is in the order of the paint, so its first shape is at the back. */
@@ -96,6 +101,9 @@ export const HALO_WIDTH = 0.25;
 
 /** The half width of an arrow at the end of a route, as a share of its length. */
 export const ARROW_SPREAD = 0.45;
+
+/** The smallest distance between two labels that keep a height on the screen, in units of a look. */
+export const KEPT_GAP = 4;
 
 /** This function gives the key of a record for `fade`: its type, a colon and its id. A box and a route with the same id have different keys. */
 export function recordKey(type: PictureRecord["type"], id: string): string {
@@ -156,14 +164,61 @@ function addBox(shapes: PaintShape[], box: PictureBox, look: BoxLook, unit: numb
   }
 }
 
+/** This function gives the share of the free width of a label that is at the left of a line: 0, a half or 1. */
+function leftShare(label: PictureLabel): number {
+  return label.align === "center" ? 0.5 : label.align === "right" ? 1 : 0;
+}
+
+/**
+ * This function gives the factor by which a label becomes larger, so that a line is `least` CSS pixels high on the screen.
+ * The factor is 1 for a label that is high enough.
+ */
+function keptScale(label: PictureLabel, least: number, zoom: number): number {
+  const tall = label.lineHeight * zoom;
+  return tall > 0 && tall < least ? least / tall : 1;
+}
+
+/**
+ * This function gives the rectangle of the lines of a label that is larger by a factor. `wide` is the width of the lines before the factor.
+ * The middle of the height of the lines keeps its place. A line keeps its left end, its middle or its right end, as the label aligns it.
+ */
+function keptRect(label: PictureLabel, wide: number, scale: number): Rect {
+  const left = leftShare(label);
+  const tall = label.lines.length * label.lineHeight;
+  return { x: label.x + left * label.w - left * wide * scale, y: label.y + (tall - tall * scale) / 2, w: wide * scale, h: tall * scale };
+}
+
+/** A label that keeps a height on the screen, before it has a place. */
+interface KeptLabel {
+  readonly label: PictureLabel;
+  readonly look: LabelLook;
+  readonly scale: number;
+  readonly opacity: number;
+  /** The highlight of the record that the label names. */
+  readonly highlight: Highlight;
+  /** The area of the box that the label names, or 0. */
+  readonly area: number;
+}
+
+/** This function adds the texts of a label that keeps a height on the screen. `rect` is the rectangle of its lines. */
+function addKept(shapes: PaintShape[], kept: KeptLabel, rect: Rect): void {
+  const { label, look, scale, opacity } = kept;
+  const tall = label.lineHeight * scale;
+  const halo = look.halo === undefined ? undefined : { color: look.halo, width: tall * HALO_WIDTH };
+  const x = label.x + leftShare(label) * label.w;
+  for (let i = 0; i < label.lines.length; i++) {
+    const text = label.lines[i]!;
+    if (text.trim() === "") continue;
+    shapes.push({ type: "text", text, x, y: rect.y + (i + 0.5) * tall, font: label.font, align: label.align ?? "left", fill: look.color, halo, opacity, scale });
+  }
+}
+
 /** This function adds the shapes of a label: one text or one bar for each line that is not empty. */
-function addLabel(shapes: PaintShape[], label: PictureLabel, look: LabelLook | undefined, share: number, measure: PaintState["measure"]): void {
-  if (look === undefined) return;
+function addLabel(shapes: PaintShape[], label: PictureLabel, look: LabelLook, share: number, measure: PaintState["measure"]): void {
   const opacity = Math.min(1, (look.opacity ?? 1) * share);
   if (!(opacity > 0)) return;
   const align = label.align ?? "left";
-  // The share of the free width at the left of a line: 0, a half or 1.
-  const left = align === "left" ? 0 : align === "center" ? 0.5 : 1;
+  const left = leftShare(label);
   for (let i = 0; i < label.lines.length; i++) {
     const text = label.lines[i]!;
     if (text.trim() === "") continue;
@@ -227,6 +282,7 @@ function addRoute(shapes: PaintShape[], route: PictureRoute, look: RouteLook, un
  * - The routes. The routes of the focus and those with a highlight are after the others.
  * - The boxes with no child, each with its labels.
  * - The labels of the routes, then the labels that name no record.
+ * - The labels that keep a height on the screen (`least` of a label look).
  *
  * In a layer, the records are in the order of the picture. A label has the state of the record that it names.
  * The focus of the picture decreases the color of each record out of it (`FOCUS_OPACITY`).
@@ -235,15 +291,31 @@ export function paintPicture<T>(index: PictureIndex, looks: PictureLooks<T>, the
   const { picture } = index;
   const unit = lookUnit(state.zoom);
   const margin = VIEW_MARGIN * unit;
-  const { visible, measure } = state;
+  const { visible, measure, zoom } = state;
   const inView = (rect: Rect): boolean => {
     if (visible === undefined) return true;
     const overlap = overlapOf(grow(rect, margin), visible);
     return overlap.x >= 0 && overlap.y >= 0;
   };
+  /** This function tells if a label can be in view: at its place, or with the largest height that a label keeps. */
+  const near = (label: PictureLabel): boolean => {
+    if (inView(label)) return true;
+    const most = keptScale(label, MOST_KEPT_LINE, zoom);
+    return most > 1 && inView(keptRect(label, label.w, most));
+  };
   const shareOf = (key: string, level: FocusLevel): number => {
     const goal = FOCUS_OPACITY[level];
     return state.fade === undefined ? goal : state.fade(key, goal);
+  };
+  const kept: KeptLabel[] = [];
+  /** This function adds the shapes of a label at its place, or keeps a label that is larger than its place for the top layer. */
+  const place = (shapes: PaintShape[], label: PictureLabel, look: LabelLook | undefined, share: number, highlight: Highlight, area: number): void => {
+    if (look === undefined) return;
+    const scale = look.least === undefined || look.as === "bars" ? 1 : keptScale(label, Math.min(look.least, MOST_KEPT_LINE), zoom);
+    if (scale > 1) {
+      const opacity = Math.min(1, (look.opacity ?? 1) * share);
+      if (opacity > 0) kept.push({ label, look, scale, opacity, highlight, area });
+    } else if (inView(label)) addLabel(shapes, label, look, share, measure);
   };
 
   const containers: PaintShape[] = [];
@@ -251,7 +323,7 @@ export function paintPicture<T>(index: PictureIndex, looks: PictureLooks<T>, the
   for (const box of picture.boxes) {
     const labels = index.boxLabels.get(box.id) ?? [];
     const shown = inView(box);
-    if (!shown && !labels.some(inView)) continue;
+    if (!shown && !labels.some(near)) continue;
     const boxIs = boxState(index, box, state);
     const look = looks.box(box, boxIs, theme);
     if (look === undefined) continue;
@@ -259,7 +331,7 @@ export function paintPicture<T>(index: PictureIndex, looks: PictureLooks<T>, the
     const shapes = boxIs.container ? containers : leaves;
     if (shown) addBox(shapes, box, look, unit, share);
     const record: PictureRecord = { type: "box", id: box.id, box };
-    for (const label of labels) if (inView(label)) addLabel(shapes, label, looks.label(label, boxIs, theme, record), share, measure);
+    for (const label of labels) if (near(label)) place(shapes, label, looks.label(label, boxIs, theme, record), share, boxIs.highlight, box.w * box.h);
   }
 
   const back: PaintShape[] = [];
@@ -270,14 +342,14 @@ export function paintPicture<T>(index: PictureIndex, looks: PictureLooks<T>, the
     if (line === undefined) continue;
     const labels = index.routeLabels.get(route.id) ?? [];
     const shown = inView(line.bounds);
-    if (!shown && !labels.some(inView)) continue;
+    if (!shown && !labels.some(near)) continue;
     const routeIs = routeState(route, state);
     const look = looks.route(route, routeIs, theme);
     if (look === undefined) continue;
     const share = shareOf(recordKey("route", route.id), routeIs.focus);
     if (shown) addRoute(routeIs.focus === "in" || routeIs.highlight > 0 ? front : back, route, look, unit, share);
     const record: PictureRecord = { type: "route", id: route.id, route };
-    for (const label of labels) if (inView(label)) addLabel(routeLabels, label, looks.label(label, routeIs, theme, record), share, measure);
+    for (const label of labels) if (near(label)) place(routeLabels, label, looks.label(label, routeIs, theme, record), share, routeIs.highlight, 0);
   }
 
   const free: PaintShape[] = [];
@@ -285,7 +357,32 @@ export function paintPicture<T>(index: PictureIndex, looks: PictureLooks<T>, the
     const level: FocusLevel = state.focus === undefined ? "all" : "out";
     const labelIs: RecordState = { highlight: 0, focus: level, zoom: state.zoom, container: false };
     const share = shareOf(FREE_LABELS, level);
-    for (const label of index.freeLabels) if (inView(label)) addLabel(free, label, looks.label(label, labelIs, theme, undefined), share, measure);
+    for (const label of index.freeLabels) if (near(label)) place(free, label, looks.label(label, labelIs, theme, undefined), share, 0, 0);
   }
-  return containers.concat(back, front, leaves, routeLabels, free);
+
+  const top: PaintShape[] = [];
+  if (kept.length > 0) {
+    // The sort keeps the order of two labels of the same rank: the boxes, then the routes, then the labels that name no record.
+    kept.sort((a, b) => b.highlight - a.highlight || b.area - a.area);
+    const gap = KEPT_GAP * unit;
+    const taken: Rect[] = [];
+    for (const item of kept) {
+      const { label } = item;
+      const lines = label.lines.filter((line) => line.trim() !== "");
+      if (lines.length === 0) continue;
+      let wide = measure === undefined ? label.w : Math.max(...lines.map((line) => measure(label.font, line)));
+      if (label.w > 0) wide = Math.min(wide, label.w);
+      const rect = keptRect(label, wide, item.scale);
+      if (!inView(rect)) continue;
+      const space = grow(rect, gap);
+      const clear = taken.every((other) => {
+        const overlap = overlapOf(space, other);
+        return !(overlap.x > 0 && overlap.y > 0);
+      });
+      if (!clear) continue;
+      taken.push(rect);
+      addKept(top, item, rect);
+    }
+  }
+  return containers.concat(back, front, leaves, routeLabels, free, top);
 }

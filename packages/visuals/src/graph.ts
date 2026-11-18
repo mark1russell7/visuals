@@ -44,7 +44,9 @@ export { pictureKeyAction, type PictureKeyAction, type PictureKeyOptions } from 
 export {
   DARK_PICTURE_THEME,
   LIGHT_PICTURE_THEME,
+  MOST_KEPT_LINE,
   SMALLEST_BAR_LINE,
+  SMALLEST_NAMED_BOX,
   SMALLEST_TEXT_LINE,
   lookUnit,
   plainLooks,
@@ -64,6 +66,7 @@ export {
   BAR_HEIGHT,
   FREE_LABELS,
   HALO_WIDTH,
+  KEPT_GAP,
   VIEW_MARGIN,
   boxState,
   paintPicture,

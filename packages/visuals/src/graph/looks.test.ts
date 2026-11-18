@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DARK_PICTURE_THEME, LIGHT_PICTURE_THEME, lookUnit, plainLooks, SMALLEST_BAR_LINE, SMALLEST_TEXT_LINE, type RecordState } from "./looks.ts";
+import { DARK_PICTURE_THEME, LIGHT_PICTURE_THEME, lookUnit, plainLooks, SMALLEST_BAR_LINE, SMALLEST_NAMED_BOX, SMALLEST_TEXT_LINE, type RecordState } from "./looks.ts";
 import { CARD, CARD_LABEL, LINK, LINK_LABEL, NOTE, ROW_1, ROW_LABEL } from "./sample.ts";
 
 const theme = LIGHT_PICTURE_THEME;
@@ -83,17 +83,45 @@ describe("plainLooks", () => {
 
   it("shows a text that is too small to read as bars, and a smaller text not at all", () => {
     const bars = { color: theme.containerLine, as: "bars" };
-    /** This function gives the look of a label of the card with lines of a height, at a zoom. */
-    const at = (lineHeight: number, zoom = 1): unknown => looks.label({ ...CARD_LABEL, lineHeight }, state({ zoom, container: true }), theme, { type: "box", id: "card", box: CARD });
-    expect(at(SMALLEST_TEXT_LINE)).toEqual({ color: theme.mutedText });
+    /** This function gives the look of a label of the first row with lines of a height, at a zoom. */
+    const at = (lineHeight: number, zoom = 1): unknown => looks.label({ ...ROW_LABEL, lineHeight }, state({ zoom }), theme, { type: "box", id: "row-1", box: ROW_1 });
+    expect(at(SMALLEST_TEXT_LINE)).toEqual({ color: theme.text });
     expect(at(SMALLEST_TEXT_LINE - 0.5)).toEqual(bars);
     expect(at(SMALLEST_BAR_LINE)).toEqual(bars);
     expect(at(SMALLEST_BAR_LINE - 0.25)).toBeUndefined();
     // The height on the screen is the height of the line times the zoom.
-    expect(at(18, 2)).toEqual({ color: theme.mutedText });
+    expect(at(18, 2)).toEqual({ color: theme.text });
     expect(at(18, 0.5)).toEqual(bars);
     expect(at(18, 0.125)).toBeUndefined();
+    // A highlight does not change the bars of a box with no child.
+    expect(looks.label(ROW_LABEL, state({ zoom: 0.5, highlight: 2 }), theme, { type: "box", id: "row-1", box: ROW_1 })).toEqual(bars);
     // The label of a route becomes bars too, with no line around them.
     expect(looks.label(LINK_LABEL, state({ zoom: 0.5 }), theme, { type: "route", id: "link", route: LINK })).toEqual(bars);
+  });
+
+  it("keeps the name of a box with children as a text in a far view, while the box is wide enough on the screen", () => {
+    const kept = { color: theme.mutedText, halo: theme.paper, least: SMALLEST_TEXT_LINE };
+    const bars = { color: theme.containerLine, as: "bars" };
+    /** This function gives the look of the label of a card of a width at the zoom 0.25. A line of the label is 4.5 pixels high there. */
+    const wide = (w: number, more: Partial<RecordState> = {}): unknown => looks.label(CARD_LABEL, state({ zoom: 0.25, container: true, ...more }), theme, { type: "box", id: "card", box: { ...CARD, w } });
+    expect(wide(4 * SMALLEST_NAMED_BOX)).toEqual(kept);
+    expect(wide(4 * SMALLEST_NAMED_BOX - 4)).toEqual(bars);
+    // At a zoom where a person can read the text, the name is at its place with no change.
+    expect(looks.label(CARD_LABEL, state({ container: true }), theme, { type: "box", id: "card", box: CARD })).toEqual({ color: theme.mutedText });
+    // A box with no child has bars, and a label that names no box has bars too.
+    expect(wide(400, { container: false })).toEqual(bars);
+    expect(looks.label(CARD_LABEL, state({ zoom: 0.25, container: true }), theme, undefined)).toEqual(bars);
+    expect(looks.label(LINK_LABEL, state({ zoom: 0.25, container: true }), theme, { type: "route", id: "link", route: LINK })).toEqual(bars);
+  });
+
+  it("keeps the name of a box with children that has a highlight at each size, also where the text has no bar", () => {
+    const kept = { color: theme.mutedText, halo: theme.paper, least: SMALLEST_TEXT_LINE };
+    /** This function gives the look of the label of the card at a zoom. The card is 200 wide, and a line of its label is 18 high. */
+    const at = (zoom: number, highlight: 0 | 1 | 2): unknown => looks.label(CARD_LABEL, state({ zoom, container: true, highlight }), theme, { type: "box", id: "card", box: CARD });
+    // At the zoom 0.125, the card is 25 pixels wide and a line is 2.25 pixels high.
+    expect(at(0.125, 0)).toBeUndefined();
+    expect(at(0.125, 1)).toEqual(kept);
+    expect(at(0.125, 2)).toEqual(kept);
+    expect(at(0.03125, 1)).toEqual(kept);
   });
 });
