@@ -3,7 +3,7 @@ import { MAX_THETA } from "ireko/strategies/force";
 import { describe, expect, it } from "vitest";
 import { fakeAdvance } from "./advance.test-util.ts";
 import type { ThreadDocument } from "./document.ts";
-import { ASPECT_RANGE, entryRow, EXACT_MOST, FAR_THETA, farTheta, firstScale, mostLayouts, placeThread, sizedBoxes } from "./place.ts";
+import { ASPECT_RANGE, entryRow, EXACT_MOST, FAR_THETA, farTheta, firstScale, KEEP_SHARE, keepsPlaces, mostLayouts, placeThread, sizedBoxes, THREAD_FORCE } from "./place.ts";
 import { sampleThread } from "./sample.ts";
 import { MESSAGE_LOOK, threadSizes } from "./sizes.ts";
 
@@ -162,6 +162,139 @@ describe("the search of placeThread", () => {
     expect(shapeOf(wide)).toBeGreaterThan(shapeOf(free));
     const rects = [...wide.values()];
     expect(rects.flatMap((a, i) => rects.slice(i + 1).filter((b) => overlap(a, b))).length).toBe(0);
+  });
+});
+
+describe("placeThread after a change of the document", () => {
+  /** This function gives the places of the cards and the topics of a document: the boxes that are in no box. */
+  const topOf = (document: ThreadDocument, result: ReadonlyMap<string, Rect>): Map<string, Rect> => {
+    const out = new Map<string, Rect>();
+    for (const box of document.boxes) {
+      const place = result.get(box.id);
+      if (box.parent === undefined && place !== undefined) out.set(box.id, place);
+    }
+    return out;
+  };
+  /** This function gives the pairs of cards and topics of a result that have an area in common. */
+  const hitsOf = (document: ThreadDocument, result: ReadonlyMap<string, Rect>): string[] => {
+    const top = [...topOf(document, result)];
+    return top.flatMap(([a, at], i) => top.slice(i + 1).flatMap(([b, other]) => (overlap(at, other) ? [`${a} on ${b}`] : [])));
+  };
+  const before = topOf(sample, places);
+  /** The sample with one more entry: a reply to the entry `e04`, with the topic of that entry. */
+  const reply: ThreadDocument = {
+    ...sample,
+    boxes: [...sample.boxes, { id: "e99", data: { kinds: ["entry", "comment"], text: "The gravel comes on Friday.", at: "2026-09-03T12:00:00Z" } }],
+    edges: [
+      ...(sample.edges ?? []),
+      { id: "reply:e04:e99", source: "e04", target: "e99", data: { kind: "reply" } },
+      { id: "touches:e99:trench", source: "e99", target: "trench", data: { kind: "touches", choice: "e99", state: "chosen", by: "sorter" } },
+    ],
+  };
+  const replySizes = threadSizes(reply, fakeAdvance);
+  const after = placeThread(reply, replySizes, { before });
+
+  /** This function gives the boxes of `places` that have a different top left corner in a result. */
+  const movedIn = (result: ReadonlyMap<string, Rect>): string[] => [...places].flatMap(([id, place]) => (result.get(id)?.x === place.x && result.get(id)?.y === place.y ? [] : [id]));
+
+  it("moves no box of before when one entry is new", () => {
+    expect(after.size).toBe(reply.boxes.length);
+    expect(movedIn(after)).toEqual([]);
+    // The new entry changes the count of its topic, so the sizes of some topics are different. A message has the same parts, so its card is the same.
+    expect(after.get("m01")).toEqual(places.get("m01"));
+    expect(after.get("m01#0")).toEqual(places.get("m01#0"));
+    expect(hitsOf(reply, after)).toEqual([]);
+  });
+
+  it("puts the new entry in the first free place below the entry of its reply, when no side of that entry is free", () => {
+    // The cards of the sample are the gap apart near the entry `e04`, so no side of it has room for a card.
+    const entry = after.get("e99");
+    const parent = after.get("e04");
+    if (entry === undefined || parent === undefined) throw new Error("no entry");
+    const bottom = Math.max(...[...before.values()].map((place) => place.y + place.h));
+    expect(entry.y).toBeGreaterThan(parent.y + parent.h);
+    expect(entry.y).toBeLessThanOrEqual(bottom + THREAD_FORCE.gap);
+    expect(Math.abs(entry.x + entry.w / 2 - parent.x - parent.w / 2)).toBeLessThan(parent.w);
+    expect(hitsOf(reply, after)).toEqual([]);
+  });
+
+  it("puts a new entry at the gap below the entry of its reply, when that side is free", () => {
+    const entry = (id: string, text: string) => ({ id, data: { kinds: ["entry", "comment"], label: text, text } });
+    const two: ThreadDocument = { id: "two", boxes: [entry("a", "Bed 6."), entry("b", "Bed 2.")], edges: [] };
+    const size = placeThread(two, threadSizes(two, fakeAdvance)).get("a");
+    if (size === undefined) throw new Error("no card");
+    const apart = new Map<string, Rect>([
+      ["a", { x: 0, y: 0, w: size.w, h: size.h }],
+      ["b", { x: 1000, y: 0, w: size.w, h: size.h }],
+    ]);
+    const three: ThreadDocument = { ...two, boxes: [...two.boxes, entry("n", "Bed 4.")], edges: [{ id: "reply:a:n", source: "a", target: "n", data: { kind: "reply" } }] };
+    const result = placeThread(three, threadSizes(three, fakeAdvance), { before: apart });
+    expect(result.get("a")).toEqual(apart.get("a"));
+    expect(result.get("b")).toEqual(apart.get("b"));
+    expect(result.get("n")).toEqual({ x: 0, y: size.h + THREAD_FORCE.gap, w: size.w, h: size.h });
+  });
+
+  it("gives the same places for the same change", () => {
+    expect([...placeThread(reply, replySizes, { before })]).toEqual([...after]);
+  });
+
+  it("moves no box when a box goes away", () => {
+    const back = placeThread(sample, sizes, { before: topOf(reply, after) });
+    expect([...back]).toEqual([...places]);
+  });
+
+  it("gives a place to a new box with no spring, and moves no box of before", () => {
+    const alone: ThreadDocument = { ...sample, boxes: [...sample.boxes, { id: "bees", data: { kinds: ["topic"], label: "Bees" } }] };
+    const result = placeThread(alone, threadSizes(alone, fakeAdvance), { before });
+    expect(result.has("bees")).toBe(true);
+    expect(movedIn(result)).toEqual([]);
+    expect(hitsOf(alone, result)).toEqual([]);
+  });
+
+  it("keeps the corner of a box that has a different size", () => {
+    const shorter: ThreadDocument = { ...sample, boxes: sample.boxes.map((box) => (box.id === "e03" ? { ...box, data: { ...box.data, label: "Bed 6.", text: "Bed 6." } } : box)) };
+    const result = placeThread(shorter, threadSizes(shorter, fakeAdvance), { before });
+    expect(result.get("e03")?.h).toBeLessThan(places.get("e03")?.h ?? 0);
+    expect(movedIn(result)).toEqual([]);
+    expect(hitsOf(shorter, result)).toEqual([]);
+  });
+
+  it("moves a box that is on a different box after a change of its size, and no other box", () => {
+    const entry = (id: string, text: string) => ({ id, data: { kinds: ["entry", "comment"], label: text, text } });
+    const short: ThreadDocument = { id: "three", boxes: [entry("a", "Bed 6."), entry("b", "Bed 2."), entry("c", "Bed 4.")], edges: [] };
+    const long: ThreadDocument = { ...short, boxes: [entry("a", "The tomatoes move to bed 6 this week, and the beans go to bed 2."), entry("b", "Bed 2."), entry("c", "Bed 4.")] };
+    const shortSizes = threadSizes(short, fakeAdvance);
+    const cards = placeThread(short, shortSizes);
+    const size = cards.get("a");
+    if (size === undefined) throw new Error("no card");
+    // The card `b` is 10 below the card `a`, so a higher card `a` is on it.
+    const stack = new Map<string, Rect>([
+      ["a", { x: 0, y: 0, w: size.w, h: size.h }],
+      ["b", { x: 0, y: size.h + 10, w: size.w, h: size.h }],
+      ["c", { x: size.w + 100, y: 0, w: size.w, h: size.h }],
+    ]);
+    const result = placeThread(long, threadSizes(long, fakeAdvance), { before: stack });
+    expect(result.get("a")?.h).toBeGreaterThan(size.h + 10);
+    expect(result.get("b")).toEqual(stack.get("b"));
+    expect(result.get("c")).toEqual(stack.get("c"));
+    expect(hitsOf(long, result)).toEqual([]);
+  });
+
+  it("gives each box a new place after a large change", () => {
+    const few: ThreadDocument = { ...sample, boxes: sample.boxes.filter((box) => box.parent === undefined).slice(0, 4), edges: [] };
+    const fewSizes = threadSizes(few, fakeAdvance);
+    expect(few.boxes.length).toBeLessThan(KEEP_SHARE * before.size);
+    expect([...placeThread(few, fewSizes, { before })]).toEqual([...placeThread(few, fewSizes)]);
+  });
+
+  it("tells that a change is small when the kept boxes are half of the boxes before and after, or more", () => {
+    expect(keepsPlaces(294, 294, 295)).toBe(true);
+    expect(keepsPlaces(20, 40, 20)).toBe(true);
+    expect(keepsPlaces(20, 20, 40)).toBe(true);
+    expect(keepsPlaces(19, 40, 19)).toBe(false);
+    expect(keepsPlaces(40, 40, 300)).toBe(false);
+    expect(keepsPlaces(40, 300, 40)).toBe(false);
+    expect(keepsPlaces(0, 0, 0)).toBe(false);
   });
 });
 

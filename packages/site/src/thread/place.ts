@@ -1,6 +1,6 @@
 import { boxTree, siblingEdges, type BoxNode, type LayoutBox, type Rect } from "@mark1russell7/layout-contract";
 import { createEngine, type EdgeSpec, type NodeSpec } from "ireko";
-import { forceStrategy } from "ireko/strategies/force";
+import { forceStrategy, relaxForces, type RelaxNode } from "ireko/strategies/force";
 import { isSpring, threadKinds, type ThreadDocument } from "./document.ts";
 import { MESSAGE_LOOK, type LeafSize } from "./sizes.ts";
 
@@ -19,7 +19,20 @@ export interface PlaceOptions {
    * A value out of `ASPECT_RANGE` becomes the nearest limit. With no value, the forces give the shape.
    */
   readonly aspect?: number | undefined;
+  /**
+   * The places of the cards and the topics before a change of the document, by the id of each box.
+   * After a small change, each of these cards and topics keeps its top left corner. `keepsPlaces` tells if a change is small.
+   * A box that is then on a different box moves, and each new box gets a place between them.
+   * After a large change, each box gets a new place.
+   */
+  readonly before?: ReadonlyMap<string, Rect> | undefined;
 }
+
+/**
+ * The least share of the cards and the topics that keep their place, for a change of a document that moves no box.
+ * The share is of the boxes before the change, and of the boxes after it.
+ */
+export const KEEP_SHARE = 0.5;
 
 /** The limits of the option `aspect` of `placeThread`. */
 export const ASPECT_RANGE = { least: 0.4, most: 2.5 } as const;
@@ -108,6 +121,183 @@ export function farTheta(count: number): number {
   return count > EXACT_MOST ? FAR_THETA : 0;
 }
 
+/**
+ * This function tells if a change of a document is small. `kept` is the count of the cards and the topics that the document had before and has after.
+ * A change is small when `kept` is `KEEP_SHARE` or more of the count `before` the change, and of the count `after` it.
+ */
+export function keepsPlaces(kept: number, before: number, after: number): boolean {
+  return kept > 0 && kept >= KEEP_SHARE * Math.max(before, after);
+}
+
+/** A card or a topic of `placeAround`: its id and its size. */
+interface Sized {
+  readonly id: string;
+  readonly w: number;
+  readonly h: number;
+}
+
+/** A spring between two cards or topics of `placeAround`. */
+interface Spring {
+  readonly source: string;
+  readonly target: string;
+}
+
+/**
+ * This function gives the boxes that keep their corner after a small change of a document, with that corner.
+ * `stays` has the cards and the topics that the picture had before, with their size of this time.
+ *
+ * - A box with the same size keeps its corner.
+ * - A box with a different size keeps its corner too, if it is then on no box that keeps its corner.
+ *
+ * Thus a topic that gets one more entry, and a card that gets one more line, do not move.
+ */
+function heldCorners(stays: readonly Sized[], before: ReadonlyMap<string, Rect>): Map<string, { x: number; y: number }> {
+  const held = new Map<string, { x: number; y: number }>();
+  const rects: Rect[] = [];
+  const changed: (Sized & { readonly x: number; readonly y: number })[] = [];
+  for (const box of stays) {
+    const was = before.get(box.id);
+    if (was === undefined) continue;
+    if (was.w !== box.w || was.h !== box.h) {
+      changed.push({ ...box, x: was.x, y: was.y });
+      continue;
+    }
+    held.set(box.id, { x: was.x, y: was.y });
+    rects.push(was);
+  }
+  for (const box of changed) {
+    if (rects.some((rect) => box.x < rect.x + rect.w && rect.x < box.x + box.w && box.y < rect.y + rect.h && rect.y < box.y + box.h)) continue;
+    held.set(box.id, { x: box.x, y: box.y });
+    rects.push(box);
+  }
+  return held;
+}
+
+/**
+ * This function gives the corner of each card and each topic after a small change of a document.
+ * Each box of `held` stays at its corner.
+ *
+ * - A new box goes to a free side of a box that its springs join it to: below, right, left or above, at the gap.
+ *   The side with the smallest sum of the distances to those boxes is its place.
+ * - A new box with no such box goes below the picture.
+ * - A new box with no free side starts below those boxes. A box of `before` that is not held starts at its corner of `before`.
+ *   The relaxation of `ireko` moves these boxes, and no other box. It has no pull to the center of the picture.
+ *
+ * No box that gets a place here is on a different box in the result.
+ */
+function placeAround(top: readonly Sized[], held: ReadonlyMap<string, { readonly x: number; readonly y: number }>, before: ReadonlyMap<string, Rect>, springs: readonly Spring[], force: Readonly<Record<string, number>>): Map<string, { x: number; y: number }> {
+  if (held.size === top.length) return new Map(held);
+  const sizes = new Map(top.map((box) => [box.id, box]));
+  const starts = new Map<string, { x: number; y: number }>(held);
+  const bounds = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
+  const grow = (corner: { readonly x: number; readonly y: number }, box: Sized): void => {
+    bounds.left = Math.min(bounds.left, corner.x);
+    bounds.top = Math.min(bounds.top, corner.y);
+    bounds.right = Math.max(bounds.right, corner.x + box.w);
+    bounds.bottom = Math.max(bounds.bottom, corner.y + box.h);
+  };
+  const gap = force["margin"] !== undefined && force["margin"] > 0 ? force["margin"] : (force["gap"] ?? THREAD_FORCE.gap);
+  // The boxes that do not move: the held boxes, then each new box that gets a free place. `placed` has their rectangles.
+  const fixed = new Map<string, { x: number; y: number }>(held);
+  const placed: Rect[] = [];
+  const settle = (box: Sized, corner: { readonly x: number; readonly y: number }): void => {
+    fixed.set(box.id, { x: corner.x, y: corner.y });
+    starts.set(box.id, { x: corner.x, y: corner.y });
+    placed.push({ x: corner.x, y: corner.y, w: box.w, h: box.h });
+    grow(corner, box);
+  };
+  for (const box of top) {
+    const corner = held.get(box.id);
+    if (corner !== undefined) settle(box, corner);
+  }
+  // A place is free when each placed box is the gap or more from it. The small number is for the rounding of a sum.
+  const reach = gap - 1e-6;
+  const isFree = (corner: { readonly x: number; readonly y: number }, box: Sized): boolean =>
+    !placed.some((rect) => corner.x < rect.x + rect.w + reach && rect.x < corner.x + box.w + reach && corner.y < rect.y + rect.h + reach && rect.y < corner.y + box.h + reach);
+  const loose: Sized[] = [];
+  for (const box of top) {
+    if (held.has(box.id)) continue;
+    const was = before.get(box.id);
+    if (was !== undefined) {
+      starts.set(box.id, { x: was.x, y: was.y });
+      loose.push(box);
+      continue;
+    }
+    // The boxes at the other end of the springs of this box, if they have a start.
+    const near = springs.flatMap((spring): { x: number; y: number; box: Sized }[] => {
+      const other = spring.source === box.id ? spring.target : spring.target === box.id ? spring.source : undefined;
+      const at = other === undefined || other === box.id ? undefined : starts.get(other);
+      const size = other === undefined ? undefined : sizes.get(other);
+      return at === undefined || size === undefined ? [] : [{ ...at, box: size }];
+    });
+    if (near.length === 0) {
+      settle(box, { x: (bounds.left + bounds.right - box.w) / 2, y: bounds.bottom + gap });
+      continue;
+    }
+    // The four sides of each of those boxes, at the gap. The free side that is nearest to all of them is the place.
+    const far = (corner: { readonly x: number; readonly y: number }): number => near.reduce((sum, at) => sum + Math.hypot(corner.x + box.w / 2 - at.x - at.box.w / 2, corner.y + box.h / 2 - at.y - at.box.h / 2), 0);
+    let best: { x: number; y: number } | undefined;
+    let least = Infinity;
+    for (const at of near) {
+      const middle = { x: at.x + (at.box.w - box.w) / 2, y: at.y + (at.box.h - box.h) / 2 };
+      const sides = [
+        { x: middle.x, y: at.y + at.box.h + gap },
+        { x: at.x + at.box.w + gap, y: middle.y },
+        { x: at.x - gap - box.w, y: middle.y },
+        { x: middle.x, y: at.y - gap - box.h },
+      ];
+      for (const side of sides) {
+        const sum = far(side);
+        if (sum < least && isFree(side, box)) {
+          least = sum;
+          best = side;
+        }
+      }
+    }
+    if (best !== undefined) {
+      settle(box, best);
+      continue;
+    }
+    starts.set(box.id, { x: near.reduce((sum, at) => sum + at.x + at.box.w / 2, 0) / near.length - box.w / 2, y: Math.max(...near.map((at) => at.y + at.box.h)) + gap });
+    loose.push(box);
+  }
+  if (loose.length === 0) return fixed;
+  for (const box of loose) grow(starts.get(box.id) ?? { x: 0, y: 0 }, box);
+
+  // The relaxation keeps each free box in the width of its bound and below its top. So the bound has room on each side of the picture.
+  const springLength = force["springLength"] ?? THREAD_FORCE.springLength;
+  const room = springLength + gap + Math.max(...loose.map((box) => Math.max(box.w, box.h)));
+  const origin = { x: bounds.left - room, y: bounds.top - room };
+  const nodes = top.map((box): RelaxNode => {
+    const at = starts.get(box.id) ?? { x: 0, y: 0 };
+    return { id: box.id, rect: { x: at.x - origin.x, y: at.y - origin.y, width: box.w, height: box.h }, fixed: fixed.has(box.id) };
+  });
+  const strength = force["strength"] ?? forceStrategy.options.strength.default;
+  const moved = relaxForces(
+    nodes,
+    springs.map((spring) => ({ from: spring.source, to: spring.target, strength })),
+    {
+      iterations: force["iterations"] ?? THREAD_FORCE.iterations,
+      springLength,
+      repulsion: force["repulsion"] !== undefined && force["repulsion"] > 0 ? force["repulsion"] : springLength * springLength,
+      margin: gap,
+      inset: 0,
+      centering: 0,
+      theta: force["theta"] ?? farTheta(top.length),
+      bound: { width: bounds.right - bounds.left + 2 * room, height: bounds.bottom - bounds.top + 2 * room },
+    },
+  );
+  // A box that does not move has its corner, with no sum of floats.
+  const out = new Map<string, { x: number; y: number }>();
+  for (const box of top) {
+    const stay = fixed.get(box.id);
+    const to = moved.get(box.id);
+    if (stay !== undefined) out.set(box.id, { x: stay.x, y: stay.y });
+    else if (to !== undefined) out.set(box.id, { x: to.x + origin.x, y: to.y + origin.y });
+  }
+  return out;
+}
+
 /** This function gives the boxes of a document with the size of each measured box. A box with no measure gets the size 0. */
 export function sizedBoxes(document: ThreadDocument, sizes: ReadonlyMap<string, LeafSize>): LayoutBox[] {
   return document.boxes.map((box): LayoutBox => {
@@ -131,6 +321,9 @@ export function sizedBoxes(document: ThreadDocument, sizes: ReadonlyMap<string, 
  * `firstScale` gives the scale of the first layout. A short search then moves the scale to the shape of the area.
  * `mostLayouts` gives the most layouts of the search: a picture of many cards gets only the first layout.
  * `farTheta` gives the option `theta` of the forces: in a picture of many cards, a far group of boxes pushes as one box.
+ *
+ * With the option `before`, a small change of the document moves no card and no topic of the picture before.
+ * A new box gets a place near the boxes of its springs. The second step then has no search and no shape of an area.
  *
  * The same document and the same options give the same places.
  */
@@ -175,10 +368,12 @@ export function placeThread(document: ThreadDocument, sizes: ReadonlyMap<string,
     return { corners, shape: Math.max(1, bounds.right - bounds.left) / Math.max(1, bounds.bottom - bounds.top) };
   };
 
-  const aim = options.aspect !== undefined && Number.isFinite(options.aspect) ? Math.min(ASPECT_RANGE.most, Math.max(ASPECT_RANGE.least, options.aspect)) : undefined;
-  let scale = firstScale(aim);
-  let best = arrange(scale);
-  if (aim !== undefined) {
+  /** This function gives new corners to each card and each topic: the search of the shape of the area. */
+  const search = (): Arrangement["corners"] => {
+    const aim = options.aspect !== undefined && Number.isFinite(options.aspect) ? Math.min(ASPECT_RANGE.most, Math.max(ASPECT_RANGE.least, options.aspect)) : undefined;
+    let scale = firstScale(aim);
+    let best = arrange(scale);
+    if (aim === undefined) return best.corners;
     const off = (shape: number): number => Math.max(shape / aim, aim / shape);
     const most = mostLayouts(tree.length);
     let last = best;
@@ -190,7 +385,13 @@ export function placeThread(document: ThreadDocument, sizes: ReadonlyMap<string,
       last = arrange(scale);
       if (off(last.shape) < off(best.shape)) best = last;
     }
-  }
+    return best.corners;
+  };
+
+  const { before } = options;
+  const sized = tree.map((node): Sized => ({ id: node.box.id, w: cards.get(node.box.id)?.w ?? 0, h: cards.get(node.box.id)?.h ?? 0 }));
+  const stays = before === undefined ? [] : sized.filter((box) => before.has(box.id));
+  const corners = before === undefined || !keepsPlaces(stays.length, before.size, tree.length) ? search() : placeAround(sized, heldCorners(stays, before), before, springs, { ...THREAD_FORCE, ...options.force });
 
   const move = (node: BoxNode, dx: number, dy: number): void => {
     const rect = cards.get(node.box.id);
@@ -199,7 +400,7 @@ export function placeThread(document: ThreadDocument, sizes: ReadonlyMap<string,
   };
   for (const node of tree) {
     const card = cards.get(node.box.id);
-    const to = best.corners.get(node.box.id);
+    const to = corners.get(node.box.id);
     if (card !== undefined && to !== undefined) move(node, to.x - card.x, to.y - card.y);
   }
   return out;
