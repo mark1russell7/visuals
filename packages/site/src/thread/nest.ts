@@ -1,6 +1,14 @@
 import type { LayoutBox, LayoutEdge } from "@mark1russell7/layout-contract";
 import { edgeKind, edgeState, isMessageBox, isTopicBox, panelOf, relationOf, type ThreadBox, type ThreadDocument, type ThreadKind } from "./document.ts";
 
+/**
+ * The features of the view that a page can ask about, by name. A new feature adds a name, and no name leaves the list.
+ * A page gives a document that needs a feature only to a build that has it. A build from before this list has no feature.
+ *
+ * - `nests`: the view draws a box in its container (`parent` of a box), to each depth.
+ */
+export const THREAD_FEATURES: readonly string[] = ["nests"];
+
 /** How a view shows the containers of a document. */
 export interface NestState {
   /** The ids of the closed containers. A closed container is one box, and the picture does not show the boxes in it. */

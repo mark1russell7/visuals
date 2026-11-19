@@ -2,7 +2,7 @@ import type { LayoutBox, LayoutEdge } from "@mark1russell7/layout-contract";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { holdsOf, isMessageBox, isTopicBox, panelOf, soundDocument, threadKinds, type ThreadBox, type ThreadDocument, type ThreadKind } from "./document.ts";
-import { ancestorsOf, closedOf, containersOf, flatHides, hasGroups, isLifted, liftedOf, openFor, routeGround, shownDocument } from "./nest.ts";
+import { ancestorsOf, closedOf, containersOf, flatHides, hasGroups, isLifted, liftedOf, openFor, routeGround, shownDocument, THREAD_FEATURES } from "./nest.ts";
 import { panelBox, panelEdge } from "./panel.test-util.ts";
 import { sampleThread } from "./sample.ts";
 
@@ -83,6 +83,13 @@ function shownAs(document: ThreadDocument, closed: ReadonlySet<string>, id: stri
       .at(-1) ?? id
   );
 }
+
+describe("the features of the view", () => {
+  it("names the containers, so a page gives a document with containers only to a build that draws them", () => {
+    expect(THREAD_FEATURES).toContain("nests");
+    expect(new Set(THREAD_FEATURES).size).toBe(THREAD_FEATURES.length);
+  });
+});
 
 describe("the tree of a document", () => {
   it("gives the containers of the sample: each message, the two topics with boxes in them, and the thread", () => {
