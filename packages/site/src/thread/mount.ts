@@ -241,13 +241,16 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     proposalsSwitch,
     button("thread-tool thread-zoom", { "aria-label": "Zoom out" }, ["−"], () => stage?.zoomBy(1 / ZOOM_STEP)),
     button("thread-tool thread-zoom", { "aria-label": "Zoom in" }, ["+"], () => stage?.zoomBy(ZOOM_STEP)),
-    button("thread-tool", {}, ["Show all"], () => stage?.setView("all")),
+    // A narrow view shows the sign in place of the words, so the button keeps its name for a screen reader.
+    button("thread-tool thread-fit", { "aria-label": "Show all" }, [h("span", { class: "thread-fit-sign", "aria-hidden": "true" }), h("span", { class: "thread-fit-words" }, "Show all")], () => stage?.setView("all")),
   );
+  // The row of the controls: the buttons of the walks take the room that the controls leave.
+  const controls = h("div", { class: "thread-controls" }, jumps, tools);
   const card = h("aside", { class: "thread-card", hidden: true, "aria-label": "The selected box" });
   const legendList = h("ul");
   const legendBox = h("details", { class: "thread-legend", open: true }, h("summary", {}, "Legend"), legendList);
   const tip = h("div", { class: "thread-tip", role: "tooltip", hidden: true });
-  const root = h("div", { class: "thread" }, stageBox, slotLayer, note, jumps, tools, card, legendBox, tip);
+  const root = h("div", { class: "thread" }, stageBox, slotLayer, note, controls, card, legendBox, tip);
 
   // A theme with no value for a color has no property for it, so the style uses its default.
   const setColors = (theme: ThreadTheme): void => {
@@ -263,9 +266,9 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   /** This function gives the parts of the view that the page and the card cover. `more` has parts that the page covers for one move of the camera. */
   const insetsNow = (more: Partial<Insets> = {}): Insets => {
     const narrow = root.clientWidth <= NARROW;
-    // The buttons of the walks and the controls are in two rows in a view that has no room for them in one row.
-    const below = (node: HTMLElement): number => (node.offsetHeight === 0 ? 0 : node.offsetTop + node.offsetHeight + 4);
-    const top = Math.max(narrow ? 56 : 52, below(jumps), below(tools));
+    // The buttons of the walks are in two rows in a view that has no room for them in one row, so the row of the controls gives the height.
+    const rowEnd = controls.offsetHeight === 0 ? 0 : controls.offsetTop + controls.offsetHeight + 4;
+    const top = Math.max(narrow ? 56 : 52, rowEnd);
     const own = narrow ? { top, right: 0, bottom: card.hidden ? 0 : card.offsetHeight, left: 0 } : { top, right: card.hidden ? 0 : card.offsetWidth + 20, bottom: 0, left: 0 };
     const outer = options.covered ?? {};
     const most = (edge: keyof Insets): number => Math.max(own[edge], outer[edge] ?? 0, more[edge] ?? 0);
