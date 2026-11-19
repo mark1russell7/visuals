@@ -22,12 +22,19 @@ export type ThreadBox = Omit<LayoutBox, "w" | "h"> & { readonly w?: number | und
  * - A box can have `data.actions`: a list of buttons, each with an `id` and a `title`. The card of the box shows them.
  * - A part has its message as `parent`.
  * - A topic has `topic` as its first kind. Its second kind is a tag, and its `data.state` can be `done`.
- * - An entry is a box with no part and no parent that is not a topic. Its tag is its second kind.
+ * - An entry is a box with no box in it that is not a part, a topic or a panel. Its tag is its second kind.
  * - An entry can have `data.waits`: the id of who the entry waits on, for example a person. The entry stands out in the picture.
  * - A panel has `panel` as its first kind, and no parent. It is the place of a form of the page, next to the box of its `data.of`.
  * - An edge has `data.kind`: `reply`, `part`, `touches`, `relates` or `panel`. An edge `relates` can have `data.relation`.
  * - An edge of a sorter has also `data.state`, `data.rank`, `data.score`, `data.choice` and `data.by`.
  * - An edge `panel` joins a box to its panel. It is a line of dashes, and it pulls no box.
+ *
+ * A box can contain other boxes, to each depth: each of them has it as `parent`.
+ *
+ * - A container that is not a message is a group: a frame around its boxes, with its name in a header. A topic can be a group.
+ * - A group can have `data.layout`: the name of a strategy of the layout engine, or an object with the name `type` and the options.
+ * - A group with no `data.layout` gets a layout from the number of its boxes.
+ * - A container with `data.closed` as `true` is closed at the start: the picture shows it as one box, with no box in it.
  */
 export interface ThreadDocument {
   readonly id: string;
@@ -91,10 +98,27 @@ export function kindsOf(box: WithData): string[] {
   return Array.isArray(kinds) ? kinds.filter((kind): kind is string => typeof kind === "string" && kind !== "") : [];
 }
 
-/** This function tells if a box with boxes in it is the card of a message: its first kind is `message`, or it has no kind. */
+/** This function tells if a box with boxes in it is the card of a message. Such a box has the first kind `message`, or no kind. */
 export function isMessageBox(box: WithData): boolean {
   const first = kindsOf(box)[0];
   return first === undefined || first === "message";
+}
+
+/**
+ * This function tells if a box is a topic: its first kind is `topic`.
+ * A topic with boxes in it is a group in the picture. It stays a topic for the choice of a person.
+ */
+export function isTopicBox(box: WithData): boolean {
+  return kindsOf(box)[0] === "topic";
+}
+
+/**
+ * This function gives the number of the boxes in a closed container: its `data.holds`. `shownDocument` writes it.
+ * It gives `undefined` for a box that is not a closed container.
+ */
+export function holdsOf(box: WithData): number | undefined {
+  const holds = count(box, "holds");
+  return holds !== undefined && holds > 0 ? holds : undefined;
 }
 
 /**

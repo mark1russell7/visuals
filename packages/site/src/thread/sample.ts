@@ -36,6 +36,8 @@ interface SampleEntry {
   readonly after?: string;
   /** The id of who the entry waits on. The card of the entry has a button for an answer. */
   readonly waits?: string;
+  /** The id of the thread of the entry. The first entry of a thread gives the thread its text, its tag, its time and its topic. */
+  readonly thread?: string;
 }
 
 const TOPICS: readonly SampleTopic[] = [
@@ -235,8 +237,8 @@ const MESSAGES: readonly SampleMessage[] = [
 ];
 
 const ENTRIES: readonly SampleEntry[] = [
-  { id: "e01", tag: "ask", at: "2026-09-03T09:00:00Z", text: "Who pays for the gravel of the trench?", topic: "trench" },
-  { id: "e02", tag: "comment", at: "2026-09-03T09:25:00Z", text: "The repair fund pays. It has 140 left.", topic: "trench", after: "e01" },
+  { id: "e01", tag: "ask", at: "2026-09-03T09:00:00Z", text: "Who pays for the gravel of the trench?", topic: "trench", thread: "t01" },
+  { id: "e02", tag: "comment", at: "2026-09-03T09:25:00Z", text: "The repair fund pays. It has 140 left.", topic: "trench", after: "e01", thread: "t01" },
   { id: "e03", tag: "decision", at: "2026-09-03T10:10:00Z", text: "The tomatoes move to bed 6 this week.", topic: "tomatoes" },
   { id: "e04", tag: "request", at: "2026-09-03T11:40:00Z", text: "Order two cubic meters of gravel before Saturday.", topic: "trench", waits: "reader" },
 ];
@@ -246,6 +248,12 @@ export const SAMPLE_ANSWER: ThreadAction = { id: "answer", title: "Answer" };
 
 /** The name of the sorter in `data.by` of an edge. */
 const SORTER = "sorter";
+
+/** The relation type of a topic that is a part of a wider topic. The box of the topic is in the box of the wider topic. */
+const PART_OF = "sub";
+
+/** The first kind of the box of a thread: an entry and its replies in one box. */
+const THREAD = "thread";
 
 /** This function gives the boxes and the edges of one message of the sample. */
 function messageRecords(message: SampleMessage): { boxes: ThreadBox[]; edges: LayoutEdge[] } {
@@ -273,18 +281,31 @@ function messageRecords(message: SampleMessage): { boxes: ThreadBox[]; edges: La
  * - A sorter gave a topic to each part, with 3 proposals or fewer. A person changed one topic, and two parts have no topic.
  * - One topic is done. Two topics are parts of a wider topic, and two pairs of topics are related.
  * - One entry waits on the reader of the page, and it has the action of an answer.
+ * - The boxes have three levels of containers. The two narrower topics are in their wider topic.
+ * - One thread of two entries is a box in the topic of its first entry.
  */
 export function sampleThread(): ThreadDocument {
-  const boxes: ThreadBox[] = TOPICS.map(([id, label, tag, state]): ThreadBox => ({ id, data: { kinds: ["topic", tag], label, ref: `#${id}`, ...(state === undefined ? {} : { state }) } }));
+  const wider = new Map(RELATIONS.filter(([, relation]) => relation === PART_OF).map(([source, , target]) => [source, target]));
+  const boxes: ThreadBox[] = TOPICS.map(([id, label, tag, state]): ThreadBox => {
+    const parent = wider.get(id);
+    return { id, ...(parent === undefined ? {} : { parent }), data: { kinds: ["topic", tag], label, ref: `#${id}`, ...(state === undefined ? {} : { state }) } };
+  });
   const edges: LayoutEdge[] = RELATIONS.map(([source, relation, target]): LayoutEdge => ({ id: `relates:${source}:${target}`, source, target, data: { kind: "relates", relation } }));
   for (const message of MESSAGES) {
     const records = messageRecords(message);
     boxes.push(...records.boxes);
     edges.push(...records.edges);
   }
+  const threads = new Set<string>();
   for (const entry of ENTRIES) {
     const waits = entry.waits === undefined ? {} : { waits: entry.waits, actions: [SAMPLE_ANSWER] };
-    boxes.push({ id: entry.id, data: { kinds: ["entry", entry.tag], label: entry.text, text: entry.text, at: entry.at, ...waits } });
+    // The box of a thread comes before its first entry.
+    if (entry.thread !== undefined && !threads.has(entry.thread)) {
+      threads.add(entry.thread);
+      const count = ENTRIES.filter((other) => other.thread === entry.thread).length;
+      boxes.push({ id: entry.thread, parent: entry.topic, data: { kinds: [THREAD, entry.tag], label: entry.text, text: entry.text, at: entry.at, entries: count } });
+    }
+    boxes.push({ id: entry.id, ...(entry.thread === undefined ? {} : { parent: entry.thread }), data: { kinds: ["entry", entry.tag], label: entry.text, text: entry.text, at: entry.at, ...waits } });
     edges.push({ id: `touches:${entry.id}:${entry.topic}`, source: entry.id, target: entry.topic, data: { kind: "touches", choice: entry.id, state: "chosen", by: SORTER } });
     if (entry.after !== undefined) edges.push({ id: `reply:${entry.after}:${entry.id}`, source: entry.after, target: entry.id, data: { kind: "reply" } });
   }
@@ -302,6 +323,7 @@ export const SAMPLE_LEGEND: ThreadLegend = {
     { id: "comment", title: "Comment" },
     { id: "decision", title: "Decision" },
     { id: "request", title: "Request" },
+    { id: THREAD, title: "Thread" },
   ],
   relations: [
     { id: "sub", title: "Part of" },
@@ -318,6 +340,7 @@ const ANSWER = "answer";
  *
  * - The entry waits on no one, and it has no action.
  * - A new comment is a reply to the entry. It is the last box, and it has each chosen topic of the entry.
+ * - The comment is in the container of the entry: an answer to an entry of a thread is in that thread.
  * - The result is the document of the argument for an id that is not a box, and for an empty text.
  *
  * @param at - The time of the answer.
@@ -333,7 +356,7 @@ export function answerEntry(document: ThreadDocument, entry: string, text: strin
   const topics = edges.filter((edge) => isChosen(edge) && choiceOf(edge) === entry).map((edge) => edge.target);
   return {
     ...document,
-    boxes: [...document.boxes.map((box) => (box === found ? { ...found, data } : box)), { id, data: { kinds: ["entry", "comment"], label: text, text, at } }],
+    boxes: [...document.boxes.map((box) => (box === found ? { ...found, data } : box)), { id, ...(found.parent === undefined ? {} : { parent: found.parent }), data: { kinds: ["entry", "comment"], label: text, text, at } }],
     edges: [
       ...edges,
       { id: `reply:${entry}:${id}`, source: entry, target: id, data: { kind: "reply" } },

@@ -1,5 +1,5 @@
 import type { LayoutBox, LayoutEdge } from "@mark1russell7/layout-contract";
-import { edgeKind, edgeState, isMessageBox, kindsOf, relationOf, type ThreadBox, type ThreadDocument, type ThreadKind } from "./document.ts";
+import { edgeKind, edgeState, isMessageBox, isTopicBox, panelOf, relationOf, type ThreadBox, type ThreadDocument, type ThreadKind } from "./document.ts";
 
 /** How a view shows the containers of a document. */
 export interface NestState {
@@ -32,6 +32,18 @@ export function ancestorsOf(document: ThreadDocument, id: string): string[] {
   return out;
 }
 
+/** This function tells if a document has a group: a container that is not a message. The flat view of such a document is a different picture. */
+export function hasGroups(document: ThreadDocument): boolean {
+  const containers = containersOf(document);
+  return document.boxes.some((box) => containers.has(box.id) && !isMessageBox(box));
+}
+
+/** This function tells if the flat view does not show a box of a document. Such a box is a container that is not a message and not a topic. */
+export function flatHides(document: ThreadDocument, id: string): boolean {
+  const box = document.boxes.find((entry) => entry.id === id);
+  return box !== undefined && !isMessageBox(box) && !isTopicBox(box) && document.boxes.some((entry) => entry.parent === id);
+}
+
 /** This function gives the ids of the edges that an edge of a shown document is made from: its `data.lifted`. An edge of the document gives an empty list. */
 export function liftedOf(edge: Pick<LayoutEdge, "data">): string[] {
   const lifted = edge.data?.["lifted"];
@@ -58,7 +70,7 @@ function flatDocument(document: ThreadDocument): ThreadDocument {
     const box = byId.get(id);
     return box !== undefined && containers.has(id) && isMessageBox(box);
   };
-  const isGroup = (box: ThreadBox): boolean => containers.has(box.id) && !isMessageBox(box) && kindsOf(box)[0] !== "topic";
+  const isGroup = (box: ThreadBox): boolean => containers.has(box.id) && !isMessageBox(box) && !isTopicBox(box);
   if (document.boxes.every((box) => box.parent === undefined || isCard(box.parent))) return document;
   const boxes: ThreadBox[] = [];
   for (const box of document.boxes) {
@@ -78,8 +90,9 @@ function flatDocument(document: ThreadDocument): ThreadDocument {
  * This function gives a document with each closed container as one box. The document must be sound.
  *
  * - A box in a closed container is not in the result. The container gets `data.holds`: the number of those boxes.
+ * - A panel of a box in a closed container becomes a panel of that container: its `data.of` is the container.
  * - An edge with an end in a closed container goes to that container. Such an edge is a lifted edge.
- * - The lifted edges with the same ends, kind, state and relation become one edge. Its `data.lifted` has the ids of its edges.
+ * - The lifted edges with the same ends, kind, state, relation and choice become one edge. Its `data.lifted` has the ids of its edges.
  * - The lifted edge has the id of its first edge. An edge between two boxes of one closed container is not in the result.
  *
  * Thus each edge that crosses the border of a closed container is in one lifted edge, one time.
@@ -106,7 +119,10 @@ function closedDocument(document: ThreadDocument, closed: ReadonlySet<string>): 
   const boxes = document.boxes.flatMap((box): ThreadBox[] => {
     if (shownAs(box.id) !== box.id) return [];
     const count = holds.get(box.id);
-    return [count === undefined ? box : { ...box, data: { ...box.data, holds: count } }];
+    const of = panelOf(box);
+    const at = of === undefined ? undefined : shownAs(of);
+    if (count === undefined && at === of) return [box];
+    return [{ ...box, data: { ...box.data, ...(count === undefined ? {} : { holds: count }), ...(at === of ? {} : { of: at }) } }];
   });
   const edges: LayoutEdge[] = [];
   /** The place in `edges` of each lifted edge, by its ends, its kind, its state and its relation. */
@@ -122,7 +138,10 @@ function closedDocument(document: ThreadDocument, closed: ReadonlySet<string>): 
     const kind = edgeKind(edge);
     const state = edgeState(edge);
     const relation = relationOf(edge);
-    const key = JSON.stringify([source, target, kind, state, relation]);
+    // An edge can name the part of its choice. The lifted edge names the box that the picture shows for that part.
+    const named: unknown = edge.data?.["choice"];
+    const choice = typeof named === "string" ? shownAs(named) : undefined;
+    const key = JSON.stringify([source, target, kind, state, relation, choice]);
     const at = lifted.get(key);
     const before = at === undefined ? undefined : edges[at];
     if (at !== undefined && before !== undefined) {
@@ -134,7 +153,7 @@ function closedDocument(document: ThreadDocument, closed: ReadonlySet<string>): 
       id: edge.id,
       source,
       target,
-      data: { ...(kind === undefined ? {} : { kind }), ...(state === undefined ? {} : { state }), ...(relation === undefined ? {} : { relation }), lifted: [edge.id] },
+      data: { ...(kind === undefined ? {} : { kind }), ...(state === undefined ? {} : { state }), ...(relation === undefined ? {} : { relation }), ...(choice === undefined ? {} : { choice }), lifted: [edge.id] },
     });
   }
   return { ...document, boxes, edges };

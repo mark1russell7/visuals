@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { fakeAdvance } from "./advance.test-util.ts";
 import { chooseTopic } from "./card.ts";
-import { sampleThread } from "./sample.ts";
+import { flatSample } from "./sample.test-util.ts";
 import { panelBox, panelId, withPanels } from "./panel.test-util.ts";
 import { isTopicLook, PANEL_LOOK, PART_LOOK, threadSizes, topicLook } from "./sizes.ts";
 
-const sample = sampleThread();
+const sample = flatSample();
 const sizes = threadSizes(sample, fakeAdvance);
 
 describe("threadSizes", () => {

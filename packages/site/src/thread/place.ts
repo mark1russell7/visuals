@@ -121,13 +121,11 @@ export function threadEngine(): Engine {
  * Thus a layout that is not good is a finding of the engine, and it is not a different layout with no sign.
  */
 export function groupLayout(box: Pick<ThreadBox, "data">, count: number, rules: readonly LayoutRule[] = GROUP_RULES): LayoutRef {
-  const frame = { padding: GROUP_LOOK.padding, gap: GROUP_LOOK.gap };
-  const header = { header: GROUP_LOOK.header };
   const own: unknown = box.data?.["layout"];
-  if (own === undefined || own === null) return { ...frame, ...rules.find((rule) => count <= rule.most)?.layout, ...header } as LayoutRef;
-  if (typeof own === "string") return { ...frame, type: own, ...header };
-  if (typeof own === "object" && !Array.isArray(own)) return { ...frame, ...own, ...header } as LayoutRef;
-  return { ...frame, ...header } as unknown as LayoutRef;
+  const named: Readonly<Record<string, unknown>> =
+    own === undefined || own === null ? { ...rules.find((rule) => count <= rule.most)?.layout } : typeof own === "string" ? { type: own } : typeof own === "object" && !Array.isArray(own) ? { ...own } : {};
+  // A layout with no name has no `type`. The type of the engine does not have that form, and the engine gives a finding for it.
+  return { padding: GROUP_LOOK.padding, gap: GROUP_LOOK.gap, ...named, header: GROUP_LOOK.header } as unknown as LayoutRef;
 }
 
 /** A finding of the layout engine about the layout of a box, for example a name that is not a strategy. */

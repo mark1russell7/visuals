@@ -26,6 +26,7 @@
     "@types/node": "^26.6.5",
     "@types/three": "^0.187.0",
     "@vitest/coverage-v8": "^5.0.3",
+    "fast-check": "^4.10.2",
     "ireko": "^0.2.5",
     "three": "^0.187.0",
     "typescript": "^7.0.2",

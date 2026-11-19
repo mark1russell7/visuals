@@ -1,14 +1,15 @@
 import type { PictureBox, PictureLabel, PictureRoute } from "@mark1russell7/layout-contract";
-import type { RecordState } from "@mark1russell7/visuals/graph";
+import { KEPT_GAP, type RecordState } from "@mark1russell7/visuals/graph";
 import { describe, expect, it } from "vitest";
 import { fakeAdvance } from "./advance.test-util.ts";
-import { DONE_OPACITY, FAR_LINE_OPACITY, farNameLine, LIGHT_THREAD_THEME, PANEL_DASH, PANEL_NAME_LINE, PANEL_RADIUS, PROPOSAL_OPACITY, TEXT_ZOOM, threadLooks, WAITS_WIDTH, waitsColor, type ThreadLookState } from "./looks.ts";
+import { DONE_OPACITY, FAR_LINE_OPACITY, farNameLine, GROUP_LIT_OPACITY, GROUP_NAME_LEAST, GROUP_NAME_LINE, GROUP_OPACITY, GROUP_RADIUS, groupNameLine, LIGHT_THREAD_THEME, PANEL_DASH, PANEL_NAME_LINE, PANEL_RADIUS, PROPOSAL_OPACITY, TEXT_ZOOM, threadLooks, WAITS_WIDTH, waitsColor, type ThreadLookState } from "./looks.ts";
 import { panelId, withPanels } from "./panel.test-util.ts";
 import { labelId, threadPicture } from "./picture.ts";
 import { sampleThread } from "./sample.ts";
-import { isTopicLook, MESSAGE_LOOK } from "./sizes.ts";
+import { flatSample } from "./sample.test-util.ts";
+import { GROUP_LOOK, isTopicLook, MESSAGE_LOOK } from "./sizes.ts";
 
-const thread = threadPicture(sampleThread(), fakeAdvance, { timeZone: "UTC" });
+const thread = threadPicture(flatSample(), fakeAdvance, { timeZone: "UTC" });
 const theme = LIGHT_THREAD_THEME;
 const near: RecordState = { highlight: 0, focus: "all", zoom: 1, container: false };
 const far: RecordState = { ...near, zoom: TEXT_ZOOM / 2 };
@@ -140,7 +141,7 @@ describe("the look of a route", () => {
 
 describe("the look of a panel", () => {
   const id = panelId("m10#0");
-  const withPanel = threadPicture(withPanels(sampleThread(), "m10#0"), fakeAdvance, { timeZone: "UTC" });
+  const withPanel = threadPicture(withPanels(flatSample(), "m10#0"), fakeAdvance, { timeZone: "UTC" });
   const panelLooks = threadLooks(() => ({ thread: withPanel, proposals: false }));
   const found = <T>(record: T | undefined): T => {
     if (record === undefined) throw new Error("no record of the panel");
@@ -199,5 +200,77 @@ describe("the look of a label", () => {
     expect(labelLook(labelId("text", "fence"), "fence", far)?.opacity).toBe(0.6);
     expect(labelLook(labelId("count", "trench"), "trench", far)).toBeUndefined();
     expect(farNameLine(24)).toBeGreaterThan(farNameLine(15));
+  });
+});
+
+describe("the look of a group", () => {
+  const source = sampleThread();
+  const nested = threadPicture(source, fakeAdvance, { timeZone: "UTC" });
+  const lit: RecordState = { ...near, highlight: 1 };
+  const looksOf = (picture: typeof nested) => {
+    const made = threadLooks(() => ({ thread: picture, proposals: false }));
+    const boxOf = (id: string): PictureBox => {
+      const found = picture.picture.boxes.find((entry) => entry.id === id);
+      if (found === undefined) throw new Error(`no box ${id}`);
+      return found;
+    };
+    return {
+      box: (id: string, at: RecordState) => made.box(boxOf(id), at, theme),
+      label: (role: "text" | "sign" | "issue", id: string, at: RecordState) => {
+        const found = picture.picture.labels.find((entry) => entry.id === labelId(role, id));
+        if (found === undefined) throw new Error(`no label ${role} of ${id}`);
+        return made.label(found, at, theme, { type: "box", id, box: boxOf(id) });
+      },
+    };
+  };
+  const group = looksOf(nested);
+
+  it("is a frame that lets the page show through it, darker with the pointer on it", () => {
+    expect(group.box("water", { ...near, container: true })).toEqual({ fill: theme.quiet, stroke: theme.muted, width: 1, radius: GROUP_RADIUS, opacity: GROUP_OPACITY });
+    expect(group.box("t01", near)).toEqual(group.box("water", near));
+    expect(group.box("water", lit)).toEqual({ fill: theme.quiet, stroke: theme.accent, width: 2, radius: GROUP_RADIUS, opacity: GROUP_LIT_OPACITY });
+    expect(GROUP_LIT_OPACITY).toBeGreaterThan(GROUP_OPACITY);
+  });
+
+  it("keeps the look of a topic and of an entry in a group", () => {
+    expect(group.box("rota", near)).toMatchObject({ fill: theme.topicFill });
+    expect(group.box("e01", near)).toMatchObject({ fill: theme.surface, stroke: theme.stroke, radius: 9 });
+  });
+
+  it("keeps the name of a group in a far view, larger for a group at the top", () => {
+    expect(group.label("text", "water", near)).toEqual({ color: theme.text });
+    expect(group.label("text", "water", lit)).toEqual({ color: theme.accent });
+    expect(group.label("text", "water", far)).toEqual({ color: theme.text, halo: theme.background, least: groupNameLine(far.zoom, true) });
+    expect(group.label("text", "trench", far)).toEqual({ color: theme.text, halo: theme.background, least: groupNameLine(far.zoom, false) });
+    expect(GROUP_NAME_LINE.top).toBeGreaterThan(GROUP_NAME_LINE.inner);
+  });
+
+  it("gives the name of a group the height of its header on the screen, between the two limits", () => {
+    // At the zoom where a far view starts, the header has room for the largest name.
+    expect(groupNameLine(TEXT_ZOOM, true)).toBe(GROUP_NAME_LINE.top);
+    expect(groupNameLine(TEXT_ZOOM, false)).toBe(GROUP_NAME_LINE.inner);
+    expect(groupNameLine(0.5, true)).toBeCloseTo(GROUP_LOOK.header * 0.5 - KEPT_GAP - 1);
+    expect(groupNameLine(0.5, false)).toBe(groupNameLine(0.5, true));
+    expect(groupNameLine(0.1, true)).toBe(GROUP_NAME_LEAST);
+    expect(groupNameLine(0.1, false)).toBe(GROUP_NAME_LEAST);
+  });
+
+  it("gives a group and a group in it room for their two names, down to the smallest name", () => {
+    // The names of a group and of a group in it are one header apart. The stage keeps `KEPT_GAP` between two names.
+    for (const zoom of [0.69, 0.6, 0.57, 0.5, 0.48]) {
+      const apart = GROUP_LOOK.header * zoom;
+      expect((groupNameLine(zoom, true) + groupNameLine(zoom, false)) / 2 + KEPT_GAP, String(zoom)).toBeLessThanOrEqual(apart);
+      expect(groupNameLine(zoom, false) + KEPT_GAP, String(zoom)).toBeLessThanOrEqual(apart);
+    }
+  });
+
+  it("gives the finding of a group the color of a sign that asks for work, and hides it in a far view", () => {
+    const boxes = source.boxes.map((entry) => (entry.id === "water" ? { ...entry, data: { ...entry.data, layout: "spiral" } } : entry));
+    const bad = looksOf(threadPicture({ ...source, boxes }, fakeAdvance, { timeZone: "UTC" }));
+    for (const role of ["sign", "issue"] as const) {
+      expect(bad.label(role, "water", near)).toEqual({ color: theme.open });
+      expect(bad.label(role, "water", far)).toBeUndefined();
+    }
+    expect(bad.label("text", "water", near)).toEqual({ color: theme.text });
   });
 });

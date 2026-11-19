@@ -1,11 +1,12 @@
 import type { CurveOptions } from "@mark1russell7/highways";
 import { pictureOf, topBoxes, type LayoutBox, type LayoutEdge, type LayoutPicture, type PictureLabel, type PictureRoute, type PictureRouteSource, type Rect } from "@mark1russell7/layout-contract";
 import type { AdvanceFn } from "@mark1russell7/layout-contract/text";
-import { choiceOf, edgeKind, isDrawn, isProposal, partStates, soundDocument, tagOf, threadKinds, timeOf, waitsOf, type PartState, type ThreadBox, type ThreadDocument, type ThreadKind, type ThreadLegend } from "./document.ts";
+import { choiceOf, edgeKind, holdsOf, isDrawn, isProposal, partStates, soundDocument, tagOf, threadKinds, timeOf, waitsOf, type PartState, type ThreadBox, type ThreadDocument, type ThreadKind, type ThreadLegend } from "./document.ts";
+import { routeGround, shownDocument, type NestState, type RouteGround } from "./nest.ts";
 import { placePanels, splitPanels, type PanelSide } from "./panels.ts";
-import { entryRow, placeThread, sizedBoxes, type PlaceOptions } from "./place.ts";
+import { entryRow, layoutThread, sizedBoxes, type PlaceIssue, type PlaceOptions } from "./place.ts";
 import { routeThread, threadRouter, type ThreadRouter } from "./route.ts";
-import { isTopicLook, MESSAGE_LOOK, PART_LOOK, widestLine, threadSizes, type LeafSize } from "./sizes.ts";
+import { GROUP_LOOK, isTopicLook, MESSAGE_LOOK, PART_LOOK, widestLine, threadSizes, type LeafSize } from "./sizes.ts";
 
 /** The proposals of a thread picture that have a route: `each` proposal, or the proposals of a list of parts and entries. */
 export type Proposals = "each" | readonly string[];
@@ -26,8 +27,11 @@ export interface ThreadRouteOptions {
   readonly curve?: CurveOptions["type"] | undefined;
 }
 
-/** The options of `threadPicture`. */
-export interface ThreadPictureOptions extends PlaceOptions, ThreadRouteOptions {
+/**
+ * The options of `threadPicture`. `closed` and `flat` tell how the picture shows the containers of the document.
+ * With no such option, each container is open, and each group is a frame around its boxes.
+ */
+export interface ThreadPictureOptions extends PlaceOptions, ThreadRouteOptions, NestState {
   /** The proposals that get a route. The default is `each`. A list of parts and entries saves the time of the other routes. */
   readonly proposals?: Proposals | undefined;
   /** The names of the kinds, for the tag of an entry. With no legend, a tag is the id of its kind. */
@@ -51,8 +55,15 @@ export type ThreadLineOptions = Pick<ThreadPictureOptions, "router" | "proposalR
 
 /** A thread document as a picture, with the facts of each box that the looks and the page read. */
 export interface ThreadPicture {
-  /** The document that the picture shows: the result of `soundDocument`. */
+  /** The document of the caller, after `soundDocument`. It has each box, also a box that the picture does not show. */
+  readonly source: ThreadDocument;
+  /**
+   * The document that the picture shows: the result of `shownDocument` for `source`.
+   * It is `source` when each container is open and the view is not flat.
+   */
   readonly document: ThreadDocument;
+  /** The findings of the layout engine about the layouts of the groups. A picture with no finding has an empty list. */
+  readonly issues: readonly PlaceIssue[];
   /** The document with no panel and no edge of a panel. It is `document` when the document has none. */
   readonly plain: ThreadDocument;
   readonly picture: LayoutPicture;
@@ -74,8 +85,8 @@ export interface ThreadPicture {
   readonly made: ThreadLineOptions;
 }
 
-/** The names of the labels of a box. A look reads `data.role` of a label. */
-export const LABEL_ROLES = ["text", "count", "date", "tag", "waits"] as const;
+/** The names of the labels of a box. A look reads `data.role` of a label. The labels `issue` and `sign` tell a finding about the layout of a group. */
+export const LABEL_ROLES = ["text", "count", "date", "tag", "waits", "issue", "sign"] as const;
 
 /** The role of a label of a thread picture. */
 export type LabelRole = (typeof LABEL_ROLES)[number];
@@ -109,6 +120,12 @@ function textLabel(box: string, row: Rect, size: LeafSize): PictureLabel {
 /** The space between two texts of the header of a card. */
 export const HEADER_GAP = 8;
 
+/** The width at the right end of the header of a group for the sign of a finding about its layout. */
+export const ISSUE_SIGN = 16;
+
+/** The text of the sign of a finding about the layout of a group. */
+export const ISSUE_MARK = "!";
+
 /** This function gives the text that tells who a box waits on, with the name of the legend. With no name, the text has the id. */
 export function waitsText(waits: string, legend?: ThreadLegend): string {
   return `Waits on ${titleOf(legend?.waits, waits)}`;
@@ -129,7 +146,11 @@ function headerLabels(box: ThreadBox, card: Rect, options: ThreadPictureOptions,
     out.push({ id: labelId(role, box.id), box: box.id, ...band, x: band.x + used, w: Math.max(1, band.w - used), lines: [text], font: TAG_FONT, data: { role } });
     used += Math.ceil(advance(text, TAG_FONT)) + HEADER_GAP;
   };
-  if (tag !== undefined) left("tag", titleOf(options.legend?.kinds, tag));
+  const holds = holdsOf(box);
+  const name = tag === undefined ? undefined : titleOf(options.legend?.kinds, tag);
+  // A closed container tells the number of the boxes in it, after its tag.
+  if (holds !== undefined) left("tag", `${name ?? "Group"} (${String(holds)})`);
+  else if (name !== undefined) left("tag", name);
   if (waits !== undefined) left("waits", waitsText(waits, options.legend));
   if (at === undefined) return out;
   const date = timeText(at, options.locale, options.timeZone);
@@ -138,12 +159,42 @@ function headerLabels(box: ThreadBox, card: Rect, options: ThreadPictureOptions,
   return out;
 }
 
+/** This function gives the short text of a finding about the layout of a group, for the header of the group. */
+export function issueText(issue: Pick<PlaceIssue, "code">): string {
+  return issue.code === "UNKNOWN_LAYOUT" ? "Unknown layout" : "Layout option not used";
+}
+
+/**
+ * This function gives the labels of the header of a group: its name on one line at the left.
+ * A group with a finding about its layout has a sign at the right end of its header: the label `sign`.
+ * The short text of the finding is before the sign, when the header has room for it: the label `issue`.
+ */
+function groupLabels(box: string, frame: Rect, size: LeafSize, issue: PlaceIssue | undefined, advance: AdvanceFn): PictureLabel[] {
+  const { look, text } = size;
+  const band = { box, y: frame.y + (GROUP_LOOK.header - look.lineHeight) / 2, h: look.lineHeight, lineHeight: look.lineHeight };
+  const room = Math.max(1, frame.w - 2 * look.padX);
+  const name = Math.min(widestLine(text), room);
+  const out: PictureLabel[] = [{ id: labelId("text", box), ...band, x: frame.x + look.padX, w: Math.max(1, name), lines: text.lines, font: look.font, data: { role: "text" } }];
+  if (issue === undefined) return out;
+  const end = frame.x + frame.w - look.padX;
+  out.push({ id: labelId("sign", box), ...band, x: end - ISSUE_SIGN, w: ISSUE_SIGN, lines: [ISSUE_MARK], font: look.font, align: "right", data: { role: "sign" } });
+  const words = issueText(issue);
+  const width = Math.ceil(advance(words, TAG_FONT));
+  // The sign alone tells the finding in a header with no room for the text.
+  if (name + HEADER_GAP + width + ISSUE_SIGN <= room) out.push({ id: labelId("issue", box), ...band, x: end - ISSUE_SIGN - width, w: width, lines: [words], font: TAG_FONT, data: { role: "issue" } });
+  return out;
+}
+
 /**
  * This function gives the labels of a thread picture.
  * They are the text of each part, entry and topic, the count of each topic and the header of each card.
+ * The name of each group is a label too.
  */
-function threadLabels(document: ThreadDocument, kinds: ReadonlyMap<string, ThreadKind>, sizes: ReadonlyMap<string, LeafSize>, places: ReadonlyMap<string, Rect>, options: ThreadPictureOptions, advance: AdvanceFn): PictureLabel[] {
+function threadLabels(document: ThreadDocument, kinds: ReadonlyMap<string, ThreadKind>, sizes: ReadonlyMap<string, LeafSize>, places: ReadonlyMap<string, Rect>, issues: readonly PlaceIssue[], options: ThreadPictureOptions, advance: AdvanceFn): PictureLabel[] {
   const out: PictureLabel[] = [];
+  /** The first finding of each group, by the id of the group. An error comes before a warning. */
+  const found = new Map<string, PlaceIssue>();
+  for (const issue of issues) if (!found.has(issue.box) || (issue.severity === "error" && found.get(issue.box)?.severity !== "error")) found.set(issue.box, issue);
   for (const box of document.boxes) {
     const place = places.get(box.id);
     const kind = kinds.get(box.id);
@@ -151,6 +202,7 @@ function threadLabels(document: ThreadDocument, kinds: ReadonlyMap<string, Threa
     const size = sizes.get(box.id);
     if (kind === "message") out.push(...headerLabels(box, place, options, advance));
     if (size === undefined) continue;
+    if (kind === "group") out.push(...groupLabels(box.id, place, size, found.get(box.id), advance));
     if (kind === "part") out.push(textLabel(box.id, place, size));
     if (kind === "entry") out.push(...headerLabels(box, place, options, advance, waitsOf(box)), textLabel(box.id, entryRow(place, size), size));
     if (kind !== "topic") continue;
@@ -177,8 +229,13 @@ function panelLabels(panels: readonly ThreadBox[], sizes: ReadonlyMap<string, Le
  */
 function keeps(keep: ThreadPicture, plain: ThreadDocument, kinds: ReadonlyMap<string, ThreadKind>, sizes: ReadonlyMap<string, LeafSize>): boolean {
   if (keep.base.size !== plain.boxes.length) return false;
+  // A box in a different container has a different place, and a group with a different layout places its boxes again.
+  const nested = plain.boxes.some((box) => kinds.get(box.id) === "group");
+  const before = nested ? new Map(keep.plain.boxes.map((box) => [box.id, box])) : undefined;
   return plain.boxes.every((box) => {
     if (!keep.base.has(box.id) || keep.kinds.get(box.id) !== kinds.get(box.id)) return false;
+    const was = before?.get(box.id);
+    if (before !== undefined && (was === undefined || was.parent !== box.parent || !sameValue(was.data?.["layout"], box.data?.["layout"]))) return false;
     const now = sizes.get(box.id);
     const then = keep.sizes.get(box.id);
     return now === undefined ? then === undefined : then !== undefined && now.w === then.w && now.h === then.h;
@@ -193,6 +250,11 @@ function topPlaces(keep: ThreadPicture): Map<string, Rect> {
     if (box.parent === undefined && place !== undefined) out.set(box.id, place);
   }
   return out;
+}
+
+/** This function tells if two values of the data of a box are the same: one value, or two values with the same JSON text. */
+function sameValue(a: unknown, b: unknown): boolean {
+  return a === b || JSON.stringify(a) === JSON.stringify(b);
 }
 
 /** This function tells if two lists have the same records. Two records that are not one object are the same when the lists have the same JSON text. */
@@ -232,20 +294,26 @@ export function isPanelLine(route: PictureRoute, kinds: ReadonlyMap<string, Thre
  * This function routes the edges of the panels: one straight line for each edge. The router gets only the cards at the ends of these edges.
  * Thus the time of the lines of a panel does not grow with the document.
  */
-function panelRoutes(id: string, boxes: readonly LayoutBox[], edges: readonly LayoutEdge[]): PictureRouteSource[] {
+function panelRoutes(id: string, boxes: readonly LayoutBox[], edges: readonly LayoutEdge[], kinds: ReadonlyMap<string, ThreadKind>): PictureRouteSource[] {
   const drawn = edges.filter(isDrawn);
   if (drawn.length === 0) return [];
-  const tops = topBoxes(boxes);
-  const cards = new Set(drawn.flatMap((edge) => [tops.get(edge.source) ?? edge.source, tops.get(edge.target) ?? edge.target]));
-  return routeThread(id, boxes.filter((box) => cards.has(tops.get(box.id) ?? box.id)), drawn, { router: "straight", curve: "straight" });
+  // In a picture with groups, the line starts at the card of the box, and not at the frame of its group.
+  const ground = routeGround(boxes, drawn, kinds, GROUP_LOOK.header);
+  const tops = topBoxes(ground.boxes);
+  const cards = new Set(ground.edges.flatMap((edge) => [tops.get(edge.source) ?? edge.source, tops.get(edge.target) ?? edge.target]));
+  return routeThread(id, ground.boxes.filter((box) => cards.has(tops.get(box.id) ?? box.id)), ground.edges, { router: "straight", curve: "straight" });
 }
 
-/** This function routes the proposals of a document that `proposals` names, between the placed boxes. */
-function proposalRoutes(document: ThreadDocument, boxes: readonly LayoutBox[], proposals: Proposals, options: ThreadRouteOptions): PictureRouteSource[] {
+/**
+ * This function routes the proposals of a document that `proposals` names, between the placed boxes.
+ * The router reads the boxes of `routeGround` for each proposal of the document. Thus a list of proposals gets the routes that `each` gives them.
+ */
+function proposalRoutes(document: ThreadDocument, boxes: readonly LayoutBox[], kinds: ReadonlyMap<string, ThreadKind>, proposals: Proposals, options: ThreadRouteOptions): PictureRouteSource[] {
   const of = proposals === "each" ? undefined : new Set(proposals);
   if (of?.size === 0) return [];
-  const edges = proposalsOf(document).filter((edge) => of === undefined || of.has(choiceOf(edge)));
-  return routeThread(document.id, boxes, edges, { router: options.proposalRouter ?? "corners", curve: options.curve });
+  const ground = routeGround(boxes, proposalsOf(document), kinds, GROUP_LOOK.header);
+  const edges = ground.edges.filter((edge) => of === undefined || of.has(choiceOf(edge)));
+  return routeThread(document.id, ground.boxes, edges, { router: options.proposalRouter ?? "corners", curve: options.curve });
 }
 
 /** The routes of the proposals of one thread picture, for a view that routes the proposals of a few parts at a time. */
@@ -290,7 +358,10 @@ export function proposalRouter(thread: ThreadPicture, options: ThreadRouteOption
   /** The last picture that the router fits. A picture with its places and its document needs no comparison. */
   let seen = thread;
   let router: ThreadRouter | undefined;
-  const made = (): ThreadRouter => (router ??= threadRouter(thread.plain.id, placedBoxes(thread.plain, thread.sizes, thread.places), all, { router: options.proposalRouter ?? "corners", curve: options.curve }));
+  let ground: RouteGround<LayoutEdge> | undefined;
+  /** This function gives the boxes and the proposals that the router reads. `proposalRoutes` reads the same ones. */
+  const read = (): RouteGround<LayoutEdge> => (ground ??= routeGround(placedBoxes(thread.plain, thread.sizes, thread.places), all, thread.kinds, GROUP_LOOK.header));
+  const made = (): ThreadRouter => (router ??= threadRouter(thread.plain.id, read().boxes, read().edges, { router: options.proposalRouter ?? "corners", curve: options.curve }));
   return {
     fits(next) {
       if (next.places === seen.places && next.plain === seen.plain) return true;
@@ -304,7 +375,9 @@ export function proposalRouter(thread: ThreadPicture, options: ThreadRouteOption
     routes(proposals) {
       const of = proposals === "each" ? undefined : new Set(proposals);
       if (of?.size === 0) return [];
-      return made().route(of === undefined ? all : all.filter((edge) => of.has(choiceOf(edge))));
+      const session = made();
+      const { edges } = read();
+      return session.route(of === undefined ? edges : edges.filter((edge) => of.has(choiceOf(edge))));
     },
     dispose() {
       router?.dispose();
@@ -333,32 +406,39 @@ export function routedProposals(document: ThreadDocument, shown: readonly string
 /**
  * This function makes the picture of a thread document. `advance` gives the width of a text in a font.
  *
- * 1. `layoutText` of `layout-contract` measures the text of each box.
- * 2. `ireko` places the boxes: the cards and the topics by forces, the parts of a message in one column.
- * 3. `placePanels` puts each panel at a side of its box. The push cascade of `packing` moves the boxes that are too near.
- * 4. `highways` routes the edges between the placed boxes. The routes of the proposals are behind the other routes.
- * 5. `pictureOf` of `layout-contract` puts the boxes, the routes and the labels in one picture.
+ * 1. `shownDocument` gives the boxes that the picture shows: a closed container is one box, and a flat view has no group.
+ * 2. `layoutText` of `layout-contract` measures the text of each box.
+ * 3. `ireko` places the cards and the topics by forces, and the parts of a message in one column. The boxes of a group get the layout of the group.
+ * 4. `placePanels` puts each panel at a side of its box. The push cascade of `packing` moves the boxes that are too near.
+ * 5. `highways` routes the edges between the placed boxes. The routes of the proposals are behind the other routes.
+ * 6. `pictureOf` of `layout-contract` puts the boxes, the routes and the labels in one picture.
  *
  * An edge `part` and a refused proposal have no route. The same document and the same options give the same picture.
  * With the option `proposals`, only the proposals of some parts and entries get a route. `withProposals` gives the routes of others later.
  *
  * A panel is no obstacle of a route, and its edge is one straight line. A picture with `keep` keeps the routes and the labels of that picture
  * when no box of them has a different place. Thus a panel that pushes no box costs the time of its own line only.
+ *
+ * The frame of a group is no obstacle of a route: `routeGround` gives the boxes that the router reads.
+ * An edge from a box to a group that contains it has no route, because the frame shows it.
  */
 export function threadPicture(input: ThreadDocument, advance: AdvanceFn, options: ThreadPictureOptions = {}): ThreadPicture {
-  const document = soundDocument(input);
+  const source = soundDocument(input);
+  const document = shownDocument(source, options);
   const kinds = threadKinds(document);
   const { keep } = options;
   const sizes = threadSizes(document, advance, keep?.sizes, options.panels);
   const { plain, panels, edges: panelEdges } = splitPanels(document, kinds);
-  const base = keep === undefined ? placeThread(plain, sizes, options) : keeps(keep, plain, kinds, sizes) ? keep.base : placeThread(plain, sizes, { ...options, before: topPlaces(keep) });
+  const laid: { readonly places: ReadonlyMap<string, Rect>; readonly issues: readonly PlaceIssue[] } =
+    keep === undefined ? layoutThread(plain, sizes, options) : keeps(keep, plain, kinds, sizes) ? { places: keep.base, issues: keep.issues } : layoutThread(plain, sizes, { ...options, before: topPlaces(keep) });
+  const { places: base, issues } = laid;
   const { places, sides } = placePanels(document, panels, sizes, base, keep?.sides);
   const boxes = placedBoxes(document, sizes, places);
   const edges = document.edges ?? [];
   const proposals = options.proposals ?? "each";
   const made: ThreadLineOptions = { router: options.router, proposalRouter: options.proposalRouter, curve: options.curve, legend: options.legend, locale: options.locale, timeZone: options.timeZone };
-  const facts = { document, plain, kinds, sizes, places, base, sides, states: partStates(plain.edges ?? []), made };
-  const lines = panelRoutes(document.id, boxes, panelEdges);
+  const facts = { source, document, issues, plain, kinds, sizes, places, base, sides, states: partStates(plain.edges ?? []), made };
+  const lines = panelRoutes(document.id, boxes, panelEdges, kinds);
   const names = panelLabels(panels, sizes, places);
   if (keep !== undefined && keepsLines(keep, plain, places, made, proposals)) {
     // A picture of the boxes and the lines of the panels is good, so its routes go into the picture with the routes of before.
@@ -369,9 +449,15 @@ export function threadPicture(input: ThreadDocument, advance: AdvanceFn, options
   }
   // The routes of the other edges read no panel. Thus a panel is no obstacle of a line, and a picture with a panel has the lines of the picture with none.
   const plainBoxes = plain === document ? boxes : placedBoxes(plain, sizes, places);
-  const behind = proposalRoutes(plain, plainBoxes, proposals, options);
-  const main = routeThread(document.id, plainBoxes, (plain.edges ?? []).filter((edge) => isDrawn(edge) && !isProposal(edge)), { router: options.router ?? "shared", curve: options.curve, bundle: true });
-  const picture = pictureOf({ id: document.id, boxes, edges }, { routes: [...behind, ...main, ...lines], labels: [...threadLabels(plain, kinds, sizes, places, options, advance), ...names] });
+  const behind = proposalRoutes(plain, plainBoxes, kinds, proposals, options);
+  const ground = routeGround(
+    plainBoxes,
+    (plain.edges ?? []).filter((edge) => isDrawn(edge) && !isProposal(edge)),
+    kinds,
+    GROUP_LOOK.header,
+  );
+  const main = routeThread(document.id, ground.boxes, ground.edges, { router: options.router ?? "shared", curve: options.curve, bundle: true });
+  const picture = pictureOf({ id: document.id, boxes, edges }, { routes: [...behind, ...main, ...lines], labels: [...threadLabels(plain, kinds, sizes, places, issues, options, advance), ...names] });
   return { ...facts, picture, proposals };
 }
 
@@ -384,7 +470,7 @@ export function withProposals(thread: ThreadPicture, proposals: Proposals, optio
   if (hasProposals(thread.proposals, proposals)) return thread;
   const { plain, picture } = thread;
   const boxes = placedBoxes(plain, thread.sizes, thread.places);
-  const routes = router?.fits(thread) === true ? router.routes(proposals) : proposalRoutes(plain, boxes, proposals, options);
+  const routes = router?.fits(thread) === true ? router.routes(proposals) : proposalRoutes(plain, boxes, thread.kinds, proposals, options);
   // `pictureOf` gives each route the ends and the data of its edge. A picture of the boxes and these routes is good, so its routes go into the picture.
   const behind = pictureOf({ id: plain.id, boxes, edges: plain.edges ?? [] }, { routes }).routes;
   return { ...thread, proposals, picture: { ...picture, routes: [...behind, ...picture.routes.filter((route) => !isProposal(route) || isPanelLine(route, thread.kinds))] } };

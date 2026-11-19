@@ -1,13 +1,15 @@
 import { pictureBounds, type Rect } from "@mark1russell7/layout-contract";
 import { canvasAdvance } from "@mark1russell7/layout-contract/text";
 import { h, svg } from "@mark1russell7/site-pages/chrome";
+import { countOf } from "@mark1russell7/text";
 import { aimAll, aimReveal, createPictureContent, createPictureStage, freeArea, rectToScreen, revealRects, type Insets, type PictureAim, type PictureContent, type PictureRecord, type PictureStage, type PictureView } from "@mark1russell7/visuals/graph";
 import { anchorRect } from "./anchor.ts";
 import { cardOf, relationNames, type CardChoice, type CardModel, type CardName, type TopicChoiceEvent } from "./card.ts";
 import { choiceOf, edgeKind, edgeState, isChosen, isProposal, labelOf, waitsOf, type ThreadBox, type ThreadDocument, type ThreadLegend } from "./document.ts";
 import { TEXT_ZOOM, threadLooks, type ThreadLookState, type ThreadTheme } from "./looks.ts";
+import { closedOf, containersOf, flatHides, hasGroups, openFor } from "./nest.ts";
 import { phaseTeller, type ThreadPhaseEvent } from "./phases.ts";
-import { proposalRouter, routedProposals, threadPicture, waitsText, withProposals, type ProposalRouter, type ThreadPicture, type ThreadPictureOptions, type ThreadRouteOptions } from "./picture.ts";
+import { ISSUE_MARK, issueText, proposalRouter, routedProposals, threadPicture, waitsText, withProposals, type ProposalRouter, type ThreadPicture, type ThreadPictureOptions, type ThreadRouteOptions } from "./picture.ts";
 import style from "./thread.css?inline";
 
 /** A person used a button of the card of a box: an action of `data.actions`. */
@@ -70,7 +72,10 @@ export interface ThreadView {
   setLegend(legend: ThreadLegend | undefined): void;
   /** This function changes the colors. */
   setTheme(theme: ThreadTheme): void;
-  /** This function selects a box by its id, as a click does, and moves the camera to it. It does not start `onPick`. */
+  /**
+   * This function selects a box by its id, as a click does, and moves the camera to it. It does not start `onPick`.
+   * A box in a closed container shows first: each closed container above it opens.
+   */
   select(id: string | undefined): void;
   /**
    * This function gives the rectangle of a box in the viewport of the page at this time, in the form of `getBoundingClientRect`.
@@ -81,6 +86,7 @@ export interface ThreadView {
    * This function moves the camera until the free area shows a box. The camera stays when it shows the box.
    * `covered` has more parts of the view that the page covers at this time, for example a form at the bottom.
    * For a panel, the view measures the content of the panel first, so the camera shows the full panel.
+   * For a box in a closed container, each closed container above the box opens first.
    */
   reveal(id: string, covered?: Partial<Insets>): void;
   /**
@@ -182,6 +188,11 @@ function signSample(className: string): SVGSVGElement {
   return svg("svg", { width: 28, height: 10, viewBox: "0 0 28 10", "aria-hidden": "true" }, svg("circle", { class: className, cx: 14, cy: 5, r: 3 }));
 }
 
+/** This function makes the small picture of the sign of a finding about the layout of a group for the legend. */
+function issueSample(): SVGSVGElement {
+  return svg("svg", { width: 28, height: 10, viewBox: "0 0 28 10", "aria-hidden": "true" }, svg("text", { class: "is-issue", x: 14, y: 9.5, "text-anchor": "middle" }, ISSUE_MARK));
+}
+
 /**
  * This function puts a thread view in an element: the picture of a thread document that a person moves, reads and changes.
  *
@@ -219,9 +230,13 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   const jumps = h("div", { class: "thread-jumps" }, waitsButton, openButton);
   const proposalsInput = h("input", { type: "checkbox" });
   const proposalsSwitch = h("label", { class: "thread-tool thread-switch" }, proposalsInput, h("span", {}, "Proposals"));
+  // The switch is on for the picture with the groups as frames. With the switch off, the view is flat.
+  const nestedInput = h("input", { type: "checkbox", checked: true });
+  const nestedSwitch = h("label", { class: "thread-tool thread-switch", hidden: true }, nestedInput, h("span", {}, "Nested"));
   const tools = h(
     "div",
     { class: "thread-tools" },
+    nestedSwitch,
     proposalsSwitch,
     button("thread-tool thread-zoom", { "aria-label": "Zoom out" }, ["−"], () => stage?.zoomBy(1 / ZOOM_STEP)),
     button("thread-tool thread-zoom", { "aria-label": "Zoom in" }, ["+"], () => stage?.zoomBy(ZOOM_STEP)),
@@ -247,8 +262,9 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   /** This function gives the parts of the view that the page and the card cover. `more` has parts that the page covers for one move of the camera. */
   const insetsNow = (more: Partial<Insets> = {}): Insets => {
     const narrow = root.clientWidth <= NARROW;
-    // The two buttons of the walks are in two rows in a view that has no room for them in one row.
-    const top = Math.max(narrow ? 56 : 52, jumps.offsetHeight === 0 ? 0 : jumps.offsetTop + jumps.offsetHeight + 4);
+    // The buttons of the walks and the controls are in two rows in a view that has no room for them in one row.
+    const below = (node: HTMLElement): number => (node.offsetHeight === 0 ? 0 : node.offsetTop + node.offsetHeight + 4);
+    const top = Math.max(narrow ? 56 : 52, below(jumps), below(tools));
     const own = narrow ? { top, right: 0, bottom: card.hidden ? 0 : card.offsetHeight, left: 0 } : { top, right: card.hidden ? 0 : card.offsetWidth + 20, bottom: 0, left: 0 };
     const outer = options.covered ?? {};
     const most = (edge: keyof Insets): number => Math.max(own[edge], outer[edge] ?? 0, more[edge] ?? 0);
@@ -272,8 +288,14 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   let aspect = shapeNow();
   let proposals = options.proposals ?? false;
   let selected: string | undefined;
+  /** This value is true for the flat view: the picture shows no group. */
+  let flat = false;
+  /** The containers that the view closed (`true`) or opened (`false`), by the id of the container. They come before `data.closed` of the document. */
+  const changes = new Map<string, boolean>();
   /** This function gives the options of the picture of a document. `shown` has the parts and the entries whose proposals the looks show. */
   const making = (document: ThreadDocument, shown: readonly string[] = []): ThreadPictureOptions => ({
+    closed: closedOf(document, changes),
+    flat,
     router: options.router,
     proposalRouter: options.proposalRouter,
     curve: options.curve,
@@ -311,12 +333,19 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
    */
   const pictureFor = (document: ThreadDocument, shown: readonly string[] = [], keep?: ThreadPicture): ThreadPicture => {
     usedHeights = slotHeights();
-    const made = phases.layout(document.boxes.length, () => threadPicture(document, advance, { ...making(document, shown), keep, panels: usedHeights }));
+    const made = phases.layout(
+      document.boxes.length,
+      () => threadPicture(document, advance, { ...making(document, shown), keep, panels: usedHeights }),
+      (picture) => picture.issues.length,
+    );
     failed = made === undefined;
     return made ?? threadPicture({ id: document.id, boxes: [] }, advance);
   };
   let thread: ThreadPicture = pictureFor(options.document);
-  let boxes = new Map(thread.document.boxes.map((box) => [box.id, box]));
+  /** Each box of the document of the page, by its id. The page gets these boxes, also for a closed container. */
+  let boxes = new Map(thread.source.boxes.map((box) => [box.id, box]));
+  /** The ids of the containers of the document of the page. */
+  let containers = containersOf(thread.source);
   let hint: ThreadLookState["hint"];
   /** The position of the pointer in the view, in CSS pixels from its top left corner. */
   let pointer = { x: 0, y: 0 };
@@ -333,10 +362,10 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   let mounted = false;
   proposalsInput.checked = proposals;
 
-  /** This function gives the selected box if a person can give a topic to it: a part, or an entry. */
+  /** This function gives the selected box if a person can give a topic to it: a part, or an entry. A closed container is not such a box. */
   const chooser = (): string | undefined => {
     const kind = selected === undefined ? undefined : thread.kinds.get(selected);
-    return kind === "part" || kind === "entry" ? selected : undefined;
+    return selected !== undefined && (kind === "part" || kind === "entry") && !containers.has(selected) ? selected : undefined;
   };
 
   /** This function gives the parts and the entries whose proposals the looks show with the switch off: the selected part or entry. */
@@ -472,7 +501,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   /** This function makes the picture again when the content of a panel has a different height. */
   const measureSlots = (): void => {
     const now = slotHeights();
-    if ([...slots.keys()].some((id) => now.get(id) !== usedHeights.get(id))) remake(thread.document);
+    if ([...slots.keys()].some((id) => now.get(id) !== usedHeights.get(id))) remake(thread.source);
   };
 
   // The content of a panel can grow, for example a text area or a message of a form. Its panel gets the new height.
@@ -522,16 +551,26 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     return pictureBounds({ ...thread.picture, boxes: thread.picture.boxes.filter((box) => wanted.has(box.id)), routes: [], labels: [] });
   };
 
+  /** This function gives the smallest zoom of the camera for a box. A far view is correct for a topic and for a group. */
+  const leastZoom = (id: string): number => {
+    const kind = thread.kinds.get(id);
+    return kind === "topic" || kind === "group" ? TOPIC_ZOOM : TEXT_ZOOM;
+  };
+
   /**
    * This function gives the aim of the camera for a selected box. The camera tries the largest group of boxes first.
-   * A part needs text that a person reads. A topic shows where its parts are.
+   * A part needs text that a person reads. A topic shows where its parts are, and a group shows its frame.
    */
   const aimOf = (id: string): PictureAim => {
     const edges = thread.document.edges ?? [];
     const kind = thread.kinds.get(id);
-    const topOf = (box: string): string => boxes.get(box)?.parent ?? box;
+    // The card of a part is its message. A box in a group is its own card.
+    const topOf = (box: string): string => {
+      const parent = boxes.get(box)?.parent;
+      return parent !== undefined && thread.kinds.get(parent) === "message" ? parent : box;
+    };
     let groups: string[][];
-    if (kind === "topic") {
+    if (kind === "topic" || kind === "group") {
       groups = [[id, ...edges.filter((edge) => isChosen(edge) && edge.target === id).map((edge) => topOf(choiceOf(edge)))], [id]];
     } else if (kind === "message") {
       groups = [[id, ...edges.filter((edge) => isChosen(edge) && topOf(choiceOf(edge)) === id).map((edge) => edge.target)], [id]];
@@ -543,7 +582,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
       groups = [[...base, ...chosen, ...own.filter(isProposal).map((edge) => edge.target)], [...base, ...chosen], base, [id]];
     }
     const rects = groups.map(boundsOf).filter((rect): rect is Rect => rect !== undefined);
-    return aimReveal(rects, { least: kind === "topic" ? TOPIC_ZOOM : TEXT_ZOOM, most: MOST_ZOOM, margin: 24 });
+    return aimReveal(rects, { least: leastZoom(id), most: MOST_ZOOM, margin: 24 });
   };
 
   /**
@@ -554,7 +593,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     const place = thread.places.get(id);
     if (stage === undefined || place === undefined) return undefined;
     const area = freeArea({ width: stage.canvas.clientWidth, height: stage.canvas.clientHeight }, insetsNow(covered));
-    return revealRects(stage.view(), [place], area, { least: thread.kinds.get(id) === "topic" ? TOPIC_ZOOM : TEXT_ZOOM, most: MOST_ZOOM, margin: 24 });
+    return revealRects(stage.view(), [place], area, { least: leastZoom(id), most: MOST_ZOOM, margin: 24 });
   };
 
   /** This function moves the camera to the view that shows a box, and gives that view. The camera stays when it shows the box. */
@@ -646,8 +685,8 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     return h("li", { role: "none" }, node);
   };
 
-  /** This function makes the list of the parts of a message or of a topic. A click on a row selects the part. */
-  const partList = (parts: readonly CardName[]): HTMLUListElement =>
+  /** This function makes the list of the parts of a message or of a topic, or of the boxes of a container. A click on a row selects its box. */
+  const partList = (parts: readonly CardName[], key: "part" | "box" = "part"): HTMLUListElement =>
     h(
       "ul",
       { class: "thread-parts" },
@@ -655,7 +694,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
         h(
           "li",
           {},
-          button("thread-part", { "data-key": `part:${part.id}` }, [part.label], () => {
+          button("thread-part", { "data-key": `${key}:${part.id}` }, [part.label], () => {
             show(part.id, true, true);
           }),
         ),
@@ -677,8 +716,10 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
       card.replaceChildren();
       return;
     }
+    // The card of a topic, of a message and of a container has a list of boxes. Each other card has the topics of its box.
+    const lists = model.topic || model.kind === "message" || model.container;
     // A choice moves its row to the first list. The card goes to its top, so a person reads the new topic of the part.
-    const chosen = model.kind === "topic" || model.kind === "message" ? "" : (model.choices.find((choice) => choice.chosen)?.id ?? "");
+    const chosen = lists ? "" : (model.choices.find((choice) => choice.chosen)?.id ?? "");
     if (card.dataset["box"] !== model.id || card.dataset["chosen"] !== chosen) card.scrollTop = 0;
     card.dataset["box"] = model.id;
     card.dataset["chosen"] = chosen;
@@ -711,15 +752,18 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
           }),
         ),
       );
-    if (model.kind === "topic" || model.kind === "message") {
-      const about = model.kind === "topic" && model.text !== model.label && h("p", { class: "thread-about" }, model.text);
+    if (lists) {
+      // A message shows its text. A topic and a container show their name, then their text when it tells more.
+      const named = model.kind !== "message";
+      const about = named && model.text !== model.label && h("p", { class: "thread-about" }, model.text);
       card.replaceChildren(
         close,
         meta,
-        h("p", { class: model.kind === "topic" ? "thread-text is-name" : "thread-text" }, model.kind === "topic" ? model.label : model.text),
+        h("p", { class: named ? "thread-text is-name" : "thread-text" }, named ? model.label : model.text),
         ...[about, link, actions].filter((node): node is HTMLParagraphElement | HTMLAnchorElement | HTMLDivElement => node !== false),
-        h("h3", { class: "thread-heading" }, `Parts (${String(model.parts.length)})`),
-        partList(model.parts),
+        // A closed container shows no box in the picture, so its card tells the state.
+        ...(model.container ? [h("h3", { class: "thread-heading" }, `${model.closed ? "Inside, not shown" : "Inside"} (${String(model.boxes.length)})`), partList(model.boxes, "box")] : []),
+        ...(model.topic || model.kind === "message" ? [h("h3", { class: "thread-heading" }, `Parts (${String(model.parts.length)})`), partList(model.parts)] : []),
       );
       refocus();
       return;
@@ -766,9 +810,17 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
       ...(states.has("changed") ? [item(signSample("is-changed"), "Not the first proposal")] : []),
       ...(states.has("open") ? [item(signSample("is-open"), "No topic yet")] : []),
       ...(waiting.length > 0 ? [item(waitsSample(), on === undefined ? "Waits on a person" : waitsText(on, legend))] : []),
+      // The header of each group with a finding has the sign. The row tells the number of those groups and the cause of the first finding.
+      ...[...new Set(thread.issues.map(issueText))].map((words) => {
+        const found = thread.issues.filter((issue) => issueText(issue) === words);
+        return item(issueSample(), `${words} in ${countOf(new Set(found.map((issue) => issue.box)).size, "group", "groups")}. ${found[0]?.message ?? ""}`);
+      }),
     );
     legendBox.hidden = legendList.childElementCount === 0;
     proposalsSwitch.hidden = !edges.some(isProposal);
+    // A document with no group has one picture, so it has no switch.
+    nestedSwitch.hidden = !hasGroups(thread.source);
+    nestedInput.checked = !flat;
     waitsButton.hidden = waiting.length === 0;
     // A narrow view hides some of the words, so the label has each word.
     const words = on === undefined ? "Waiting" : waitsText(on, legend);
@@ -786,8 +838,25 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     tools.hidden = empty || stage === undefined;
   };
 
+  /**
+   * This function shows a box of the document that the picture does not show. It tells if the picture changed.
+   * Each closed container above the box opens. A group that the flat view does not show brings the picture with the groups.
+   */
+  function uncover(id: string): boolean {
+    if (thread.kinds.has(id) || !boxes.has(id)) return false;
+    const closed = closedOf(thread.source, changes);
+    const open = openFor(thread.source, closed, id);
+    for (const box of closed) if (!open.has(box)) changes.set(box, false);
+    const nested = flat && flatHides(thread.source, id);
+    if (nested) flat = false;
+    if (open === closed && !nested) return false;
+    remake(thread.source);
+    return true;
+  }
+
   /** This function selects a box, or no box. `tell` starts `onPick`, and `move` moves the camera to the box. */
   function show(id: string | undefined, tell: boolean, move: boolean): void {
+    if (id !== undefined) uncover(id);
     // A panel has no card: the page gives its content. The camera goes to the panel, and the selection stays.
     if (id !== undefined && thread.kinds.get(id) === "panel") {
       measureSlots();
@@ -819,7 +888,8 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
       router.dispose();
       router = undefined;
     }
-    boxes = new Map(thread.document.boxes.map((box) => [box.id, box]));
+    boxes = new Map(thread.source.boxes.map((box) => [box.id, box]));
+    containers = containersOf(thread.source);
     content.setPicture(thread.picture);
     syncSlots();
     const gone = selected !== undefined && !thread.kinds.has(selected);
@@ -842,6 +912,12 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     // The focus of the picture depends on the lines that the looks show, so the content finds it again.
     if (!routeProposals()) content.setPicture(thread.picture, { fade: true });
     stage?.refresh();
+  });
+  nestedInput.addEventListener("change", () => {
+    flat = !nestedInput.checked;
+    remake(thread.source);
+    // The boxes have new places. With no selected box, the camera shows the full picture.
+    if (selected === undefined) stage?.setView("all");
   });
   stageBox.addEventListener("pointermove", (event) => {
     const box = root.getBoundingClientRect();
@@ -878,7 +954,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
       if (aspect === undefined) {
         aspect = shapeNow();
         if (aspect !== undefined) {
-          remake(thread.document, true);
+          remake(thread.source, true);
           stage?.setView("all");
         }
       }
@@ -903,7 +979,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     setLegend(next) {
       if (JSON.stringify(next) === JSON.stringify(legend)) return;
       legend = next;
-      remake(thread.document);
+      remake(thread.source);
     },
     setTheme(theme) {
       setColors(theme);
@@ -918,6 +994,8 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     reveal(id, covered) {
       // The page can put the content of a panel in its slot and show the panel in one step. The observer of the slots tells the height later.
       if (thread.kinds.get(id) === "panel") measureSlots();
+      // A box in a closed container has no place. The containers above it open first.
+      uncover(id);
       bring(id, covered);
     },
     slot(id) {

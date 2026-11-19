@@ -225,6 +225,10 @@
   stroke: var(--thread-open);
   stroke-width: 1.5;
 }
+.thread-legend .is-issue {
+  fill: var(--thread-open);
+  font: 700 12px system-ui, -apple-system, "Segoe UI", sans-serif;
+}
 .thread-legend .is-waits {
   fill: var(--thread-waits-fill, var(--thread-surface));
   stroke: var(--thread-waits, var(--thread-open));
@@ -476,6 +480,12 @@
   .thread-jumps {
     flex-direction: column;
     gap: 6px;
+  }
+  /* The controls go to a second row when the two switches and the button have no room in one row. */
+  .thread-tools {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 62%;
   }
 }
 

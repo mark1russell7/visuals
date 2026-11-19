@@ -4,12 +4,13 @@ import { fakeAdvance } from "./advance.test-util.ts";
 import { chooseTopic } from "./card.ts";
 import { panelBox, panelEdge, panelId, withPanels } from "./panel.test-util.ts";
 import { PANEL_GAP } from "./panels.ts";
-import { choiceOf, isProposal } from "./document.ts";
-import { HEADER_GAP, isPanelLine, labelId, proposalRouter, ROUTED_MOST, routedProposals, TAG_FONT, threadPicture, timeText, titleOf, waitsText, withProposals, type ThreadPicture } from "./picture.ts";
+import { choiceOf, holdsOf, isProposal } from "./document.ts";
+import { HEADER_GAP, isPanelLine, ISSUE_MARK, ISSUE_SIGN, issueText, labelId, proposalRouter, ROUTED_MOST, routedProposals, TAG_FONT, threadPicture, timeText, titleOf, waitsText, withProposals, type ThreadPicture } from "./picture.ts";
 import { SAMPLE_LEGEND, sampleThread } from "./sample.ts";
-import { PANEL_LOOK } from "./sizes.ts";
+import { flatSample } from "./sample.test-util.ts";
+import { GROUP_LOOK, PANEL_LOOK } from "./sizes.ts";
 
-const sample = sampleThread();
+const sample = flatSample();
 const options = { legend: SAMPLE_LEGEND, timeZone: "UTC" } as const;
 const thread = threadPicture(sample, fakeAdvance, options);
 const label = (id: string) => thread.picture.labels.find((entry) => entry.id === id);
@@ -369,5 +370,91 @@ describe("the texts of a picture", () => {
     expect(titleOf(SAMPLE_LEGEND.kinds, "ask")).toBe("Question");
     expect(titleOf(SAMPLE_LEGEND.kinds, "other")).toBe("other");
     expect(titleOf(undefined, "ask")).toBe("ask");
+  });
+});
+
+describe("the picture of a document with groups", () => {
+  const source = sampleThread();
+  const nested = threadPicture(source, fakeAdvance, options);
+  const boxOf = (picture: ThreadPicture, id: string) => picture.picture.boxes.find((box) => box.id === id);
+  const labelOf = (picture: ThreadPicture, id: string) => picture.picture.labels.find((entry) => entry.id === id);
+
+  it("makes a good picture, with each group as a frame around its boxes", () => {
+    expect(checkPicture(nested.picture)).toEqual([]);
+    expect(nested.issues).toEqual([]);
+    expect(nested.picture.boxes).toHaveLength(source.boxes.length);
+    expect(["water", "trench", "t01", "rota", "e01"].map((id) => nested.kinds.get(id))).toEqual(["group", "group", "group", "topic", "entry"]);
+    expect(["trench", "rota", "t01", "e01", "e02"].map((id) => boxOf(nested, id)?.parent)).toEqual(["water", "water", "trench", "t01", "t01"]);
+    for (const box of nested.picture.boxes) {
+      const frame = box.parent === undefined ? undefined : boxOf(nested, box.parent);
+      if (frame === undefined) continue;
+      expect(box.x >= frame.x && box.y >= frame.y && box.x + box.w <= frame.x + frame.w + 1e-6 && box.y + box.h <= frame.y + frame.h + 1e-6, box.id).toBe(true);
+    }
+  });
+
+  it("puts the name of a group in its header, with no sign", () => {
+    const name = labelOf(nested, labelId("text", "water"));
+    const frame = boxOf(nested, "water");
+    expect(name).toMatchObject({ box: "water", lines: ["Water and drainage"], data: { role: "text" } });
+    expect((name?.y ?? 0) + (name?.h ?? 0)).toBeLessThanOrEqual((frame?.y ?? 0) + GROUP_LOOK.header);
+    expect(labelOf(nested, labelId("text", "t01"))?.lines).toHaveLength(1);
+    expect(nested.picture.labels.filter((entry) => entry.data?.["role"] === "sign" || entry.data?.["role"] === "issue")).toEqual([]);
+  });
+
+  it("has no line from a box to a group that contains it, and a line to the header of a different group", () => {
+    const routes = new Set(nested.picture.routes.map((route) => route.id));
+    for (const id of ["relates:trench:water", "relates:rota:water", "touches:e01:trench", "touches:e02:trench"]) expect(routes.has(id), id).toBe(false);
+    for (const id of ["relates:fence:trench", "reply:e01:e02", "touches:e04:trench"]) expect(routes.has(id), id).toBe(true);
+    // The edges of the document stay in the picture, so a card reads them.
+    expect(nested.document.edges).toBe(nested.source.edges);
+  });
+
+  it("keeps the source document, and shows a different document for a closed container and for the flat view", () => {
+    expect(nested.document).toBe(nested.source);
+    const closed = threadPicture(source, fakeAdvance, { ...options, closed: new Set(["water"]) });
+    expect(closed.source).toEqual(nested.source);
+    expect(closed.picture.boxes).toHaveLength(source.boxes.length - 5);
+    expect(closed.kinds.get("water")).toBe("topic");
+    expect(holdsOf(closed.document.boxes.find((box) => box.id === "water") ?? {})).toBe(5);
+    expect(checkPicture(closed.picture)).toEqual([]);
+    const flat = threadPicture(source, fakeAdvance, { ...options, flat: true });
+    expect(flat.source).toEqual(nested.source);
+    expect(flat.document).toEqual(sample);
+    expect(flat.picture).toEqual(thread.picture);
+  });
+
+  it("tells the number of the boxes in a closed thread, after its tag", () => {
+    const closed = threadPicture(source, fakeAdvance, { ...options, closed: new Set(["t01"]) });
+    expect(closed.kinds.get("t01")).toBe("entry");
+    expect(labelOf(closed, labelId("tag", "t01"))?.lines).toEqual(["Thread (2)"]);
+    expect(labelOf(nested, labelId("tag", "e01"))?.lines).toEqual(["Question"]);
+  });
+
+  it("keeps the places of a picture for the same document, and makes new places after a box changes its group", () => {
+    const again = threadPicture(source, fakeAdvance, { ...options, keep: nested });
+    expect(again.base).toBe(nested.base);
+    expect(again.issues).toBe(nested.issues);
+    // The topic leaves its group: it is the same box with no parent.
+    const moved = { ...source, boxes: source.boxes.map(({ parent, ...rest }) => (rest.id === "rota" ? rest : { ...rest, ...(parent === undefined ? {} : { parent }) })) };
+    const next = threadPicture(moved, fakeAdvance, { ...options, keep: nested });
+    expect(next.base).not.toBe(nested.base);
+    expect(boxOf(next, "rota")?.parent).toBeUndefined();
+    expect(checkPicture(next.picture)).toEqual([]);
+  });
+
+  it("gives a group with a layout that is not good a sign and a short text in its header", () => {
+    const withLayout = (layout: unknown) => ({ ...source, boxes: source.boxes.map((box) => (box.id === "water" ? { ...box, data: { ...box.data, layout } } : box)) });
+    const bad = threadPicture(withLayout("spiral"), fakeAdvance, options);
+    expect(bad.issues).toMatchObject([{ box: "water", code: "UNKNOWN_LAYOUT", severity: "error" }]);
+    const frame = boxOf(bad, "water");
+    const sign = labelOf(bad, labelId("sign", "water"));
+    expect(sign).toMatchObject({ box: "water", lines: [ISSUE_MARK], align: "right", w: ISSUE_SIGN, data: { role: "sign" } });
+    expect((sign?.x ?? 0) + ISSUE_SIGN).toBe((frame?.x ?? 0) + (frame?.w ?? 0) - GROUP_LOOK.padX);
+    expect(labelOf(bad, labelId("issue", "water"))).toMatchObject({ lines: ["Unknown layout"], data: { role: "issue" } });
+    expect(checkPicture(bad.picture)).toEqual([]);
+    const option = threadPicture(withLayout({ type: "grid", columns: "many" }), fakeAdvance, options);
+    expect(labelOf(option, labelId("issue", "water"))?.lines).toEqual(["Layout option not used"]);
+    expect(issueText({ code: "UNKNOWN_LAYOUT" })).toBe("Unknown layout");
+    expect(issueText({ code: "INVALID_OPTION" })).toBe("Layout option not used");
   });
 });

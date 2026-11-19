@@ -1,7 +1,7 @@
 import { h } from "@mark1russell7/site-pages/chrome";
 import { onThemeChange, threadTheme } from "./colors.ts";
 import { chooseTopic } from "./thread/card.ts";
-import { labelOf, threadKinds, topicCounts, type ThreadDocument } from "./thread/document.ts";
+import { isTopicBox, labelOf, topicCounts, type ThreadDocument } from "./thread/document.ts";
 import { mountThreadView, type ThreadActionEvent, type ThreadView } from "./thread/mount.ts";
 import { panelId, withPanel } from "./thread/panels.ts";
 import { phaseText, type ThreadPhaseEvent } from "./thread/phases.ts";
@@ -38,9 +38,9 @@ export function startThread(elements: ThreadElements): ThreadView {
   /** The layout of the last picture. Its first drawing completes the line of the times. */
   let made: ThreadPhaseEvent | undefined;
 
-  const kinds = threadKinds(current);
+  // A topic with boxes in it is a topic of the list too.
   const rows = current.boxes
-    .filter((box) => kinds.get(box.id) === "topic")
+    .filter((box) => isTopicBox(box))
     .map((topic) => {
       const count = h("span", { class: "count" });
       const button = h("button", { class: "kind", type: "button", "data-topic": topic.id, "aria-pressed": "false" }, `${labelOf(topic)} `, count);

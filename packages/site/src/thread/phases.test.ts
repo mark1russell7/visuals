@@ -51,6 +51,16 @@ describe("phaseTeller", () => {
     expect(reports).toEqual([]);
   });
 
+  it("tells the number of the findings of a layout, and no number for a layout with none", () => {
+    const { teller, events } = harness();
+    const count = (made: readonly string[]): number => made.length;
+    teller.layout(3, () => ["unknown layout", "bad option"], count);
+    teller.layout(3, (): string[] => [], count);
+    const layouts = events.filter((event) => event.phase === "layout");
+    expect(layouts.map((event) => event.issues)).toEqual([2, undefined]);
+    expect(layouts.map((event) => "issues" in event)).toEqual([true, false]);
+  });
+
   it("tells the first drawing of a picture, and no later drawing", () => {
     const { teller, events, pass } = harness();
     teller.layout(40, () => "picture");

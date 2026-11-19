@@ -5,8 +5,9 @@ import { choicesOf, partStates } from "./document.ts";
 import { panelId, withPanels } from "./panel.test-util.ts";
 import { threadPicture } from "./picture.ts";
 import { SAMPLE_LEGEND, sampleThread } from "./sample.ts";
+import { flatSample } from "./sample.test-util.ts";
 
-const sample = sampleThread();
+const sample = flatSample();
 const options = { legend: SAMPLE_LEGEND, timeZone: "UTC" } as const;
 const thread = threadPicture(sample, fakeAdvance, options);
 
@@ -141,5 +142,70 @@ describe("relationNames", () => {
     ]);
     expect(relationNames(sample).map((name) => name.label)).toEqual(["sub", "related"]);
     expect(relationNames({ id: "d", boxes: [], edges: [{ id: "r", source: "a", target: "b", data: { kind: "relates" } }] })).toEqual([{ id: "related", label: "related" }]);
+  });
+});
+
+describe("the card of a container", () => {
+  const source = sampleThread();
+  const nested = threadPicture(source, fakeAdvance, options);
+  const ids = (names: readonly { readonly id: string }[] | undefined): string[] | undefined => names?.map((name) => name.id);
+
+  it("lists the boxes of a topic with topics in it, and the parts of the topic", () => {
+    const card = cardOf(nested, "water", options);
+    const flat = cardOf(thread, "water", options);
+    expect(card).toMatchObject({ kind: "group", topic: true, container: true, closed: false, label: "Water and drainage", title: flat?.title });
+    expect(ids(card?.boxes)).toEqual(["trench", "rota"]);
+    expect(card?.parts).toEqual(flat?.parts);
+    expect(card?.parts.length).toBeGreaterThan(0);
+    expect(card?.choices).toEqual([]);
+    expect(card?.others).toEqual([]);
+  });
+
+  it("names a thread, with its entries and no part", () => {
+    const card = cardOf(nested, "t01", options);
+    expect(card).toMatchObject({ kind: "group", topic: false, container: true, closed: false, title: "Thread", parts: [], choices: [], others: [] });
+    expect(ids(card?.boxes)).toEqual(["e01", "e02"]);
+    // A group with a tag that the legend does not name has the tag as its title, and a group with no tag is a group.
+    expect(cardOf(nested, "t01")?.title).toBe("thread");
+    const plain = threadPicture({ id: "d", boxes: [{ id: "g", data: { kinds: ["group"] } }, { id: "x", parent: "g", data: { kinds: ["entry"] } }] }, fakeAdvance, options);
+    expect(cardOf(plain, "g", options)).toMatchObject({ kind: "group", title: "Group", container: true });
+    expect(ids(cardOf(plain, "g", options)?.boxes)).toEqual(["x"]);
+  });
+
+  it("keeps the lists of a closed container, and tells that it is closed", () => {
+    const closed = threadPicture(source, fakeAdvance, { ...options, closed: new Set(["water"]) });
+    const card = cardOf(closed, "water", options);
+    expect(card).toMatchObject({ kind: "topic", topic: true, container: true, closed: true });
+    expect(ids(card?.boxes)).toEqual(["trench", "rota"]);
+    expect(card?.parts).toEqual(cardOf(nested, "water", options)?.parts);
+    // A box in a closed container is not in the picture, so it has no card.
+    expect(cardOf(closed, "trench", options)).toBeUndefined();
+    expect(cardOf(closed, "e01", options)).toBeUndefined();
+  });
+
+  it("gives a closed thread the card of a container, with no choice of a topic", () => {
+    const closed = threadPicture(source, fakeAdvance, { ...options, closed: new Set(["t01"]) });
+    const card = cardOf(closed, "t01", options);
+    expect(card).toMatchObject({ kind: "entry", topic: false, container: true, closed: true, title: "Thread", choices: [], others: [], parts: [] });
+    expect(ids(card?.boxes)).toEqual(["e01", "e02"]);
+  });
+
+  it("gives the flat view a topic with no box in it, and no card for a thread", () => {
+    const flat = threadPicture(source, fakeAdvance, { ...options, flat: true });
+    const card = cardOf(flat, "water", options);
+    expect(card).toMatchObject({ kind: "topic", topic: true, container: false, closed: false, boxes: [] });
+    expect(card?.parts).toEqual(cardOf(thread, "water", options)?.parts);
+    expect(cardOf(flat, "t01", options)).toBeUndefined();
+    expect(cardOf(flat, "e01", options)).toEqual(cardOf(thread, "e01", options));
+  });
+
+  it("offers a topic that is a group to a part and to an entry in a thread", () => {
+    const part = cardOf(nested, "m01#0", options);
+    expect(part?.choices.map((choice) => choice.id)).toEqual(["water", "north", "trench"]);
+    expect(part?.others.map((topic) => topic.id)).toEqual(["tomatoes", "compost", "shed", "seeds", "rota", "market"]);
+    const entry = cardOf(nested, "e01", options);
+    expect(entry).toMatchObject({ kind: "entry", container: false, closed: false, boxes: [] });
+    expect(entry?.choices).toEqual(cardOf(thread, "e01", options)?.choices);
+    expect(entry?.others).toEqual(cardOf(thread, "e01", options)?.others);
   });
 });

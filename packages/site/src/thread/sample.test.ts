@@ -55,4 +55,40 @@ describe("answerEntry", () => {
     expect(answerEntry(sample, "nowhere", "A text.", at, "you")).toBe(sample);
     expect(answerEntry(sample, "e04", "", at, "you")).toBe(sample);
   });
+
+  it("puts the answer to an entry of a thread in that thread", () => {
+    const answered = answerEntry(sample, "e02", "The spade is in the shed.", at, "you");
+    expect(answered.boxes.at(-1)).toMatchObject({ id: "answer:e02:1", parent: "t01", data: { kinds: ["entry", "comment"] } });
+    expect(threadKinds(answered).get("answer:e02:1")).toBe("entry");
+    expect(soundDocument(answered).boxes).toEqual(answered.boxes);
+  });
+});
+
+describe("the groups of the sample", () => {
+  it("has two topics in a wider topic, and a thread of two entries in one of them", () => {
+    const inGroups = sample.boxes.filter((box) => box.parent !== undefined && threadKinds(sample).get(box.parent) === "group");
+    expect(Object.fromEntries(inGroups.map((box) => [box.id, box.parent]))).toEqual({ trench: "water", rota: "water", t01: "trench", e01: "t01", e02: "t01" });
+    expect(boxOf(sample, "t01")?.data).toMatchObject({ kinds: ["thread", "ask"], entries: 2, text: boxOf(sample, "e01")?.data?.["text"], at: boxOf(sample, "e01")?.data?.["at"] });
+    expect(SAMPLE_LEGEND.kinds?.find((kind) => kind.id === "thread")).toEqual({ id: "thread", title: "Thread" });
+  });
+
+  it("has each container before the boxes in it", () => {
+    const before = new Set<string>();
+    for (const box of sample.boxes) {
+      if (box.parent !== undefined) expect(before.has(box.parent), box.id).toBe(true);
+      before.add(box.id);
+    }
+  });
+
+  it("has the wider topic of each relation `sub` as the container of the narrower topic", () => {
+    const narrower = (sample.edges ?? []).filter((edge) => edge.data?.["relation"] === "sub");
+    expect(narrower.map((edge) => edge.source).sort()).toEqual(["rota", "trench"]);
+    for (const edge of narrower) expect(boxOf(sample, edge.source)?.parent).toBe(edge.target);
+  });
+
+  it("keeps the entries with no thread at the top, and the count of each topic", () => {
+    expect(boxOf(sample, "e03")?.parent).toBeUndefined();
+    expect(boxOf(sample, "e04")?.parent).toBeUndefined();
+    expect(topicCounts(sample.edges ?? []).get("trench")).toBe(5);
+  });
 });
