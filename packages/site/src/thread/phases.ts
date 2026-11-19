@@ -16,6 +16,8 @@ export interface ThreadPhaseEvent {
   readonly at: number;
   /** The text of the error that stopped the step. A step that ended has no error. */
   readonly error?: string | undefined;
+  /** The number of findings of the layout engine about the layouts of the groups. An event of a layout with no finding does not have it. */
+  readonly issues?: number | undefined;
 }
 
 /** This function gives the times of one picture as a sentence for a person: its layout, then its first drawing. */
@@ -38,9 +40,9 @@ export interface PhaseTellerOptions {
 export interface PhaseTeller {
   /**
    * This function makes the layout of the next picture and tells its time. `boxes` is the number of boxes of its document.
-   * It gives the result of `work`, or `undefined` after an error.
+   * It gives the result of `work`, or `undefined` after an error. `issues` gives the number of findings of the result.
    */
-  layout<T>(boxes: number, work: () => T): T | undefined;
+  layout<T>(boxes: number, work: () => T, issues?: (made: T) => number): T | undefined;
   /**
    * This function draws a picture. The first drawing after each layout tells its time.
    * It gives the result of `work`, which is true while a part continues to change. It gives false after an error of a first drawing.
@@ -68,21 +70,21 @@ export function phaseTeller(options: PhaseTellerOptions = {}): PhaseTeller {
   /** This value is true from the layout of a picture to its first drawing. */
   let waiting = false;
 
-  const tell = (phase: ThreadPhase, ms: number, at: number, error?: string): void => {
+  const tell = (phase: ThreadPhase, ms: number, at: number, error?: string, issues = 0): void => {
     try {
-      options.onPhase?.(error === undefined ? { phase, picture, boxes, ms, at } : { phase, picture, boxes, ms, at, error });
+      options.onPhase?.({ phase, picture, boxes, ms, at, ...(error === undefined ? {} : { error }), ...(issues > 0 ? { issues } : {}) });
     } catch (thrown) {
       report(thrown);
     }
   };
 
   /** This function does the work of a step and tells its time. It gives `undefined` after an error. */
-  const step = <T>(phase: ThreadPhase, work: () => T): T | undefined => {
+  const step = <T>(phase: ThreadPhase, work: () => T, issues?: (made: T) => number): T | undefined => {
     const from = now();
     try {
       const made = work();
       const at = now();
-      tell(phase, at - from, at);
+      tell(phase, at - from, at, undefined, issues?.(made));
       return made;
     } catch (thrown) {
       const at = now();
@@ -93,10 +95,10 @@ export function phaseTeller(options: PhaseTellerOptions = {}): PhaseTeller {
   };
 
   return {
-    layout(count, work) {
+    layout(count, work, issues) {
       picture += 1;
       boxes = count;
-      const made = step("layout", work);
+      const made = step("layout", work, issues);
       waiting = made !== undefined;
       return made;
     },

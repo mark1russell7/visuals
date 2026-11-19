@@ -22,12 +22,19 @@ export type ThreadBox = Omit<LayoutBox, "w" | "h"> & { readonly w?: number | und
  * - A box can have `data.actions`: a list of buttons, each with an `id` and a `title`. The card of the box shows them.
  * - A part has its message as `parent`.
  * - A topic has `topic` as its first kind. Its second kind is a tag, and its `data.state` can be `done`.
- * - An entry is a box with no part and no parent that is not a topic. Its tag is its second kind.
+ * - An entry is a box with no box in it that is not a part, a topic or a panel. Its tag is its second kind.
  * - An entry can have `data.waits`: the id of who the entry waits on, for example a person. The entry stands out in the picture.
  * - A panel has `panel` as its first kind, and no parent. It is the place of a form of the page, next to the box of its `data.of`.
  * - An edge has `data.kind`: `reply`, `part`, `touches`, `relates` or `panel`. An edge `relates` can have `data.relation`.
  * - An edge of a sorter has also `data.state`, `data.rank`, `data.score`, `data.choice` and `data.by`.
  * - An edge `panel` joins a box to its panel. It is a line of dashes, and it pulls no box.
+ *
+ * A box can contain other boxes, to each depth: each of them has it as `parent`.
+ *
+ * - A container that is not a message is a group: a frame around its boxes, with its name in a header. A topic can be a group.
+ * - A group can have `data.layout`: the name of a strategy of the layout engine, or an object with the name `type` and the options.
+ * - A group with no `data.layout` gets a layout from the number of its boxes.
+ * - A container with `data.closed` as `true` is closed at the start: the picture shows it as one box, with no box in it.
  */
 export interface ThreadDocument {
   readonly id: string;
@@ -51,9 +58,9 @@ export interface LegendName {
 
 /**
  * The kinds of the boxes of a thread document. A message is a card with a row for each part, and an entry is a card with one text.
- * A panel is an empty box for a form of the page.
+ * A panel is an empty box for a form of the page. A group is a frame around the boxes in it.
  */
-export const THREAD_KINDS = ["message", "part", "topic", "entry", "panel"] as const;
+export const THREAD_KINDS = ["message", "part", "topic", "entry", "panel", "group"] as const;
 
 /** The kind of a box of a thread document. */
 export type ThreadKind = (typeof THREAD_KINDS)[number];
@@ -91,19 +98,48 @@ export function kindsOf(box: WithData): string[] {
   return Array.isArray(kinds) ? kinds.filter((kind): kind is string => typeof kind === "string" && kind !== "") : [];
 }
 
+/** This function tells if a box with boxes in it is the card of a message. Such a box has the first kind `message`, or no kind. */
+export function isMessageBox(box: WithData): boolean {
+  const first = kindsOf(box)[0];
+  return first === undefined || first === "message";
+}
+
+/**
+ * This function tells if a box is a topic: its first kind is `topic`.
+ * A topic with boxes in it is a group in the picture. It stays a topic for the choice of a person.
+ */
+export function isTopicBox(box: WithData): boolean {
+  return kindsOf(box)[0] === "topic";
+}
+
+/**
+ * This function gives the number of the boxes in a closed container: its `data.holds`. `shownDocument` writes it.
+ * It gives `undefined` for a box that is not a closed container.
+ */
+export function holdsOf(box: WithData): number | undefined {
+  const holds = count(box, "holds");
+  return holds !== undefined && holds > 0 ? holds : undefined;
+}
+
 /**
  * This function gives the kind of each box of a document, by the id of the box. The place of a box in the tree comes first.
- * A box with boxes in it is a message, and a box in a box is a part. A different box with the first kind `topic` is a topic.
- * A different box with the first kind `panel` is a panel. Each other box is an entry.
+ *
+ * - A box with boxes in it is a message when `isMessageBox` tells so. Each other box with boxes in it is a group.
+ * - A box in a message is a part.
+ * - A different box with the first kind `topic` is a topic, and one with the first kind `panel` is a panel.
+ * - Each other box is an entry. Thus a box in a group has the kind that it has with no group.
  */
 export function threadKinds(document: ThreadDocument): Map<string, ThreadKind> {
   const parents = new Set<string>();
   for (const box of document.boxes) if (box.parent !== undefined) parents.add(box.parent);
+  const messages = new Set<string>();
+  for (const box of document.boxes) if (parents.has(box.id) && isMessageBox(box)) messages.add(box.id);
   const out = new Map<string, ThreadKind>();
   for (const box of document.boxes) {
     const first = kindsOf(box)[0];
-    if (parents.has(box.id)) out.set(box.id, "message");
-    else if (box.parent !== undefined) out.set(box.id, "part");
+    if (messages.has(box.id)) out.set(box.id, "message");
+    else if (parents.has(box.id)) out.set(box.id, "group");
+    else if (box.parent !== undefined && messages.has(box.parent)) out.set(box.id, "part");
     else out.set(box.id, first === "topic" ? "topic" : first === "panel" ? "panel" : "entry");
   }
   return out;

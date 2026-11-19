@@ -3,11 +3,12 @@ import { MAX_THETA } from "ireko/strategies/force";
 import { describe, expect, it } from "vitest";
 import { fakeAdvance } from "./advance.test-util.ts";
 import type { ThreadDocument } from "./document.ts";
-import { ASPECT_RANGE, entryRow, EXACT_MOST, FAR_THETA, farTheta, firstScale, KEEP_SHARE, keepsPlaces, mostLayouts, placeThread, sizedBoxes, THREAD_FORCE } from "./place.ts";
+import { ASPECT_RANGE, entryRow, EXACT_MOST, FAR_THETA, farTheta, firstScale, GROUP_RULES, groupLayout, KEEP_SHARE, keepsPlaces, layoutThread, mostLayouts, placeThread, sizedBoxes, THREAD_FORCE, threadEngine } from "./place.ts";
 import { sampleThread } from "./sample.ts";
-import { MESSAGE_LOOK, threadSizes } from "./sizes.ts";
+import { flatSample } from "./sample.test-util.ts";
+import { GROUP_LOOK, MESSAGE_LOOK, threadSizes } from "./sizes.ts";
 
-const sample = sampleThread();
+const sample = flatSample();
 const sizes = threadSizes(sample, fakeAdvance);
 const places = placeThread(sample, sizes);
 
@@ -303,5 +304,117 @@ describe("sizedBoxes", () => {
     const boxes = sizedBoxes(sample, sizes);
     expect(boxes.find((box) => box.id === "m01#0")).toMatchObject({ w: sizes.get("m01#0")?.w, h: sizes.get("m01#0")?.h });
     expect(boxes.find((box) => box.id === "m01")).toMatchObject({ w: 0, h: 0 });
+  });
+});
+
+describe("groupLayout", () => {
+  const frame = { padding: GROUP_LOOK.padding, gap: GROUP_LOOK.gap, header: GROUP_LOOK.header };
+
+  it("gives a group with no layout the first rule with room for its boxes", () => {
+    expect(groupLayout({}, 1)).toEqual({ ...frame, type: "grid", columns: 1, justify: "start", align: "start" });
+    expect(groupLayout({}, 3)).toMatchObject({ type: "grid", columns: 1 });
+    expect(groupLayout({}, 4)).toMatchObject({ type: "grid", columns: 0 });
+    expect(groupLayout({ data: { layout: null } }, 150)).toMatchObject({ type: "grid", columns: 0 });
+    const rules = [{ most: 9, layout: { type: "force" } }];
+    expect(groupLayout({}, 9, rules)).toEqual({ ...frame, type: "force" });
+    // No rule has room for the boxes: the layout has no name, and the engine gives a finding.
+    expect(groupLayout({}, 10, rules)).toEqual(frame);
+  });
+
+  it("takes the layout of the data of the box: a name, or a name with options", () => {
+    expect(groupLayout({ data: { layout: "force" } }, 2)).toEqual({ ...frame, type: "force" });
+    expect(groupLayout({ data: { layout: { type: "grid", columns: 2, gap: 4 } } }, 9)).toEqual({ ...frame, type: "grid", columns: 2, gap: 4 });
+  });
+
+  it("keeps the header of the frame, because the picture draws the name there", () => {
+    expect(groupLayout({ data: { layout: { type: "grid", header: 99, padding: 2 } } }, 2)).toEqual({ ...frame, type: "grid", padding: 2 });
+  });
+
+  it("gives a layout with no name for data of a different type", () => {
+    expect(groupLayout({ data: { layout: 5 } }, 2)).toEqual(frame);
+    expect(groupLayout({ data: { layout: ["grid"] } }, 2)).toEqual(frame);
+  });
+
+  it("has only rules that name a strategy of the engine, and a last rule with room for each count", () => {
+    const { strategies } = threadEngine();
+    for (const rule of GROUP_RULES) expect(strategies.has(rule.layout.type)).toBe(true);
+    expect(strategies.has("force")).toBe(true);
+    expect(GROUP_RULES.at(-1)?.most).toBe(Number.POSITIVE_INFINITY);
+    expect(GROUP_RULES.map((rule) => rule.most)).toEqual([...GROUP_RULES.map((rule) => rule.most)].sort((a, b) => a - b));
+  });
+});
+
+describe("layoutThread", () => {
+  const nested = sampleThread();
+  const nestedSizes = threadSizes(nested, fakeAdvance);
+  const laid = layoutThread(nested, nestedSizes);
+
+  /** This function makes a document of one group with entries in it. `layout` is the `data.layout` of the group. */
+  const group = (count: number, layout?: unknown): ThreadDocument => ({
+    id: "one-group",
+    boxes: [
+      { id: "g", data: { kinds: ["group"], label: "A group", ...(layout === undefined ? {} : { layout }) } },
+      ...Array.from({ length: count }, (_unused, place) => ({ id: `x${String(place)}`, parent: "g", data: { kinds: ["entry", "ask"], label: `Entry ${String(place)}`, text: `Entry ${String(place)}` } })),
+    ],
+  });
+  const layoutOf = (document: ThreadDocument) => layoutThread(document, threadSizes(document, fakeAdvance));
+
+  it("gives a place to each box, with each box in the frame of its group, below the header", () => {
+    expect(laid.issues).toEqual([]);
+    expect(laid.places.size).toBe(nested.boxes.length);
+    for (const box of nested.boxes) {
+      const place = laid.places.get(box.id);
+      const frame = box.parent === undefined ? undefined : laid.places.get(box.parent);
+      if (place === undefined || frame === undefined) continue;
+      expect(inside(place, frame), `${box.id} in ${String(box.parent)}`).toBe(true);
+      if (["water", "trench", "t01"].includes(box.parent ?? "")) expect(place.y).toBeGreaterThanOrEqual(frame.y + GROUP_LOOK.header - 1e-6);
+    }
+  });
+
+  it("keeps the boxes of one group apart, and the boxes at the top apart", () => {
+    const apart = (a: Rect, b: Rect): boolean => a.x + a.w <= b.x + 1e-6 || b.x + b.w <= a.x + 1e-6 || a.y + a.h <= b.y + 1e-6 || b.y + b.h <= a.y + 1e-6;
+    for (const a of nested.boxes) {
+      for (const b of nested.boxes) {
+        if (a.id >= b.id || a.parent !== b.parent) continue;
+        const first = laid.places.get(a.id);
+        const second = laid.places.get(b.id);
+        if (first !== undefined && second !== undefined) expect(apart(first, second), `${a.id} and ${b.id}`).toBe(true);
+      }
+    }
+  });
+
+  it("gives the same places for the same document", () => {
+    expect([...layoutThread(nested, nestedSizes).places]).toEqual([...laid.places]);
+  });
+
+  it("puts a few boxes of a group in one column, and more boxes in a grid", () => {
+    const columns = (count: number): number => {
+      const { places, issues } = layoutOf(group(count));
+      expect(issues).toEqual([]);
+      return new Set(Array.from({ length: count }, (_unused, place) => places.get(`x${String(place)}`)?.x)).size;
+    };
+    expect(columns(3)).toBe(1);
+    expect(columns(4)).toBe(2);
+    expect(columns(9)).toBe(3);
+  });
+
+  it("gives a finding for a layout that the engine does not have, and places the boxes", () => {
+    const { places, issues } = layoutOf(group(2, "spiral"));
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ box: "g", code: "UNKNOWN_LAYOUT", severity: "error" });
+    expect(issues[0]?.message).toContain("spiral");
+    expect(places.size).toBe(3);
+  });
+
+  it("gives a finding for a layout with no name, and for an option that is not good", () => {
+    expect(layoutOf(group(2, 5)).issues).toMatchObject([{ box: "g", code: "INVALID_OPTION", severity: "warning" }]);
+    expect(layoutOf(group(2, { type: "grid", columns: "many" })).issues).toMatchObject([{ box: "g", code: "INVALID_OPTION", severity: "warning" }]);
+    expect(layoutOf(group(2, { type: "grid", columns: 2 })).issues).toEqual([]);
+  });
+
+  it("gives the places of `placeThread` for a document with no group, with no finding", () => {
+    const flat = layoutThread(sample, sizes);
+    expect(flat.issues).toEqual([]);
+    expect([...flat.places]).toEqual([...places]);
   });
 });

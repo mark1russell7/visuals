@@ -1,8 +1,8 @@
-import type { BoxLook, BoxMark, LabelLook, PictureLooks, RouteLook } from "@mark1russell7/visuals/graph";
+import { KEPT_GAP, type BoxLook, type BoxMark, type LabelLook, type PictureLooks, type RouteLook } from "@mark1russell7/visuals/graph";
 import { choiceOf, edgeKind, edgeState, isDone, isProposal, relationOf, waitsOf } from "./document.ts";
 import { isPanelLine, type ThreadPicture } from "./picture.ts";
 import { entryRow } from "./place.ts";
-import { isTopicLook, MESSAGE_LOOK } from "./sizes.ts";
+import { GROUP_LOOK, isTopicLook, MESSAGE_LOOK } from "./sizes.ts";
 
 /** The colors of a thread picture. */
 export interface ThreadTheme {
@@ -102,6 +102,35 @@ export const PANEL_DASH: readonly number[] = [3, 4];
 /** The height on the screen of the name of a panel in a far view. */
 export const PANEL_NAME_LINE = 15;
 
+/** The radius of the corners of the frame of a group. */
+export const GROUP_RADIUS = 12;
+
+/** The share of its color that the frame of a group has. The page shows through the frame, so a frame in a frame is darker. */
+export const GROUP_OPACITY = 0.35;
+
+/** The share of its color that the frame of a group has below the pointer and when it is selected. */
+export const GROUP_LIT_OPACITY = 0.6;
+
+/** The largest height on the screen of the name of a group in a far view. `top` is for a group at the top, and `inner` for a group in a group. */
+export const GROUP_NAME_LINE = { top: 18, inner: 14 } as const;
+
+/** The smallest height on the screen of the name of a group in a far view: the smallest line that a person reads. */
+export const GROUP_NAME_LEAST = 11;
+
+/**
+ * This function gives the height on the screen of the name of a group in a far view. `top` is true for a group with no group around it.
+ *
+ * - The name gets the height of its header on the screen, less the gap between two names. Thus a group and a group in it show their names together.
+ * - The name is not higher than `GROUP_NAME_LINE`, and not lower than `GROUP_NAME_LEAST`.
+ * - In a view with no room for the two names, the stage shows the name of the larger group.
+ */
+export function groupNameLine(zoom: number, top: boolean): number {
+  const most = top ? GROUP_NAME_LINE.top : GROUP_NAME_LINE.inner;
+  // The stage keeps `KEPT_GAP` between two names. One more pixel is the tolerance for the sums of floats.
+  const room = GROUP_LOOK.header * zoom - KEPT_GAP - 1;
+  return Math.min(most, Math.max(GROUP_NAME_LEAST, room));
+}
+
 /** This function gives the color of an entry that waits: the color `waits` of a theme, or its color `open`. */
 export function waitsColor(theme: ThreadTheme): string {
   return theme.waits ?? theme.open;
@@ -137,6 +166,8 @@ export function farNameLine(size: number): number {
  * - In a far view, a topic is the darkest shape, and the line of a chosen topic is thin and light, with no dot.
  * - In a far view, an entry that waits has all its inside in the color `waits`, so a person finds it between many cards.
  * - A panel is an empty card, and a line of short dashes joins it to its box. In a far view, the panel shows its name.
+ * - A group is a frame with its name in a header. A frame in a frame is darker. In a far view, the name keeps a height that a person reads.
+ * - A group with a finding about its layout has a sign at the right end of its header. The short text of the finding is before the sign.
  */
 export function threadLooks(read: () => ThreadLookState): PictureLooks<ThreadTheme> {
   return {
@@ -146,6 +177,10 @@ export function threadLooks(read: () => ThreadLookState): PictureLooks<ThreadThe
       const lit = state.highlight > 0;
       const border = { stroke: lit ? theme.accent : theme.stroke, width: state.highlight === 2 ? 2 : 1 };
       if (kind === "message") return { fill: theme.tray, ...border, radius: 9 };
+      if (kind === "group") {
+        // The frame lets the page show through it. Thus a frame in a frame is darker, and a person reads the depth.
+        return { fill: theme.quiet, stroke: lit ? theme.accent : theme.muted, width: lit ? 2 : 1, radius: GROUP_RADIUS, opacity: lit ? GROUP_LIT_OPACITY : GROUP_OPACITY };
+      }
       if (kind === "panel") return { fill: theme.surface, ...border, stroke: lit ? theme.accent : theme.edgeStrong, radius: PANEL_RADIUS };
       const size = thread.sizes.get(box.id);
       if (kind === "topic") {
@@ -194,6 +229,13 @@ export function threadLooks(read: () => ThreadLookState): PictureLooks<ThreadThe
         const size = thread.sizes.get(of.id);
         const least = farNameLine(size !== undefined && isTopicLook(size.look) ? size.look.size : 15);
         return { color: state.highlight > 0 ? theme.accent : theme.text, halo: theme.background, least, opacity: isDone(of.box) ? 0.6 : 1 };
+      }
+      if (kind === "group" && of?.type === "box") {
+        // The text of a finding and its sign have the color of a sign that asks for work. A far view has no room for them.
+        if (role === "issue" || role === "sign") return far ? undefined : { color: theme.open };
+        const color = state.highlight > 0 ? theme.accent : theme.text;
+        // In a far view, the name of a group keeps a height that a person reads. A group at the top keeps a larger name.
+        return far ? { color, halo: theme.background, least: groupNameLine(state.zoom, of.box.parent === undefined) } : { color };
       }
       // In a near view, the slot of the view has the content of a panel. In a far view the slot is hidden, so the name tells the panel.
       if (kind === "panel") return far ? { color: theme.text, halo: theme.surface, least: PANEL_NAME_LINE } : undefined;

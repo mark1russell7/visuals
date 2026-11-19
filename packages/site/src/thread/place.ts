@@ -1,8 +1,8 @@
 import { boxTree, siblingEdges, type BoxNode, type LayoutBox, type Rect } from "@mark1russell7/layout-contract";
-import { createEngine, type EdgeSpec, type NodeSpec } from "ireko";
+import { createEngine, type EdgeSpec, type Engine, type LayoutRef, type NodeSpec } from "ireko";
 import { forceStrategy, relaxForces, type RelaxNode } from "ireko/strategies/force";
-import { isSpring, threadKinds, type ThreadDocument } from "./document.ts";
-import { MESSAGE_LOOK, type LeafSize } from "./sizes.ts";
+import { isSpring, threadKinds, type ThreadBox, type ThreadDocument } from "./document.ts";
+import { GROUP_LOOK, MESSAGE_LOOK, type LeafSize } from "./sizes.ts";
 
 /**
  * The options of the strategy `force` of `ireko` for the cards and the topics of a thread picture.
@@ -87,6 +87,66 @@ const COLUMN = { type: "grid", columns: 1, header: 0, padding: 0, gap: 0 } as co
 
 /** The settings of each layout of `placeThread`. */
 const SETTINGS = { treeEdges: "none", audit: false, header: 0 } as const;
+
+/** A rule of the layout of a group that names no layout. */
+export interface LayoutRule {
+  /** The most boxes in a group of this rule. */
+  readonly most: number;
+  /** The layout: the name of a strategy of the layout engine, with its options. */
+  readonly layout: { readonly type: string; readonly [option: string]: unknown };
+}
+
+/**
+ * The layout of a group that names none, by the number of the boxes in it. The first rule with room for the boxes is the rule of a group.
+ * A few boxes are one column. More boxes are a grid with approximately as many columns as rows.
+ */
+export const GROUP_RULES: readonly LayoutRule[] = [
+  { most: 3, layout: { type: "grid", columns: 1, justify: "start", align: "start" } },
+  { most: Number.POSITIVE_INFINITY, layout: { type: "grid", columns: 0, justify: "start", align: "start" } },
+];
+
+/** This function makes the layout engine of a thread picture: the strategies of `ireko`, and its strategy `force`. */
+export function threadEngine(): Engine {
+  return createEngine({ strategies: [forceStrategy] });
+}
+
+/**
+ * This function gives the layout of a group, for the layout engine. `count` is the number of the boxes in the group.
+ *
+ * - `data.layout` of the box is the name of a strategy of the engine, or an object with the name `type` and the options.
+ * - A group with no `data.layout` gets the layout of the first rule with room for its boxes.
+ * - The padding and the gap of `GROUP_LOOK` are the defaults. The header is always the header of `GROUP_LOOK`, because the picture draws the name there.
+ *
+ * The engine examines the name and the options. A `data.layout` of a different type goes to the engine as a layout with no name.
+ * Thus a layout that is not good is a finding of the engine, and it is not a different layout with no sign.
+ */
+export function groupLayout(box: Pick<ThreadBox, "data">, count: number, rules: readonly LayoutRule[] = GROUP_RULES): LayoutRef {
+  const own: unknown = box.data?.["layout"];
+  const named: Readonly<Record<string, unknown>> =
+    own === undefined || own === null ? { ...rules.find((rule) => count <= rule.most)?.layout } : typeof own === "string" ? { type: own } : typeof own === "object" && !Array.isArray(own) ? { ...own } : {};
+  // A layout with no name has no `type`. The type of the engine does not have that form, and the engine gives a finding for it.
+  return { padding: GROUP_LOOK.padding, gap: GROUP_LOOK.gap, ...named, header: GROUP_LOOK.header } as unknown as LayoutRef;
+}
+
+/** A finding of the layout engine about the layout of a box, for example a name that is not a strategy. */
+export interface PlaceIssue {
+  /** The id of the box. */
+  readonly box: string;
+  /** The code of the finding in the layout engine, for example `UNKNOWN_LAYOUT` or `INVALID_OPTION`. */
+  readonly code: string;
+  /** With `error`, the engine used a different layout. With `warning`, it used the default of an option. */
+  readonly severity: string;
+  /** The text of the finding, from the layout engine. */
+  readonly message: string;
+}
+
+/** The result of `layoutThread`. */
+export interface ThreadPlaces {
+  /** The rectangle of each box, by the id of the box. */
+  readonly places: Map<string, Rect>;
+  /** The findings of the layout engine about the layouts of the groups. A document with no group has none. */
+  readonly issues: PlaceIssue[];
+}
 
 /** The places of the cards and the topics after one layout of the second step of `placeThread`. */
 interface Arrangement {
@@ -325,31 +385,55 @@ export function sizedBoxes(document: ThreadDocument, sizes: ReadonlyMap<string, 
  * With the option `before`, a small change of the document moves no card and no topic of the picture before.
  * A new box gets a place near the boxes of its springs. The second step then has no search and no shape of an area.
  *
- * The same document and the same options give the same places.
+ * The same document and the same options give the same places. `layoutThread` gives the places with the findings of the engine.
  */
 export function placeThread(document: ThreadDocument, sizes: ReadonlyMap<string, LeafSize>, options: PlaceOptions = {}): Map<string, Rect> {
+  return layoutThread(document, sizes, options).places;
+}
+
+/**
+ * This function places the boxes of a document as `placeThread` does, and it gives the findings of the layout engine too.
+ *
+ * - A group is a frame around the boxes in it. `groupLayout` gives the layout of each group: a strategy of the engine, as data.
+ * - A spring between two boxes of one group goes to the strategy of that group. A spring across groups pulls the boxes at the top.
+ * - A group at the top is one box of the second step, so the forces move it with each box in it.
+ * - A finding tells a group with a layout that the engine does not have, or with an option that is not good.
+ */
+export function layoutThread(document: ThreadDocument, sizes: ReadonlyMap<string, LeafSize>, options: PlaceOptions = {}): ThreadPlaces {
   const out = new Map<string, Rect>();
-  if (document.boxes.length === 0) return out;
+  if (document.boxes.length === 0) return { places: out, issues: [] };
   const kinds = threadKinds(document);
   const boxes = sizedBoxes(document, sizes);
   const leaf = (id: string, of: string): NodeSpec => ({ id, size: { width: sizes.get(of)?.w ?? 0, height: sizes.get(of)?.h ?? 0 } });
   const specOf = (node: BoxNode): NodeSpec => {
     const id = node.box.id;
+    if (kinds.get(id) === "group") {
+      // The size is the least size of the frame: the header with the name of the group.
+      const size = { width: Math.max(1, sizes.get(id)?.w ?? 0), height: GROUP_LOOK.header };
+      return { id, mode: "nested", layout: groupLayout(node.box, node.children.length), size, children: node.children.map(specOf) };
+    }
     if (node.children.length > 0) return { id, mode: "nested", layout: CARD, children: node.children.map(specOf) };
     if (kinds.get(id) === "entry") return { id, mode: "nested", layout: CARD, children: [leaf(id + TEXT, id)] };
     return leaf(id, id);
   };
   const tree = boxTree(boxes);
-  const engine = createEngine({ strategies: [forceStrategy] });
+  const engine = threadEngine();
+  const top = new Set(tree.map((node) => node.box.id));
+  const lifted = siblingEdges({ boxes, edges: (document.edges ?? []).filter(isSpring) });
+  const specOfEdge = (edge: { readonly id: string; readonly source: string; readonly target: string }): EdgeSpec => ({ id: edge.id, source: edge.source, target: edge.target });
+  // A document with no group has no strategy that reads an edge in its first step.
+  const grouped = document.boxes.some((box) => kinds.get(box.id) === "group");
+  const inner = grouped ? lifted.filter((edge) => !top.has(edge.source) && !top.has(edge.target)).map(specOfEdge) : [];
 
   const cards = new Map<string, Rect>();
   const column: NodeSpec = { id: ROOT, mode: "nested", layout: COLUMN, children: tree.map(specOf) };
-  for (const node of engine.layout({ root: column, edges: [] }, SETTINGS).nodes) cards.set(node.id, { x: node.x, y: node.y, w: node.width, h: node.height });
+  const first = engine.layout({ root: column, edges: inner }, SETTINGS);
+  for (const node of first.nodes) cards.set(node.id, { x: node.x, y: node.y, w: node.width, h: node.height });
+  const issues = first.issues.flatMap((issue): PlaceIssue[] =>
+    issue.node !== undefined && kinds.get(issue.node) === "group" ? [{ box: issue.node, code: issue.code, severity: issue.severity, message: issue.message }] : [],
+  );
 
-  const top = new Set(tree.map((node) => node.box.id));
-  const springs = siblingEdges({ boxes, edges: (document.edges ?? []).filter(isSpring) })
-    .filter((edge) => top.has(edge.source) && top.has(edge.target))
-    .map((edge): EdgeSpec => ({ id: edge.id, source: edge.source, target: edge.target }));
+  const springs = lifted.filter((edge) => top.has(edge.source) && top.has(edge.target)).map(specOfEdge);
   const arrange = (scale: number): Arrangement => {
     const children = tree.map((node): NodeSpec => ({ id: node.box.id, size: { width: cards.get(node.box.id)?.w ?? 0, height: (cards.get(node.box.id)?.h ?? 0) * scale } }));
     const root: NodeSpec = { id: ROOT, mode: "nested", layout: { type: "force", ...THREAD_FORCE, theta: farTheta(tree.length), header: 0, ...options.force }, children };
@@ -403,7 +487,7 @@ export function placeThread(document: ThreadDocument, sizes: ReadonlyMap<string,
     const to = corners.get(node.box.id);
     if (card !== undefined && to !== undefined) move(node, to.x - card.x, to.y - card.y);
   }
-  return out;
+  return { places: out, issues };
 }
 
 /** This function gives the rectangle of the text row of an entry, from the rectangle of its card and the size of its text. */

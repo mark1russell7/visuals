@@ -268,7 +268,10 @@ check("no box is selected at the start", $$('#thread-topics .kind[aria-pressed="
 click(WATER);
 check("a topic of the list is selected, and the card shows it", await until(() => pressed(WATER) === "true" && cardBox() === "water"), cardBox());
 check("the card names the topic", text(`${CARD} .thread-text`) === "Water and drainage", text(`${CARD} .thread-text`));
-const parts = $$(`${CARD} .thread-part`);
+// The topic has two topics in it. Its card lists those boxes first, then its parts.
+const inner = $$(`${CARD} .thread-part[data-key^="box:"]`).map((row) => row.dataset["key"]);
+check("the card of a topic with topics in it lists those topics", inner.join(" ") === "box:trench box:rota", inner);
+const parts = $$(`${CARD} .thread-part[data-key^="part:"]`);
 check("the card of a topic has each part of the topic", parts.length > 0 && parts.length === partsOf("water"), [parts.length, partsOf("water")]);
 
 // A part of the card opens the card of the part. There, a person gives the part a different topic.

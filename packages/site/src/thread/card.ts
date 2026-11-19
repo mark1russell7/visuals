@@ -1,5 +1,5 @@
 import type { LayoutEdge } from "@mark1russell7/layout-contract";
-import { actionsOf, choiceOf, choicesOf, edgeKind, edgeState, isChosen, isDone, labelOf, linkOf, tagOf, textOf, timeOf, waitsOf, type ThreadAction, type ThreadDocument, type ThreadKind, type ThreadLegend } from "./document.ts";
+import { actionsOf, choiceOf, choicesOf, edgeKind, edgeState, holdsOf, isChosen, isDone, isTopicBox, labelOf, linkOf, tagOf, textOf, threadKinds, timeOf, waitsOf, type ThreadAction, type ThreadBox, type ThreadDocument, type ThreadKind, type ThreadLegend } from "./document.ts";
 import { timeText, titleOf, type ThreadPicture, type ThreadPictureOptions } from "./picture.ts";
 
 /** A box that a card names: its id and its short name. */
@@ -22,7 +22,15 @@ export interface CardChoice extends CardName {
 /** What the card of a selected box shows. */
 export interface CardModel extends CardName {
   readonly kind: ThreadKind;
-  /** The line above the text: the place of a part in its message, the kind of a topic or the tag of an entry. */
+  /** This value is true for a topic, also for a topic with boxes in it. */
+  readonly topic: boolean;
+  /** This value is true for a box with boxes in it that is not a message: a group, or a closed container. */
+  readonly container: boolean;
+  /** This value is true for a container that the picture shows as one box. */
+  readonly closed: boolean;
+  /** The boxes in a container, also when it is closed. A different box has an empty list. */
+  readonly boxes: readonly CardName[];
+  /** The line above the text. A part has its place in its message, a topic or a group has its kind, and an entry has its tag. */
   readonly title: string;
   /** The date of the box, or of the message of a part. */
   readonly date: string | undefined;
@@ -51,51 +59,55 @@ export const MOST_CHOICES = 3;
 
 /**
  * This function gives the content of the card of a box, or `undefined` for an id that is not a box of the picture.
+ *
  * A part and an entry get the list of their topics. A topic gets the list of its parts, and a message gets its parts.
+ * A container gets the list of the boxes in it, also when it is closed. A container has no list of topics.
+ * A topic with boxes in it gets the two lists: its boxes, and its parts.
  * A panel has no card: the page gives its content.
  */
 export function cardOf(thread: ThreadPicture, id: string, options: Pick<ThreadPictureOptions, "legend" | "locale" | "timeZone"> = {}): CardModel | undefined {
-  // The document with no panel has each box that can have a card. No list of a card names a panel.
-  const { plain: document, kinds } = thread;
+  // The card reads the document of the caller. Thus the lists of a card name also a box that the picture does not show.
+  const { source: document, kinds } = thread;
   const box = document.boxes.find((entry) => entry.id === id);
+  const shownBox = thread.plain.boxes.find((entry) => entry.id === id);
   const kind = kinds.get(id);
-  if (box === undefined || kind === undefined) return undefined;
+  // A panel has no card, and a box that the picture does not show has none.
+  if (box === undefined || shownBox === undefined || kind === undefined || kind === "panel") return undefined;
   const edges = document.edges ?? [];
   const byId = new Map(document.boxes.map((entry) => [entry.id, entry]));
   const nameOf = (other: string): CardName => ({ id: other, label: labelOf(byId.get(other) ?? { id: other }) });
   const parent = box.parent === undefined ? undefined : byId.get(box.parent);
   const at = timeOf(box) ?? (parent === undefined ? undefined : timeOf(parent));
   const tag = tagOf(box);
+  const named = tag === undefined ? undefined : titleOf(options.legend?.kinds, tag);
   const siblings = parent === undefined ? [] : document.boxes.filter((entry) => entry.parent === parent.id);
+  // A closed container has its boxes only in the document of the caller. A flat view shows a topic with no box in it.
+  const closed = holdsOf(shownBox) !== undefined;
+  const contains = (closed ? document : thread.plain).boxes.filter((entry) => entry.parent === id);
+  const container = contains.length > 0 && kind !== "message";
   const title =
-    kind === "part"
-      ? `Part ${String(siblings.indexOf(box) + 1)} of ${String(siblings.length)}`
-      : kind === "topic"
-        ? tag === undefined
-          ? "Topic"
-          : titleOf(options.legend?.kinds, tag)
-        : kind === "entry"
-          ? tag === undefined
-            ? "Entry"
-            : titleOf(options.legend?.kinds, tag)
-          : "Message";
-  const has = kind === "part" || kind === "entry";
+    kind === "part" ? `Part ${String(siblings.indexOf(box) + 1)} of ${String(siblings.length)}` : kind === "message" ? "Message" : isTopicBox(box) ? (named ?? "Topic") : kind === "group" ? (named ?? "Group") : (named ?? "Entry");
+  // A container is not a part of a choice, also when it is closed and the picture shows it as one box.
+  const has = (kind === "part" || kind === "entry") && !container;
   const ranked = has ? choicesOf(edges, id) : [];
   const listed = [...ranked.filter((choice) => choice.chosen), ...ranked.filter((choice) => !choice.chosen).slice(0, MOST_CHOICES)].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
   const choices = listed.map((choice): CardChoice => ({ ...nameOf(choice.target), edge: choice.edge?.id, chosen: choice.chosen, rank: choice.rank, score: choice.score }));
   const shown = new Set(choices.map((choice) => choice.id));
   const waits = kind === "entry" ? waitsOf(box) : undefined;
-  const others = has ? document.boxes.filter((entry) => kinds.get(entry.id) === "topic" && !shown.has(entry.id) && !isDone(entry)).map((entry) => nameOf(entry.id)) : [];
-  const parts =
-    kind === "message"
-      ? document.boxes.filter((entry) => entry.parent === id).map((entry) => nameOf(entry.id))
-      : kind === "topic"
-        ? edges.filter((edge) => isChosen(edge) && edge.target === id).map((edge) => nameOf(choiceOf(edge)))
-        : [];
+  // A topic with boxes in it is a group in the picture, and it stays a topic that a part can have.
+  const all = has ? threadKinds(document) : undefined;
+  const isTopic = (entry: ThreadBox): boolean => all?.get(entry.id) === "topic" || (all?.get(entry.id) === "group" && isTopicBox(entry));
+  const others = has ? document.boxes.filter((entry) => isTopic(entry) && !shown.has(entry.id) && !isDone(entry)).map((entry) => nameOf(entry.id)) : [];
+  const topic = isTopicBox(box);
+  const parts = kind === "message" ? contains.map((entry) => nameOf(entry.id)) : topic ? edges.filter((edge) => isChosen(edge) && edge.target === id).map((edge) => nameOf(choiceOf(edge))) : [];
   return {
     id,
     label: labelOf(box),
     kind,
+    topic,
+    container,
+    closed: container && closed,
+    boxes: container ? contains.map((entry) => nameOf(entry.id)) : [],
     title,
     date: at === undefined ? undefined : timeText(at, options.locale, options.timeZone),
     text: textOf(box),

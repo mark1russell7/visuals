@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { actionsOf, choiceOf, choicesOf, EDGE_KINDS, edgeKind, isChosen, isDone, isDrawn, isProposal, isSpring, labelOf, linkOf, panelOf, partStates, relationOf, soundDocument, tagOf, textOf, THREAD_KINDS, threadKinds, topicCounts, waitsOf, type ThreadDocument } from "./document.ts";
+import { actionsOf, choiceOf, choicesOf, EDGE_KINDS, edgeKind, holdsOf, isChosen, isDone, isDrawn, isProposal, isSpring, isTopicBox, labelOf, linkOf, panelOf, partStates, relationOf, soundDocument, tagOf, textOf, THREAD_KINDS, threadKinds, topicCounts, waitsOf, type ThreadDocument } from "./document.ts";
 import { SAMPLE_ANSWER, sampleThread } from "./sample.ts";
+import { flatSample } from "./sample.test-util.ts";
 
-const sample = sampleThread();
+const sample = flatSample();
 const edges = sample.edges ?? [];
 const edge = (id: string) => {
   const found = edges.find((entry) => entry.id === id);
@@ -224,5 +225,46 @@ describe("waitsOf", () => {
     expect(waitsOf({ data: { waits: "" } })).toBeUndefined();
     expect(waitsOf({ data: { waits: true } })).toBeUndefined();
     expect(waitsOf({ data: { waits: ["reader"] } })).toBeUndefined();
+  });
+});
+
+describe("the boxes of a document with groups", () => {
+  const nested = sampleThread();
+  const kinds = threadKinds(nested);
+  const nestedBox = (id: string) => nested.boxes.find((entry) => entry.id === id) ?? {};
+
+  it("makes a group of each box with boxes in it that is not a message", () => {
+    expect(kinds.get("water")).toBe("group");
+    expect(kinds.get("trench")).toBe("group");
+    expect(kinds.get("t01")).toBe("group");
+    expect(kinds.get("m01")).toBe("message");
+    expect(kinds.get("m01#0")).toBe("part");
+  });
+
+  it("gives a box in a group the kind that it has with no group", () => {
+    expect(kinds.get("rota")).toBe("topic");
+    expect(kinds.get("e01")).toBe("entry");
+    // A box with the kind of a group and no box in it is an entry.
+    expect(threadKinds({ id: "d", boxes: [{ id: "g", data: { kinds: ["group"] } }] }).get("g")).toBe("entry");
+  });
+
+  it("tells a topic by its first kind, also when the topic is a group", () => {
+    expect(isTopicBox(nestedBox("water"))).toBe(true);
+    expect(isTopicBox(nestedBox("rota"))).toBe(true);
+    expect(isTopicBox(nestedBox("t01"))).toBe(false);
+    expect(isTopicBox(nestedBox("m01"))).toBe(false);
+    expect(isTopicBox({})).toBe(false);
+  });
+
+  it("gives a thread the tag `thread`, and counts the parts of a topic in a group", () => {
+    expect(tagOf(nestedBox("t01"))).toBe("thread");
+    expect(topicCounts(nested.edges ?? [])).toEqual(topicCounts(edges));
+  });
+
+  it("reads the number of the boxes in a closed container", () => {
+    expect(holdsOf({ data: { holds: 3 } })).toBe(3);
+    expect(holdsOf({ data: { holds: 0 } })).toBeUndefined();
+    expect(holdsOf({ data: {} })).toBeUndefined();
+    expect(holdsOf({})).toBeUndefined();
   });
 });
