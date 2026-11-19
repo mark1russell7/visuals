@@ -94,14 +94,31 @@
   pointer-events: none;
 }
 
-/* The controls of the camera and the switch of the proposals. */
-.thread-tools {
+/*
+ * The row of the controls: the buttons of the walks at its start, and the controls of the camera at its end.
+ * The row is as wide as the view, so only its buttons get the pointer.
+ */
+.thread-controls {
   position: absolute;
   top: var(--thread-edge-gap);
   right: max(var(--thread-edge-gap), env(safe-area-inset-right));
+  left: max(var(--thread-edge-gap), env(safe-area-inset-left));
   display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  pointer-events: none;
+}
+.thread-controls > * > * {
+  pointer-events: auto;
+}
+
+/* The controls of the camera and the switches. They are one row at each width, so a page can put its own bar below them. */
+.thread-tools {
+  display: flex;
+  flex: none;
   gap: 6px;
   align-items: center;
+  margin-left: auto;
 }
 .thread .thread-tool {
   display: inline-flex;
@@ -129,15 +146,34 @@
   margin: 0;
   accent-color: var(--thread-accent);
 }
+/* The sign of the button that shows all: the four corners of a frame. Only a narrow view shows it, in place of the words. */
+.thread-fit-sign {
+  display: none;
+  width: 14px;
+  height: 14px;
+  background:
+    linear-gradient(currentColor 0 0) left top / 5px 2px,
+    linear-gradient(currentColor 0 0) left top / 2px 5px,
+    linear-gradient(currentColor 0 0) right top / 5px 2px,
+    linear-gradient(currentColor 0 0) right top / 2px 5px,
+    linear-gradient(currentColor 0 0) left bottom / 5px 2px,
+    linear-gradient(currentColor 0 0) left bottom / 2px 5px,
+    linear-gradient(currentColor 0 0) right bottom / 5px 2px,
+    linear-gradient(currentColor 0 0) right bottom / 2px 5px;
+  background-repeat: no-repeat;
+}
 
-/* The buttons of the walks: to the next entry that waits, and to the next part with no topic. */
+/*
+ * The buttons of the walks: to the next entry that waits, and to the next part with no topic.
+ * They take the room that the controls leave, and they go to two rows when that room is too small for one row.
+ */
 .thread-jumps {
-  position: absolute;
-  top: var(--thread-edge-gap);
-  left: max(var(--thread-edge-gap), env(safe-area-inset-left));
   display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 8px;
+  gap: 6px 8px;
+  min-width: 0;
 }
 .thread .thread-jump {
   display: inline-flex;
@@ -340,6 +376,33 @@
   font-size: 12.5px;
   font-weight: 600;
 }
+/* The heading of the boxes in a container, with the button that closes or opens the container. */
+.thread-inside {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 4px;
+}
+.thread .thread-inside .thread-heading {
+  margin: 0;
+}
+.thread .thread-fold {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--thread-line);
+  background: var(--thread-surface);
+  font-size: 12.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  user-select: none;
+}
+.thread .thread-fold:hover {
+  border-color: var(--thread-stroke);
+}
 .thread-choices,
 .thread-parts {
   margin: 0 -8px;
@@ -456,6 +519,10 @@
   .thread .thread-action {
     min-height: 40px;
   }
+  .thread .thread-fold {
+    min-height: 36px;
+    padding: 0 14px;
+  }
   .thread-zoom {
     display: none !important;
   }
@@ -475,27 +542,55 @@
   }
 }
 
-/* A view with no room for the two buttons of the walks and the controls in one row: the buttons are in two rows. */
-@container (max-width: 560px) {
-  .thread-jumps {
-    flex-direction: column;
-    gap: 6px;
-  }
-  /* The controls go to a second row when the two switches and the button have no room in one row. */
+/*
+ * A view with no room for the full controls next to one button of a walk: the controls have less padding.
+ * A switch has no box here, and it shows its state as a pressed button.
+ */
+@container (max-width: 520px) {
   .thread-tools {
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    max-width: 62%;
+    gap: 5px;
+  }
+  .thread .thread-tool {
+    padding: 0 8px;
+  }
+  .thread .thread-jump {
+    padding: 0 10px 0 8px;
+  }
+  @supports selector(:has(*)) {
+    .thread-switch {
+      position: relative;
+    }
+    .thread-switch input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .thread .thread-switch:has(input:checked) {
+      border-color: var(--thread-accent);
+      background: color-mix(in srgb, var(--thread-accent) 16%, var(--thread-surface));
+      box-shadow: inset 0 0 0 1px var(--thread-accent);
+    }
+    .thread .thread-switch:has(input:focus-visible) {
+      outline: 2px solid var(--thread-accent);
+      outline-offset: 2px;
+    }
   }
 }
 
-/* A phone: each button of a walk has fewer words, so it does not touch the controls. */
-@container (max-width: 420px) {
-  .thread-jump-more {
+/* A phone: each button of a walk has fewer words, and the button that shows all has its sign only. */
+@container (max-width: 440px) {
+  .thread-jump-more,
+  .thread-fit-words {
     display: none;
   }
+  .thread-fit-sign {
+    display: block;
+  }
 }
-@container (max-width: 330px) {
+/* A small phone: a button of a walk shows its sign and its count only. */
+@container (max-width: 384px) {
   .thread-jump-words {
     display: none;
   }

@@ -271,6 +271,31 @@ check("the card names the topic", text(`${CARD} .thread-text`) === "Water and dr
 // The topic has two topics in it. Its card lists those boxes first, then its parts.
 const inner = $$(`${CARD} .thread-part[data-key^="box:"]`).map((row) => row.dataset["key"]);
 check("the card of a topic with topics in it lists those topics", inner.join(" ") === "box:trench box:rota", inner);
+// The controls of the picture are in one row at each width. A page can then put its own bar below one row of buttons.
+const placed = (selector: string): DOMRect[] =>
+  $$(selector)
+    .filter((element) => element.getClientRects().length > 0)
+    .map((element) => element.getBoundingClientRect());
+const tools = placed("#thread .thread-tool");
+const walksEnd = Math.max(0, ...placed("#thread .thread-jump").map((box) => box.right));
+check("the controls of the picture are in one row", tools.length > 1 && tools.every((box) => Math.abs(box.top - (tools[0]?.top ?? 0)) < 1), tools.map((box) => Math.round(box.top)));
+check("the controls do not touch the buttons of the walks", walksEnd > 0 && tools.every((box) => box.left >= walksEnd), [Math.round(walksEnd), tools.map((box) => Math.round(box.left))]);
+// The button of the card closes the topic: the picture shows it as one box, and the card tells that state. The same button opens it.
+const FOLD = `${CARD} [data-key="fold"]`;
+const inside = (): string => text(`${CARD} .thread-inside .thread-heading`);
+check("the card of an open container tells the boxes in it", inside() === "Inside (2)" && text(FOLD) === "Collapse", [inside(), text(FOLD)]);
+click(FOLD);
+check("the button closes the container, and the card tells it", await until(() => inside() === "Inside, not shown (2)" && text(FOLD) === "Expand"), [inside(), text(FOLD)]);
+check("the closed container stays the selected box", cardBox() === "water" && pressed(WATER) === "true", cardBox());
+click(FOLD);
+check("the button opens the container again", await until(() => inside() === "Inside (2)" && text(FOLD) === "Collapse"), [inside(), text(FOLD)]);
+// A row of a closed container opens the container, so the picture shows the box of the row.
+click(FOLD);
+check("the container is closed before the click on a row", await until(() => text(FOLD) === "Expand"), text(FOLD));
+click(`${CARD} .thread-part[data-key="box:trench"]`);
+check("a row of a closed container selects its box", await until(() => cardBox() === "trench"), cardBox());
+click(WATER);
+check("the container of that box is open then", await until(() => cardBox() === "water" && inside() === "Inside (2)" && text(FOLD) === "Collapse"), [cardBox(), inside(), text(FOLD)]);
 const parts = $$(`${CARD} .thread-part[data-key^="part:"]`);
 check("the card of a topic has each part of the topic", parts.length > 0 && parts.length === partsOf("water"), [parts.length, partsOf("water")]);
 
