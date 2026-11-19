@@ -669,7 +669,14 @@ stage?.refresh();
 - In `plainLooks`, a text that is too small to read becomes bars. A text below `SMALLEST_BAR_LINE` pixels goes.
 - A label look with `least` keeps the height of a line on the screen in a far view. Such a text is larger about its place, on top of each other shape.
 - Two such texts do not overlap. The text of a record with a highlight comes first, then the text of the larger box.
-- Such a text that an edge of the view cuts moves into the view. A text that is wider than the view keeps its place.
+- Such a text that an edge of the free area of the view cuts moves into the area. A text that is wider than the area keeps its place.
+- Such a text stays out from below the controls of a page. The stage gives the free area from its insets.
+- The name of a box in view moves into the part of its box in the free area. Thus a large box keeps its name in view.
+- A label look with `boxed` makes the box of the label larger around such a text. Thus the name stays in its box at each zoom.
+- A person points at a box through its larger box. The larger box has the look of its box, on top of each other shape.
+- In the order of such texts, a box that is larger around its name has its larger size.
+- A name that moves into the free area stays in its box: the larger box is around the box at its place and the name.
+- A box with no room for its larger size stays as it is, with its name at its place.
 - In `plainLooks`, the name of a box with children keeps a height that a person can read, until the box is small on the screen.
 - In `plainLooks`, a box with children that has a highlight keeps its name at each size.
 - At the zoom 1 or less, the lines and the signs keep their size on the screen. Above it, they grow with the boxes.

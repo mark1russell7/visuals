@@ -83,8 +83,11 @@ export function createPictureContent<T>(picture: LayoutPicture, options: Picture
   let before: PictureIndex | undefined;
   /** The color share of each record whose share changes, by the key of the record. */
   const fades = new Map<string, { value: number; goal: number }>();
-  /** The theme and the state of the last picture. A person cannot point at a record that the last picture did not show. */
-  let last: { readonly theme: T; readonly state: PaintState } | undefined;
+  /**
+   * The theme and the state of the last picture. A person cannot point at a record that the last picture did not show.
+   * `larger` has the boxes that are larger around their names, in the order of the paint.
+   */
+  let last: { readonly theme: T; readonly state: PaintState; readonly larger: readonly { readonly id: string; readonly rect: Rect }[] } | undefined;
   /** The width of each text that the content measured, by its font and its text. */
   const widths = new Map<string, number>();
 
@@ -139,6 +142,15 @@ export function createPictureContent<T>(picture: LayoutPicture, options: Picture
         if (record.type === "box") return looks.box(record.box, boxState(index, record.box, state), known.theme) !== undefined;
         return looks.route(record.route, routeState(record.route, state), known.theme) !== undefined;
       };
+      // A box that is larger around its name is on top of each other shape, so the pointer finds it first.
+      const { x, y } = at.point;
+      for (const { id, rect } of known?.larger ?? []) {
+        if (x < rect.x || x > rect.x + rect.w || y < rect.y || y > rect.y + rect.h) continue;
+        const box = index.boxes.get(id);
+        if (box === undefined) continue;
+        const value: PictureRecord = { type: "box", id, box };
+        if (shown(value)) return { record: id, value };
+      }
       const record = pickRecord(index, at.point, { slack: at.slack / at.view.k, picks: shown });
       return record === undefined ? undefined : { record: record.id, value: record };
     },
@@ -162,16 +174,22 @@ export function createPictureContent<T>(picture: LayoutPicture, options: Picture
         fade.value = approach(fade.value, fade.goal, frame.seconds, FOCUS_FADE);
         if (fade.value === fade.goal) fades.delete(key);
       }
+      const { area } = frame;
       const state: PaintState = {
         zoom: view.k,
         highlight,
         focus,
         visible: { x: (0 - view.x) / view.k, y: (0 - view.y) / view.k, w: frame.width / view.k, h: frame.height / view.k },
+        // The free area of the stage: a name that keeps a height stays out from below the controls of the page.
+        free: { x: (area.x - view.x) / view.k, y: (area.y - view.y) / view.k, w: area.w / view.k, h: area.h / view.k },
         measure: (font, text) => widthOf(context, font, text),
         fade: fades.size === 0 ? undefined : (key, goal) => fades.get(key)?.value ?? goal,
       };
-      last = { theme, state };
-      drawShapes(context, paintPicture(index, looks, theme, state), view);
+      const shapes = paintPicture(index, looks, theme, state);
+      const larger: { id: string; rect: Rect }[] = [];
+      for (const shape of shapes) if (shape.type === "shape" && shape.box !== undefined && shape.outline.kind === "rect") larger.push({ id: shape.box, rect: shape.outline });
+      last = { theme, state, larger };
+      drawShapes(context, shapes, view);
       return fades.size > 0;
     },
     setPicture(next, more) {

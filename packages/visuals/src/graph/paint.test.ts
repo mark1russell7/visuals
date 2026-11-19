@@ -2,7 +2,7 @@ import { PICTURE_SCHEMA, pathOf, type PictureBox, type PictureLabel, type Pictur
 import { describe, expect, it } from "vitest";
 import type { Highlight } from "../highlight.ts";
 import { FOCUS_OPACITY, focusOf } from "./focus.ts";
-import { LIGHT_PICTURE_THEME, MOST_KEPT_LINE, plainLooks, SMALLEST_TEXT_LINE, type LabelLook, type PictureLooks, type PictureTheme, type RecordState } from "./looks.ts";
+import { LIGHT_PICTURE_THEME, MOST_KEPT_LINE, plainLooks, SMALLEST_TEXT_LINE, type BoxLook, type LabelLook, type PictureLooks, type PictureTheme, type RecordState } from "./looks.ts";
 import { ARROW_SPREAD, BAR_HEIGHT, boxState, FREE_LABELS, HALO_WIDTH, KEPT_GAP, paintPicture, recordKey, routeState, VIEW_MARGIN, type PaintOutline, type PaintOutlined, type PaintShape, type PaintState, type PaintText } from "./paint.ts";
 import { indexPicture, type PictureIndex, type PictureRecord } from "./records.ts";
 import { ASIDE, CARD, CURVE, FAR, LINK, PICTURE, ROW_1, ROW_2, TOPIC } from "./sample.ts";
@@ -811,6 +811,61 @@ describe("a label that keeps a height on the screen", () => {
       });
     });
 
+    describe("with a control of the page on a part of it", () => {
+      /** The larger text is 40 units wide and 40 units high: from 100 to 140 on the x axis, and from 40 to 80 on the y axis. */
+      const measure = (): number => 20;
+      /** The distance that stays between a text and an edge of the free area, at the zoom 0.25. */
+      const pad = KEPT_GAP * 4;
+      /** This function gives the paint list for a view of 400 by 400 units. A control of the page covers the part of the view above `top`. */
+      const below = (top: number, of: PictureIndex = only): PaintShape[] => far(of, { visible: { x: 0, y: 0, w: 400, h: 400 }, free: { x: 0, y: top, w: 400, h: 400 - top }, measure });
+
+      it("leaves a text in the free area at its place", () => {
+        expect(below(0)).toEqual([NAME_TEXT]);
+        expect(below(40 - pad)).toEqual([NAME_TEXT]);
+      });
+
+      it("moves a text that an edge of the free area cuts into the area", () => {
+        expect(below(60)).toEqual([{ ...NAME_TEXT, y: 60 + pad + 20 }]);
+        expect(below(79)).toEqual([{ ...NAME_TEXT, y: 79 + pad + 20 }]);
+      });
+
+      it("gives no paint to a text below the control", () => {
+        // The text ends at 80 on the y axis.
+        expect(below(80)).toEqual([]);
+        expect(below(300)).toEqual([]);
+      });
+
+      it("leaves a text out of the view at its place, in the margin of the view", () => {
+        // The view starts at 140 on the x axis, where the text ends.
+        expect(far(only, { visible: { x: 140, y: 0, w: 200, h: 200 }, free: { x: 140, y: 100, w: 200, h: 100 }, measure })).toEqual([NAME_TEXT]);
+      });
+
+      describe("and the name of a box", () => {
+        /** This function gives a picture of a box that starts at 90 and 30, with a height, and its name. */
+        const group = (h: number): PictureIndex => pictureWith([{ id: "g", x: 90, y: 30, w: 200, h }], [], [{ ...NAME, box: "g" }]);
+
+        it("moves the name into the part of its box in the free area, with the distance to the edge of the area", () => {
+          // The free area starts at 100 on the y axis, below the name. The name keeps its place on the x axis.
+          const shapes = below(100, group(300));
+          expect(shapes).toHaveLength(2);
+          expect(shapes[1]).toEqual({ ...NAME_TEXT, y: 100 + pad + 20 });
+        });
+
+        it("gives no paint to the name, when the part of its box in the free area has no room for it", () => {
+          // The text is 40 units high. A box of 126 units ends 40 units below the distance to the edge of the area.
+          expect(below(100, group(126))[1]).toEqual({ ...NAME_TEXT, y: 100 + pad + 20 });
+          expect(texts(below(100, group(125)))).toEqual([]);
+          expect(below(100, group(125))).toHaveLength(1);
+        });
+
+        it("moves the name of a box that the view shows a part of, when its name is out of the view", () => {
+          // The view starts at 150 on the x axis, 10 units after the end of the name.
+          const shapes = far(group(300), { visible: { x: 150, y: 0, w: 400, h: 400 }, measure });
+          expect(shapes[1]).toEqual({ ...NAME_TEXT, x: 150 + pad });
+        });
+      });
+    });
+
     it("does not ask the look of a label that cannot be in the view at the largest height", () => {
       let asked = 0;
       const counting = labelLooks(() => {
@@ -822,6 +877,120 @@ describe("a label that keeps a height on the screen", () => {
       expect(asked).toBe(1);
       expect(from(612 + margin + 1, counting)).toEqual([]);
       expect(asked).toBe(1);
+    });
+  });
+
+  describe("with a box that becomes larger around it", () => {
+    /** A pill of 60 by 20 units, with its middle at 230 and 110. At the zoom 0.25, it is 15 by 5 pixels. */
+    const pill: PictureBox = { id: "pill", x: 200, y: 100, w: 60, h: 20 };
+    const pillName: PictureLabel = { id: "pill-name", box: "pill", x: 205, y: 100, w: 50, h: 20, lines: ["Topic"], lineHeight: 20, font: FONT };
+    const picture = pictureWith([pill], [], [pillName]);
+    /** The larger text is 60 units wide and 40 units high. */
+    const measure = (): number => 30;
+    /** The name keeps 10 pixels. Its box keeps 2 pixels at its sides and 1 pixel above and below it: 8 units and 4 units at the zoom 0.25. */
+    const nameLook: LabelLook = { color: "#fff", least: 10, boxed: { x: 2, y: 1 } };
+    const pillLook: BoxLook = { fill: "#222", radius: 10 };
+    const pillLooks = (box: BoxLook = pillLook, label: LabelLook = nameLook): PictureLooks<PictureTheme> => looksWith({ box: () => box, label: () => label });
+    const grown = (state: Partial<PaintState> = {}, looks: PictureLooks<PictureTheme> = pillLooks(), of: PictureIndex = picture): PaintShape[] => far(of, { measure, ...state }, looks);
+    /** The pill at its place. */
+    const PILL: PaintOutlined = { type: "shape", outline: { kind: "rect", x: 200, y: 100, w: 60, h: 20, radius: 10 }, fill: "#222", opacity: 1 };
+    /** The larger pill: the text with the distances around it, about the middle of the pill. Its radius is 2 times larger, as the text is. */
+    const LARGER: PaintOutlined = { type: "shape", outline: { kind: "rect", x: 192, y: 86, w: 76, h: 48, radius: 20 }, fill: "#222", opacity: 1, box: "pill" };
+    const TOPIC_TEXT: PaintText = { type: "text", text: "Topic", x: 200, y: 110, font: FONT, align: "left", fill: "#fff", opacity: 1, scale: 2 };
+    /** The name at its place in the pill, at the size of the picture. */
+    const SMALL_TEXT: PaintText = { type: "text", text: "Topic", x: 205, y: 110, font: FONT, align: "left", fill: "#fff", opacity: 1 };
+
+    it("makes the box larger around the text, with the text at the middle of the box", () => {
+      // The box at its place has no paint: the larger box has its look, and the id of the box.
+      expect(grown()).toEqual([LARGER, TOPIC_TEXT]);
+    });
+
+    it("puts the text at the middle of the box for each alignment", () => {
+      for (const [align, x] of [
+        ["center", 230],
+        ["right", 260],
+      ] as const) {
+        expect(grown({}, pillLooks(), pictureWith([pill], [], [{ ...pillName, align }]))).toEqual([LARGER, { ...TOPIC_TEXT, align, x }]);
+      }
+    });
+
+    it("keeps the size of a box on an axis where the box is larger than the text with its distances", () => {
+      const wide = pictureWith([{ ...pill, x: 130, w: 200 }], [], [pillName]);
+      expect(grown({}, pillLooks(), wide)).toEqual([{ ...LARGER, outline: { kind: "rect", x: 130, y: 86, w: 200, h: 48, radius: 20 } }, TOPIC_TEXT]);
+    });
+
+    it("gives the larger box the ring, the signs and the share of color of its box", () => {
+      const look: BoxLook = { ...pillLook, opacity: 0.5, ring: { color: "#00f", width: 2, gap: 3 }, marks: [{ shape: "dot", x: 5, y: 10, radius: 2, color: "#f00" }] };
+      // One unit of a look is 4 units of the picture: the middle of the ring is 16 units out of the larger box.
+      expect(grown({}, pillLooks(look))).toEqual([
+        { type: "shape", outline: { kind: "rect", x: 176, y: 70, w: 108, h: 80, radius: 36 }, stroke: "#00f", lineWidth: 8, opacity: 0.5 },
+        { ...LARGER, opacity: 0.5 },
+        { type: "shape", outline: { kind: "ellipse", cx: 205, cy: 110, rx: 8, ry: 8 }, fill: "#f00", opacity: 0.5 },
+        TOPIC_TEXT,
+      ]);
+      // The focus of the picture decreases the color of the larger box and of its text.
+      expect(grown({ fade: () => 0.5 })).toEqual([
+        { ...LARGER, opacity: 0.5 },
+        { ...TOPIC_TEXT, opacity: 0.5 },
+      ]);
+    });
+
+    it("takes the place of the larger box, so that no other text is on it", () => {
+      // The larger box ends at 134 on the y axis. The larger text of the second name starts 10 units above its label.
+      const gap = KEPT_GAP * 4;
+      const other = (y: number): PictureIndex => pictureWith([pill], [], [pillName, { id: "free", x: 200, y, w: 50, h: 20, lines: ["Free"], lineHeight: 20, font: FONT }]);
+      expect(texts(grown({}, pillLooks(), other(134 + gap + 10)))).toEqual(["Topic", "Free"]);
+      expect(texts(grown({}, pillLooks(), other(134 + gap + 9)))).toEqual(["Topic"]);
+    });
+
+    it("comes in the order of the texts by its larger size", () => {
+      // The larger pill is 76 by 48 units. The larger text of the second box is on it.
+      const other = (w: number): PictureIndex =>
+        pictureWith([pill, { id: "mid", x: 200, y: 140, w, h: 40 }], [], [pillName, { id: "mid-name", box: "mid", x: 200, y: 130, w: 50, h: 20, lines: ["Mid"], lineHeight: 20, font: FONT }]);
+      const looks = looksWith({ box: () => pillLook, label: (label) => (label.id === "pill-name" ? nameLook : { color: "#111", least: 10 }) });
+      // A box of 50 by 40 units is larger than the pill at its place, and smaller than the larger pill.
+      expect(texts(grown({}, looks, other(50)))).toEqual(["Topic"]);
+      // A box of 100 by 40 units is larger than the larger pill, so its text comes first.
+      const second = grown({}, looks, other(100));
+      expect(texts(second)).toEqual(["Topic", "Mid"]);
+      expect(second).toContainEqual(SMALL_TEXT);
+    });
+
+    it("leaves a box with no room for its larger size as it is, with its name at its place", () => {
+      // The box around the pill is larger than the larger pill, so its name comes first. The larger pill has no place.
+      const first = pictureWith([{ id: "wide", x: 150, y: 60, w: 200, h: 100 }, pill], [], [{ id: "wide-name", box: "wide", x: 200, y: 100, w: 50, h: 20, lines: ["Wide"], lineHeight: 20, font: FONT }, pillName]);
+      const looks = looksWith({ box: () => pillLook, label: (label) => (label.id === "pill-name" ? nameLook : { color: "#111", least: 10 }) });
+      const shapes = grown({}, looks, first);
+      // The pill and its name are below the texts that keep a height.
+      expect(shapes.slice(1)).toEqual([PILL, SMALL_TEXT, { ...TOPIC_TEXT, text: "Wide", fill: "#111", y: 110 }]);
+      expect(shapes.some((shape) => "box" in shape && shape.box !== undefined)).toBe(false);
+      // The focus of the picture decreases the color of the name with the color of its box.
+      expect(grown({ fade: () => 0.5 }, looks, first)[2]).toEqual({ ...SMALL_TEXT, opacity: 0.5 });
+    });
+
+    it("keeps a text that an edge of the free area moves in its box: the larger box is around the box and the text", () => {
+      // The text with its distances is from 192 to 268 on the x axis. The right edge of the view is at 250.
+      const x = 250 - KEPT_GAP * 4 - 76;
+      // The larger box goes from the left edge of the text with its distance to the right edge of the box at its place.
+      expect(grown({ visible: { x: 0, y: 0, w: 250, h: 400 } })).toEqual([{ ...LARGER, outline: { kind: "rect", x, y: 86, w: 260 - x, h: 48, radius: 20 } }, { ...TOPIC_TEXT, x: x + 8 }]);
+      // A control of the page above the box moves the text down. The larger box starts at the top edge of the box at its place.
+      const y = 100 + KEPT_GAP * 4;
+      expect(grown({ visible: { x: 0, y: 0, w: 400, h: 400 }, free: { x: 0, y: 100, w: 400, h: 300 } })).toEqual([
+        { ...LARGER, outline: { kind: "rect", x: 192, y: 100, w: 76, h: y + 48 - 100, radius: 20 } },
+        { ...TOPIC_TEXT, y: y + 24 },
+      ]);
+    });
+
+    it("leaves a box below a control of the page as it is, with its name at its place", () => {
+      expect(grown({ visible: { x: 0, y: 0, w: 400, h: 400 }, free: { x: 0, y: 140, w: 400, h: 260 } })).toEqual([PILL, SMALL_TEXT]);
+    });
+
+    it("has no effect on a text that is high enough, and on a label that names no box", () => {
+      // At the zoom 0.5, the line is 10 pixels high: the box and its name are at their places.
+      const near = paint({ zoom: 0.5, measure }, pillLooks(), picture);
+      expect(near).toEqual([PILL, SMALL_TEXT]);
+      expect(near[0]).not.toHaveProperty("box");
+      expect(far(only, {}, pillLooks())).toEqual([{ ...NAME_TEXT, fill: "#fff" }]);
     });
   });
 });

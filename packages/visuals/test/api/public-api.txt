@@ -540,6 +540,10 @@ interface LabelLook {
   readonly halo?: string | undefined;
   readonly as?: "text" | "bars" | undefined;
   readonly least?: number | undefined;
+  readonly boxed?: {
+    readonly x: number;
+    readonly y: number;
+  } | undefined;
 }
 
 ### build/graph.d.ts#LayoutPictureContent
@@ -588,6 +592,7 @@ interface PaintOutlined {
   readonly lineWidth?: number | undefined;
   readonly dash?: readonly number[] | undefined;
   readonly opacity: number;
+  readonly box?: string | undefined;
 }
 
 ### build/graph.d.ts#PaintShape
@@ -599,6 +604,7 @@ interface PaintState {
   readonly highlight: (record: string) => Highlight;
   readonly focus?: PictureFocus | undefined;
   readonly visible?: Rect | undefined;
+  readonly free?: Rect | undefined;
   readonly measure?: ((font: string, text: string) => number) | undefined;
   readonly fade?: ((key: string, goal: number) => number) | undefined;
 }
