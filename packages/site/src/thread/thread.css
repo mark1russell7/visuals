@@ -340,6 +340,33 @@
   font-size: 12.5px;
   font-weight: 600;
 }
+/* The heading of the boxes in a container, with the button that closes or opens the container. */
+.thread-inside {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 4px;
+}
+.thread .thread-inside .thread-heading {
+  margin: 0;
+}
+.thread .thread-fold {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--thread-line);
+  background: var(--thread-surface);
+  font-size: 12.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  user-select: none;
+}
+.thread .thread-fold:hover {
+  border-color: var(--thread-stroke);
+}
 .thread-choices,
 .thread-parts {
   margin: 0 -8px;
@@ -455,6 +482,10 @@
   }
   .thread .thread-action {
     min-height: 40px;
+  }
+  .thread .thread-fold {
+    min-height: 36px;
+    padding: 0 14px;
   }
   .thread-zoom {
     display: none !important;

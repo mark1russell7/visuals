@@ -2,14 +2,15 @@ import { pictureBounds, type Rect } from "@mark1russell7/layout-contract";
 import { canvasAdvance } from "@mark1russell7/layout-contract/text";
 import { h, svg } from "@mark1russell7/site-pages/chrome";
 import { countOf } from "@mark1russell7/text";
-import { aimAll, aimReveal, createPictureContent, createPictureStage, freeArea, rectToScreen, revealRects, type Insets, type PictureAim, type PictureContent, type PictureRecord, type PictureStage, type PictureView } from "@mark1russell7/visuals/graph";
+import { aimAll, aimReveal, createPictureContent, createPictureStage, freeArea, rectToScreen, revealRects, toPicture, type Insets, type PictureAim, type PictureContent, type PictureRecord, type PictureStage, type PictureView } from "@mark1russell7/visuals/graph";
 import { anchorRect } from "./anchor.ts";
 import { cardOf, relationNames, type CardChoice, type CardModel, type CardName, type TopicChoiceEvent } from "./card.ts";
 import { choiceOf, edgeKind, edgeState, isChosen, isProposal, labelOf, waitsOf, type ThreadBox, type ThreadDocument, type ThreadLegend } from "./document.ts";
 import { TEXT_ZOOM, threadLooks, type ThreadLookState, type ThreadTheme } from "./looks.ts";
-import { closedOf, containersOf, flatHides, hasGroups, openFor } from "./nest.ts";
+import { ancestorsOf, closedOf, containersOf, flatHides, hasGroups, openFor } from "./nest.ts";
 import { phaseTeller, type ThreadPhaseEvent } from "./phases.ts";
 import { ISSUE_MARK, issueText, proposalRouter, routedProposals, threadPicture, waitsText, withProposals, type ProposalRouter, type ThreadPicture, type ThreadPictureOptions, type ThreadRouteOptions } from "./picture.ts";
+import { GROUP_LOOK } from "./sizes.ts";
 import style from "./thread.css?inline";
 
 /** A person used a button of the card of a box: an action of `data.actions`. */
@@ -761,8 +762,20 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
         meta,
         h("p", { class: named ? "thread-text is-name" : "thread-text" }, named ? model.label : model.text),
         ...[about, link, actions].filter((node): node is HTMLParagraphElement | HTMLAnchorElement | HTMLDivElement => node !== false),
-        // A closed container shows no box in the picture, so its card tells the state.
-        ...(model.container ? [h("h3", { class: "thread-heading" }, `${model.closed ? "Inside, not shown" : "Inside"} (${String(model.boxes.length)})`), partList(model.boxes, "box")] : []),
+        // A closed container shows no box in the picture, so its card tells the state. The button closes or opens the container.
+        ...(model.container
+          ? [
+              h(
+                "div",
+                { class: "thread-inside" },
+                h("h3", { class: "thread-heading" }, `${model.closed ? "Inside, not shown" : "Inside"} (${String(model.boxes.length)})`),
+                button("thread-fold", { "data-key": "fold" }, [model.closed ? "Expand" : "Collapse"], () => {
+                  toggle(model.id);
+                }),
+              ),
+              partList(model.boxes, "box"),
+            ]
+          : []),
         ...(model.topic || model.kind === "message" ? [h("h3", { class: "thread-heading" }, `Parts (${String(model.parts.length)})`), partList(model.parts)] : []),
       );
       refocus();
@@ -854,6 +867,33 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     return true;
   }
 
+  /**
+   * This function closes an open container of the picture, or opens a closed one. The picture shows a closed container as one box.
+   * A selected box in a container that closes is not in the picture then. The container becomes the selected box, and the page gets it.
+   */
+  function toggle(id: string): void {
+    if (cardOf(thread, id)?.container !== true) return;
+    const closes = !closedOf(thread.source, changes).has(id);
+    changes.set(id, closes);
+    const within = closes && selected !== undefined && ancestorsOf(thread.source, selected).includes(id);
+    if (within) selected = id;
+    remake(thread.source);
+    if (within) options.onPick?.(boxes.get(id));
+  }
+
+  /**
+   * This function tells if a click is on the part of a box that closes or opens it with a double click.
+   * That part is the header of a group, or each part of a closed container.
+   */
+  const foldsAt = (id: string, event: MouseEvent): boolean => {
+    const place = thread.places.get(id);
+    if (stage === undefined || place === undefined || cardOf(thread, id)?.container !== true) return false;
+    if (thread.kinds.get(id) !== "group") return true;
+    const frame = stage.canvas.getBoundingClientRect();
+    const at = toPicture(stage.view(), { x: event.clientX - frame.left, y: event.clientY - frame.top });
+    return at.y <= place.y + GROUP_LOOK.header;
+  };
+
   /** This function selects a box, or no box. `tell` starts `onPick`, and `move` moves the camera to the box. */
   function show(id: string | undefined, tell: boolean, move: boolean): void {
     if (id !== undefined) uncover(id);
@@ -924,6 +964,33 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     pointer = { x: event.clientX - box.left, y: event.clientY - box.top };
     showTip();
   });
+  /** The box that the first click of a double click prepared: a group with the click on its header, or a closed container. */
+  let armed: string | undefined;
+  // The stage selects a box before the click. The camera did not move yet, so the click has the place of the box that a person saw.
+  stageBox.addEventListener(
+    "click",
+    (event) => {
+      if (event.detail > 1) return;
+      armed = selected !== undefined && foldsAt(selected, event) ? selected : undefined;
+    },
+    { capture: true },
+  );
+  // A double click on the header of a group closes it, and a double click on a closed container opens it.
+  stageBox.addEventListener(
+    "dblclick",
+    (event) => {
+      const id = armed;
+      armed = undefined;
+      if (id === undefined || !thread.kinds.has(id)) return;
+      // The stage changes the zoom on a double click. This double click has a different function, so the stage does not get it.
+      event.stopPropagation();
+      event.preventDefault();
+      // The camera can move a different box below the pointer between the two clicks. The box of the first click stays the selected box.
+      if (selected !== id) show(id, true, false);
+      toggle(id);
+    },
+    { capture: true },
+  );
   // The key Escape closes the card from each part of the view: the picture, a tool or the card.
   root.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || selected === undefined) return;
