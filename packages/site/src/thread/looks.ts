@@ -17,7 +17,7 @@ export interface ThreadTheme {
   readonly text: string;
   /** The text of a date and of a tag. */
   readonly muted: string;
-  /** The line of a chosen topic, of a proposal and of a relation, and a topic in a far view. */
+  /** The line of a chosen topic, of a proposal and of a relation. */
   readonly edge: string;
   /** The line of a reply. */
   readonly edgeStrong: string;
@@ -153,6 +153,15 @@ export function farNameLine(size: number): number {
   return Math.round((12 + (size - 15) / 3) * 1.28);
 }
 
+/** The largest height on the screen of the name of a topic in a group, in a far view. Thus the topics of a group have room for their names. */
+export const INNER_TOPIC_LINE = 12;
+
+/**
+ * The distances between the name of a topic and the line of its pill in a far view, in CSS pixels.
+ * The pill becomes larger around its name, so the name is in the pill at each zoom.
+ */
+export const TOPIC_NAME_PAD = { x: 8, y: 4 } as const;
+
 /**
  * This function gives the looks of a thread picture. `read` gives the state at the time of a paint, so a change of the state needs only a new paint.
  *
@@ -163,7 +172,8 @@ export function farNameLine(size: number): number {
  * - A proposal is a line of dashes, and a relation is a line of dots.
  * - A record of the focus, the record below the pointer and the selected record have the accent.
  * - In a far view, the text of a part is a row of bars. The name of a topic keeps a height that a person reads.
- * - In a far view, a topic is the darkest shape, and the line of a chosen topic is thin and light, with no dot.
+ * - In a far view, the pill of a topic becomes larger around its name. A topic in a group keeps a smaller name.
+ * - In a far view, the line of a chosen topic is thin and light, with no dot.
  * - In a far view, an entry that waits has all its inside in the color `waits`, so a person finds it between many cards.
  * - A panel is an empty card, and a line of short dashes joins it to its box. In a far view, the panel shows its name.
  * - A group is a frame with its name in a header. A frame in a frame is darker. In a far view, the name keeps a height that a person reads.
@@ -184,10 +194,10 @@ export function threadLooks(read: () => ThreadLookState): PictureLooks<ThreadThe
       if (kind === "panel") return { fill: theme.surface, ...border, stroke: lit ? theme.accent : theme.edgeStrong, radius: PANEL_RADIUS };
       const size = thread.sizes.get(box.id);
       if (kind === "topic") {
-        const far = state.zoom < TEXT_ZOOM;
         const ring = lit || hint?.topic === box.id ? { color: theme.accent, width: 2, gap: 3 } : undefined;
         const radius = size !== undefined && isTopicLook(size.look) ? size.look.radius : 12;
-        return { fill: far && !lit ? theme.edge : theme.topicFill, radius, opacity: isDone(box) ? DONE_OPACITY : 1, ring };
+        // A topic has the same colors at each zoom. In a far view, its pill becomes larger around its name (the look of its label).
+        return { fill: theme.topicFill, radius, opacity: isDone(box) ? DONE_OPACITY : 1, ring };
       }
       const sign = thread.states.get(box.id);
       const row = kind === "entry" && size !== undefined ? entryRow(box, size) : box;
@@ -227,8 +237,10 @@ export function threadLooks(read: () => ThreadLookState): PictureLooks<ThreadThe
         if (role === "count") return far ? undefined : { color: theme.topicText, opacity: 0.72 };
         if (!far) return { color: theme.topicText };
         const size = thread.sizes.get(of.id);
-        const least = farNameLine(size !== undefined && isTopicLook(size.look) ? size.look.size : 15);
-        return { color: state.highlight > 0 ? theme.accent : theme.text, halo: theme.background, least, opacity: isDone(of.box) ? 0.6 : 1 };
+        const line = farNameLine(size !== undefined && isTopicLook(size.look) ? size.look.size : 15);
+        // The name keeps a height that a person reads, and the pill becomes larger around it. The ring of the pill shows a highlight.
+        const least = of.box.parent === undefined ? line : Math.min(line, INNER_TOPIC_LINE);
+        return { color: theme.topicText, least, boxed: TOPIC_NAME_PAD };
       }
       if (kind === "group" && of?.type === "box") {
         // The text of a finding and its sign have the color of a sign that asks for work. A far view has no room for them.

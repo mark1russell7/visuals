@@ -170,6 +170,16 @@ describe("a name in a far view", () => {
     expect(linesOf(calls, "measureText")).toEqual([]);
     expect(linesOf(calls, "fillText")).toEqual(["fillText Card 0 0"]);
   });
+
+  it("stays out from below a control of the page: the frame gives the free area of the view", () => {
+    const content = createPictureContent(PICTURE, { looks: plain });
+    // A control covers the top 30 pixels of the view: 60 units. The name moves into the part of its card below the control.
+    const moved = draw(content, { view: far, area: { x: 0, y: 30, w: 1200, h: 770 } });
+    expect(linesOf(moved.calls, "translate")).toContain("translate 10 79");
+    // The card ends at 100 units. A control of 45 pixels leaves no room for the name in the card, so the name has no paint.
+    const hidden = draw(content, { view: far, area: { x: 0, y: 45, w: 1200, h: 755 } });
+    expect(linesOf(hidden.calls, "fillText")).toEqual([]);
+  });
 });
 
 describe("the focus of a picture content", () => {
@@ -330,6 +340,44 @@ describe("the pick of a picture content", () => {
     expect(content.pick(at(50, 40, { view: { x: 0, y: 0, k: 0.5 } }))?.record).toBe("card");
     draw(content, {}, { "row-1": 1 });
     expect(content.pick(at(50, 40))?.record).toBe("card");
+  });
+
+  describe("of a box that is larger around its name", () => {
+    /** A pill of 60 by 20 units. In the far view, the last picture shows it from 192 to 268 on the x axis, and from 86 to 134 on the y axis. */
+    const pill = { id: "pill", x: 200, y: 100, w: 60, h: 20 };
+    const picture: LayoutPicture = { schema: PICTURE_SCHEMA, boxes: [pill], routes: [], labels: [{ id: "pill-name", box: "pill", x: 205, y: 100, w: 50, h: 20, lines: ["Topic"], lineHeight: 20, font: "16px sans-serif" }] };
+    const looks: PictureLooks<PictureTheme> = { ...plain, label: () => ({ color: "#fff", least: 10, boxed: { x: 2, y: 1 } }) };
+    const far: PictureView = { x: 0, y: 0, k: 0.25 };
+    const found = { record: "pill", value: { type: "box", id: "pill", box: pill } };
+
+    it("gives the box at each point of the larger box of the last picture", () => {
+      const content = createPictureContent(picture, { looks });
+      // Before the first picture, the box has only its place.
+      expect(content.pick(at(195, 90, { view: far }))).toBeUndefined();
+      expect(content.pick(at(230, 110, { view: far }))).toEqual(found);
+      draw(content, { view: far });
+      expect(content.pick(at(195, 90, { view: far }))).toEqual(found);
+      expect(content.pick(at(268, 134, { view: far }))).toEqual(found);
+      expect(content.pick(at(191, 90, { view: far }))).toBeUndefined();
+      expect(content.pick(at(195, 135, { view: far }))).toBeUndefined();
+    });
+
+    it("gives only the place of the box after a picture with the box at its place, and after a different picture", () => {
+      const content = createPictureContent(picture, { looks });
+      draw(content, { view: far });
+      // At the zoom 2, the name is high enough at its place.
+      draw(content);
+      expect(content.pick(at(195, 90))).toBeUndefined();
+      draw(content, { view: far });
+      content.setPicture(picture);
+      expect(content.pick(at(195, 90, { view: far }))).toBeUndefined();
+    });
+
+    it("does not give a box that the option `picks` does not permit", () => {
+      const content = createPictureContent(picture, { looks, picks: (record) => record.type === "route" });
+      draw(content, { view: far });
+      expect(content.pick(at(230, 110, { view: far }))).toBeUndefined();
+    });
   });
 });
 

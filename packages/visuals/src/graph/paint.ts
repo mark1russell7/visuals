@@ -1,8 +1,10 @@
 import {
+  boundsOf,
   grow,
   overlapOf,
   pathEnd,
   pathStart,
+  rectCenter,
   translate,
   type LabelAlign,
   type PathSegment,
@@ -40,6 +42,11 @@ export interface PaintOutlined {
   readonly dash?: readonly number[] | undefined;
   /** The share of its color that the shape keeps, above 0 and to 1. */
   readonly opacity: number;
+  /**
+   * The id of a box, for the inside of a box that is larger around its name (`boxed` of a label look).
+   * A content lets a person point at the box through this shape. Each other shape has no id.
+   */
+  readonly box?: string | undefined;
 }
 
 /** One line of text of a paint list. */
@@ -78,6 +85,11 @@ export interface PaintState {
   readonly focus?: PictureFocus | undefined;
   /** The part of the picture in view. A record out of it gets no shape. Without it, each record gets its shapes. */
   readonly visible?: Rect | undefined;
+  /**
+   * The part of `visible` that no control of a page covers. A text that keeps a height on the screen stays in it.
+   * The default is `visible`.
+   */
+  readonly free?: Rect | undefined;
   /** This function gives the width of a text in a font, in the unit of the picture. A bar of a label has this width, or the width of the label. */
   readonly measure?: ((font: string, text: string) => number) | undefined;
   /**
@@ -120,15 +132,19 @@ export function routeState(route: PictureRoute, state: PaintState): RecordState 
   return { highlight: state.highlight(route.id), focus: routeFocus(state.focus, route), zoom: state.zoom, container: false };
 }
 
+/** This function gives the outline of a rectangle with round corners, larger by `more` at each side. */
+function roundRect(rect: Rect, radius: number, more: number): PaintOutline {
+  const w = Math.max(0, rect.w + 2 * more);
+  const h = Math.max(0, rect.h + 2 * more);
+  return { kind: "rect", x: rect.x - more, y: rect.y - more, w, h, radius: Math.max(0, Math.min(radius + more, w / 2, h / 2)) };
+}
+
 /** This function gives the outline of a box, larger by `more` at each side. A polygon does not become larger. */
 function outlineOf(box: PictureBox, radius: number, more: number): PaintOutline {
   const region: Region = box.shape === undefined ? { kind: "rect", x: box.x, y: box.y, w: box.w, h: box.h } : translate(box.shape, box.x, box.y);
   switch (region.kind) {
-    case "rect": {
-      const w = Math.max(0, region.w + 2 * more);
-      const h = Math.max(0, region.h + 2 * more);
-      return { kind: "rect", x: region.x - more, y: region.y - more, w, h, radius: Math.max(0, Math.min(radius + more, w / 2, h / 2)) };
-    }
+    case "rect":
+      return roundRect(region, radius, more);
     case "circle":
       return { kind: "ellipse", cx: region.cx, cy: region.cy, rx: Math.max(0, region.r + more), ry: Math.max(0, region.r + more) };
     case "ellipse":
@@ -143,25 +159,44 @@ function dashOf(dash: readonly number[] | undefined, unit: number): readonly num
   return dash === undefined || dash.length === 0 ? undefined : dash.map((length) => length * unit);
 }
 
-/** This function adds the shapes of a box: its ring, its inside and border, and its signs. */
-function addBox(shapes: PaintShape[], box: PictureBox, look: BoxLook, unit: number, share: number): void {
-  const opacity = Math.min(1, (look.opacity ?? 1) * share);
-  if (!(opacity > 0)) return;
-  const radius = look.radius ?? 0;
+/** This function gives the share of its color that a box keeps, from its look and the share of its focus. */
+function boxOpacity(look: BoxLook, share: number): number {
+  return Math.min(1, (look.opacity ?? 1) * share);
+}
+
+/**
+ * This function adds the ring of a box look, then its inside and border. `outline` gives the outline that is larger by a distance at each side.
+ * `box` is the id of a box that is larger around its name: the inside gets the id.
+ */
+function addFrame(shapes: PaintShape[], outline: (more: number) => PaintOutline, look: BoxLook, unit: number, opacity: number, box?: string): void {
   if (look.ring !== undefined) {
     const more = (look.ring.gap + look.ring.width / 2) * unit;
-    shapes.push({ type: "shape", outline: outlineOf(box, radius, more), stroke: look.ring.color, lineWidth: look.ring.width * unit, opacity });
+    shapes.push({ type: "shape", outline: outline(more), stroke: look.ring.color, lineWidth: look.ring.width * unit, opacity });
   }
   if (look.fill !== undefined || look.stroke !== undefined) {
     const line = look.stroke === undefined ? undefined : (look.width ?? 1) * unit;
-    shapes.push({ type: "shape", outline: outlineOf(box, radius, 0), fill: look.fill, stroke: look.stroke, lineWidth: line, dash: dashOf(look.dash, unit), opacity });
+    const inside: PaintOutlined = { type: "shape", outline: outline(0), fill: look.fill, stroke: look.stroke, lineWidth: line, dash: dashOf(look.dash, unit), opacity };
+    shapes.push(box === undefined ? inside : { ...inside, box });
   }
+}
+
+/** This function adds the signs of a box. */
+function addMarks(shapes: PaintShape[], box: PictureBox, look: BoxLook, unit: number, opacity: number): void {
   for (const mark of look.marks ?? []) {
     const r = Math.max(0, mark.radius * unit);
     const outline: PaintOutline = { kind: "ellipse", cx: box.x + mark.x, cy: box.y + mark.y, rx: r, ry: r };
     if (mark.shape === "dot") shapes.push({ type: "shape", outline, fill: mark.color, opacity });
     else shapes.push({ type: "shape", outline, stroke: mark.color, lineWidth: (mark.width ?? 1.5) * unit, opacity });
   }
+}
+
+/** This function adds the shapes of a box: its ring, its inside and border, and its signs. */
+function addBox(shapes: PaintShape[], box: PictureBox, look: BoxLook, unit: number, share: number): void {
+  const opacity = boxOpacity(look, share);
+  if (!(opacity > 0)) return;
+  const radius = look.radius ?? 0;
+  addFrame(shapes, (more) => outlineOf(box, radius, more), look, unit, opacity);
+  addMarks(shapes, box, look, unit, opacity);
 }
 
 /** This function gives the share of the free width of a label that is at the left of a line: 0, a half or 1. */
@@ -188,6 +223,16 @@ function keptRect(label: PictureLabel, wide: number, scale: number): Rect {
   return { x: label.x + left * label.w - left * wide * scale, y: label.y + (tall - tall * scale) / 2, w: wide * scale, h: tall * scale };
 }
 
+/** The box that a label names, with its look and its shapes at its place. */
+interface KeptBox {
+  readonly box: PictureBox;
+  readonly look: BoxLook;
+  /** The share of its color that the box keeps from its focus. */
+  readonly share: number;
+  /** The shapes of the box at its place. A box out of the view has none. */
+  readonly shapes: readonly PaintShape[];
+}
+
 /** A label that keeps a height on the screen, before it has a place. */
 interface KeptLabel {
   readonly label: PictureLabel;
@@ -198,6 +243,21 @@ interface KeptLabel {
   readonly highlight: Highlight;
   /** The area of the box that the label names, or 0. */
   readonly area: number;
+  /** The box that the label names. */
+  readonly of?: KeptBox | undefined;
+}
+
+/** A label that keeps a height on the screen, with its size, before it has a place. */
+interface KeptPlan {
+  readonly item: KeptLabel;
+  /** The rectangle of the text. */
+  readonly text: Rect;
+  /** The rectangle that takes a place: the text, with the padding of a box that becomes larger. */
+  readonly plate: Rect;
+  /** The area that gives the order of the label: the area of its box, at the larger size of a box that becomes larger. */
+  readonly size: number;
+  /** The box that becomes larger around the text. */
+  readonly of?: KeptBox | undefined;
 }
 
 /** This function gives the start of a span that is in an area, on one axis. A span that is longer than the area keeps its start. */
@@ -207,25 +267,37 @@ function startIn(start: number, length: number, areaStart: number, areaLength: n
 }
 
 /**
- * This function moves a rectangle that an edge of the view cuts, so that all of it is in the view.
- * `pad` is the distance that stays between the rectangle and each edge of the view.
- * A rectangle that is longer than the view on an axis keeps its place on that axis. A rectangle with no part in the view keeps its place.
+ * This function gives the place of the rectangle of a text that keeps a height, or `undefined` for a text with no place.
+ * `area` is the free part of the view, and `pad` is the distance that stays between the rectangle and each edge.
+ *
+ * - A rectangle that an edge of the area cuts moves, so that all of it is in the area.
+ * - A rectangle that is longer than the area on an axis keeps its place on that axis.
+ * - A rectangle with no part in the area moves into the part of `box` in the area, when that part has room for it.
+ * - Each other rectangle below a control of the page has no place: it is in `view` and not in the area.
+ * - A rectangle out of `view` keeps its place.
  */
-function movedIn(rect: Rect, view: Rect, pad: number): Rect {
-  const overlap = overlapOf(rect, view);
-  if (!(overlap.x > 0 && overlap.y > 0)) return rect;
-  return { ...rect, x: startIn(rect.x, rect.w, view.x + pad, view.w - 2 * pad), y: startIn(rect.y, rect.h, view.y + pad, view.h - 2 * pad) };
+function placeIn(rect: Rect, area: Rect, view: Rect, box: Rect | undefined, pad: number): Rect | undefined {
+  const overlap = overlapOf(rect, area);
+  if (overlap.x > 0 && overlap.y > 0) return { ...rect, x: startIn(rect.x, rect.w, area.x + pad, area.w - 2 * pad), y: startIn(rect.y, rect.h, area.y + pad, area.h - 2 * pad) };
+  if (box !== undefined) {
+    // The rectangle stays in its box, and it keeps the distance to each edge of the area.
+    const x = Math.max(box.x, area.x + pad);
+    const y = Math.max(box.y, area.y + pad);
+    const w = Math.min(box.x + box.w, area.x + area.w - pad) - x;
+    const h = Math.min(box.y + box.h, area.y + area.h - pad) - y;
+    if (w >= rect.w && h >= rect.h) return { ...rect, x: startIn(rect.x, rect.w, x, w), y: startIn(rect.y, rect.h, y, h) };
+  }
+  const seen = overlapOf(rect, view);
+  return seen.x > 0 && seen.y > 0 ? undefined : rect;
 }
 
-/**
- * This function adds the texts of a label that keeps a height on the screen. `rect` is the rectangle of its lines.
- * `dx` is the distance that the rectangle moved on the x axis, into the view.
- */
-function addKept(shapes: PaintShape[], kept: KeptLabel, rect: Rect, dx: number): void {
+/** This function adds the texts of a label that keeps a height on the screen. `rect` is the rectangle of its lines. */
+function addKept(shapes: PaintShape[], kept: KeptLabel, rect: Rect): void {
   const { label, look, scale, opacity } = kept;
   const tall = label.lineHeight * scale;
   const halo = look.halo === undefined ? undefined : { color: look.halo, width: tall * HALO_WIDTH };
-  const x = label.x + leftShare(label) * label.w + dx;
+  // A line keeps its left end, its middle or its right end in the rectangle, as the label aligns it.
+  const x = rect.x + leftShare(label) * rect.w;
   for (let i = 0; i < label.lines.length; i++) {
     const text = label.lines[i]!;
     if (text.trim() === "") continue;
@@ -302,7 +374,8 @@ function addRoute(shapes: PaintShape[], route: PictureRoute, look: RouteLook, un
  * - The routes. The routes of the focus and those with a highlight are after the others.
  * - The boxes with no child, each with its labels.
  * - The labels of the routes, then the labels that name no record.
- * - The labels that keep a height on the screen (`least` of a label look).
+ * - The names of the boxes with no room to become larger around them (`boxed` of a label look).
+ * - The labels that keep a height on the screen (`least` of a label look). A box that is larger around its name is below the name.
  *
  * In a layer, the records are in the order of the picture. A label has the state of the record that it names.
  * The focus of the picture decreases the color of each record out of it (`FOCUS_OPACITY`).
@@ -329,12 +402,12 @@ export function paintPicture<T>(index: PictureIndex, looks: PictureLooks<T>, the
   };
   const kept: KeptLabel[] = [];
   /** This function adds the shapes of a label at its place, or keeps a label that is larger than its place for the top layer. */
-  const place = (shapes: PaintShape[], label: PictureLabel, look: LabelLook | undefined, share: number, highlight: Highlight, area: number): void => {
+  const place = (shapes: PaintShape[], label: PictureLabel, look: LabelLook | undefined, share: number, highlight: Highlight, area: number, of?: () => KeptBox): void => {
     if (look === undefined) return;
     const scale = look.least === undefined || look.as === "bars" ? 1 : keptScale(label, Math.min(look.least, MOST_KEPT_LINE), zoom);
     if (scale > 1) {
       const opacity = Math.min(1, (look.opacity ?? 1) * share);
-      if (opacity > 0) kept.push({ label, look, scale, opacity, highlight, area });
+      if (opacity > 0) kept.push({ label, look, scale, opacity, highlight, area, of: of?.() });
     } else if (inView(label)) addLabel(shapes, label, look, share, measure);
   };
 
@@ -349,9 +422,14 @@ export function paintPicture<T>(index: PictureIndex, looks: PictureLooks<T>, the
     if (look === undefined) continue;
     const share = shareOf(recordKey("box", box.id), boxIs.focus);
     const shapes = boxIs.container ? containers : leaves;
+    const from = shapes.length;
     if (shown) addBox(shapes, box, look, unit, share);
+    const to = shapes.length;
+    let own: KeptBox | undefined;
+    const of = (): KeptBox => (own ??= { box, look, share, shapes: shapes.slice(from, to) });
     const record: PictureRecord = { type: "box", id: box.id, box };
-    for (const label of labels) if (near(label)) place(shapes, label, looks.label(label, boxIs, theme, record), share, boxIs.highlight, box.w * box.h);
+    // A name that keeps a height can move into the part of its box in the view, so a box in the view gives each label.
+    for (const label of labels) if (shown || near(label)) place(shapes, label, looks.label(label, boxIs, theme, record), share, boxIs.highlight, box.w * box.h, of);
   }
 
   const back: PaintShape[] = [];
@@ -381,30 +459,80 @@ export function paintPicture<T>(index: PictureIndex, looks: PictureLooks<T>, the
   }
 
   const top: PaintShape[] = [];
+  /** The names at their places of the boxes with no room for their larger size. */
+  const small: PaintShape[] = [];
+  /** The shapes at their places of the boxes that are larger around their names. The top layer has the paint of these boxes. */
+  const replaced = new Set<PaintShape>();
   if (kept.length > 0) {
-    // The sort keeps the order of two labels of the same rank: the boxes, then the routes, then the labels that name no record.
-    kept.sort((a, b) => b.highlight - a.highlight || b.area - a.area);
     const gap = KEPT_GAP * unit;
-    const taken: Rect[] = [];
+    const area = state.free ?? visible;
+    const plans: KeptPlan[] = [];
     for (const item of kept) {
-      const { label } = item;
+      const { label, look } = item;
       const lines = label.lines.filter((line) => line.trim() !== "");
       if (lines.length === 0) continue;
       let wide = measure === undefined ? label.w : Math.max(...lines.map((line) => measure(label.font, line)));
       if (label.w > 0) wide = Math.min(wide, label.w);
       const natural = keptRect(label, wide, item.scale);
-      if (!inView(natural)) continue;
-      // A text that an edge of the view cuts moves into the view, before it takes its place.
-      const rect = visible === undefined ? natural : movedIn(natural, visible, gap);
-      const space = grow(rect, gap);
-      const clear = taken.every((other) => {
-        const overlap = overlapOf(space, other);
-        return !(overlap.x > 0 && overlap.y > 0);
-      });
-      if (!clear) continue;
+      const boxed = look.boxed;
+      const of = boxed === undefined ? undefined : item.of;
+      if (boxed === undefined || of === undefined) {
+        plans.push({ item, text: natural, plate: natural, size: item.area });
+        continue;
+      }
+      // The name of a box that becomes larger has its middle at the middle of the box, and the plate is the name with its padding.
+      const middle = rectCenter(of.box);
+      const text = { ...natural, x: middle.x - natural.w / 2, y: middle.y - natural.h / 2 };
+      const padX = Math.max(0, boxed.x) * unit;
+      const padY = Math.max(0, boxed.y) * unit;
+      const plate = grow(text, { top: padY, right: padX, bottom: padY, left: padX });
+      plans.push({ item, text, plate, size: Math.max(of.box.w, plate.w) * Math.max(of.box.h, plate.h), of });
+    }
+    // The sort keeps the order of two labels of the same rank: the boxes, then the routes, then the labels that name no record.
+    plans.sort((a, b) => b.item.highlight - a.item.highlight || b.size - a.size);
+    const taken: Rect[] = [];
+    for (const { item, text, plate, of } of plans) {
+      // A text that an edge of the free area cuts moves into the area, before it takes its place.
+      const placed = area === undefined ? plate : placeIn(plate, area, visible ?? area, item.of?.box, gap);
+      // The larger box is the smallest rectangle around its box and the plate. Thus a text that moved stays in its box.
+      const rect =
+        placed === undefined || of === undefined
+          ? placed
+          : boundsOf({
+              kind: "polygon",
+              points: [
+                [of.box.x, of.box.y],
+                [of.box.x + of.box.w, of.box.y + of.box.h],
+                [placed.x, placed.y],
+                [placed.x + placed.w, placed.y + placed.h],
+              ],
+            });
+      const clear =
+        rect !== undefined &&
+        inView(rect) &&
+        taken.every((other) => {
+          const overlap = overlapOf(grow(rect, gap), other);
+          return !(overlap.x > 0 && overlap.y > 0);
+        });
+      if (placed === undefined || rect === undefined || !clear) {
+        // A box with no room for its larger size stays as it is, with its name at its place.
+        if (of !== undefined && inView(item.label)) addLabel(small, item.label, item.look, of.share, measure);
+        continue;
+      }
       taken.push(rect);
-      addKept(top, item, rect, rect.x - natural.x);
+      if (of !== undefined) {
+        const opacity = boxOpacity(of.look, of.share);
+        if (opacity > 0) {
+          const radius = (of.look.radius ?? 0) * item.scale;
+          addFrame(top, (more) => roundRect(rect, radius, more), of.look, unit, opacity, of.box.id);
+          addMarks(top, of.box, of.look, unit, opacity);
+        }
+        // The larger box has the paint of the box, so the box at its place has none.
+        for (const shape of of.shapes) replaced.add(shape);
+      }
+      addKept(top, item, { ...text, x: text.x + placed.x - plate.x, y: text.y + placed.y - plate.y });
     }
   }
-  return containers.concat(back, front, leaves, routeLabels, free, top);
+  const all = containers.concat(back, front, leaves, routeLabels, free, small, top);
+  return replaced.size === 0 ? all : all.filter((shape) => !replaced.has(shape));
 }

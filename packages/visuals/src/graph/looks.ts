@@ -107,9 +107,23 @@ export interface LabelLook {
    * Two such texts do not overlap. The text of a record with a highlight has the first choice, then the text of the larger box.
    * A text with no free place has no paint. The value is at most `MOST_KEPT_LINE`, and it has no effect on bars.
    *
-   * A text that an edge of the view cuts moves into the view. A text that is wider than the view keeps its place.
+   * A text that an edge of the free area of the view cuts moves into the area. A text that is longer than the area on an axis keeps its place on that axis.
+   * The name of a box in the view moves into the part of its box in the area, when that part has room for it. Thus a large box keeps its name in view.
+   * Each other text below a control of the page has no paint (`free` of a paint state).
    */
   readonly least?: number | undefined;
+  /**
+   * With this value, the box of the label becomes larger around a text that keeps a height. Thus the name is in its box at each zoom.
+   * `x` and `y` are the distances between the text and the line of the box, in units of a look.
+   *
+   * The text has its middle at the middle of the box. The larger box is a rectangle with the look of the box, on top of each other shape.
+   * A person points at the box through the larger box. The value has an effect only with `least`, and only on the label of a box.
+   * In the order of the texts that keep a height, the box has its larger size.
+   *
+   * A text that moves into the free area stays in its box: the larger box is around the box at its place and the text.
+   * A box with no room for its larger size stays as it is, with its name at its place.
+   */
+  readonly boxed?: { readonly x: number; readonly y: number } | undefined;
 }
 
 /** The largest height on the screen that a label keeps with `least`, in CSS pixels. A larger value of `least` becomes this value. */

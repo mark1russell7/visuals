@@ -2,7 +2,7 @@ import type { PictureBox, PictureLabel, PictureRoute } from "@mark1russell7/layo
 import { KEPT_GAP, type RecordState } from "@mark1russell7/visuals/graph";
 import { describe, expect, it } from "vitest";
 import { fakeAdvance } from "./advance.test-util.ts";
-import { DONE_OPACITY, FAR_LINE_OPACITY, farNameLine, GROUP_LIT_OPACITY, GROUP_NAME_LEAST, GROUP_NAME_LINE, GROUP_OPACITY, GROUP_RADIUS, groupNameLine, LIGHT_THREAD_THEME, PANEL_DASH, PANEL_NAME_LINE, PANEL_RADIUS, PROPOSAL_OPACITY, TEXT_ZOOM, threadLooks, WAITS_WIDTH, waitsColor, type ThreadLookState } from "./looks.ts";
+import { DONE_OPACITY, FAR_LINE_OPACITY, farNameLine, GROUP_LIT_OPACITY, GROUP_NAME_LEAST, GROUP_NAME_LINE, GROUP_OPACITY, GROUP_RADIUS, groupNameLine, INNER_TOPIC_LINE, LIGHT_THREAD_THEME, PANEL_DASH, PANEL_NAME_LINE, PANEL_RADIUS, PROPOSAL_OPACITY, TEXT_ZOOM, threadLooks, TOPIC_NAME_PAD, WAITS_WIDTH, waitsColor, type ThreadLookState } from "./looks.ts";
 import { panelId, withPanels } from "./panel.test-util.ts";
 import { labelId, threadPicture } from "./picture.ts";
 import { sampleThread } from "./sample.ts";
@@ -70,7 +70,8 @@ describe("the look of a box", () => {
     const radius = size !== undefined && isTopicLook(size.look) ? size.look.radius : undefined;
     expect(looks.box(box("water"), near, theme)).toEqual({ fill: theme.topicFill, radius, opacity: 1, ring: undefined });
     expect(looks.box(box("fence"), near, theme)?.opacity).toBe(DONE_OPACITY);
-    expect(looks.box(box("water"), far, theme)?.fill).toBe(theme.edge);
+    // A topic has the same colors at each zoom: in a far view, its pill becomes larger around its name.
+    expect(looks.box(box("water"), far, theme)).toEqual(looks.box(box("water"), near, theme));
   });
 
   it("puts a ring around a topic with a highlight, and around the topic that the page points at", () => {
@@ -192,12 +193,14 @@ describe("the look of a label", () => {
     expect(labelLook(labelId("date", "m01"), "m01", far)).toBeUndefined();
   });
 
-  it("keeps the name of a topic at a height that a person reads in a far view", () => {
+  it("keeps the name of a topic in its pill, at a height that a person reads in a far view", () => {
     const size = thread.sizes.get("trench");
     const least = farNameLine(size !== undefined && isTopicLook(size.look) ? size.look.size : 0);
-    expect(labelLook(labelId("text", "trench"), "trench", far)).toEqual({ color: theme.text, halo: theme.background, least, opacity: 1 });
-    expect(labelLook(labelId("text", "trench"), "trench", { ...far, highlight: 1 })?.color).toBe(theme.accent);
-    expect(labelLook(labelId("text", "fence"), "fence", far)?.opacity).toBe(0.6);
+    // The pill becomes larger around the name, so the name has the color of the text of a topic.
+    expect(labelLook(labelId("text", "trench"), "trench", far)).toEqual({ color: theme.topicText, least, boxed: TOPIC_NAME_PAD });
+    // The ring of the pill shows a highlight, and the pill of a topic that is done has less color.
+    expect(labelLook(labelId("text", "trench"), "trench", { ...far, highlight: 1 })).toEqual(labelLook(labelId("text", "trench"), "trench", far));
+    expect(labelLook(labelId("text", "fence"), "fence", far)).not.toHaveProperty("opacity");
     expect(labelLook(labelId("count", "trench"), "trench", far)).toBeUndefined();
     expect(farNameLine(24)).toBeGreaterThan(farNameLine(15));
   });
@@ -235,6 +238,11 @@ describe("the look of a group", () => {
   it("keeps the look of a topic and of an entry in a group", () => {
     expect(group.box("rota", near)).toMatchObject({ fill: theme.topicFill });
     expect(group.box("e01", near)).toMatchObject({ fill: theme.surface, stroke: theme.stroke, radius: 9 });
+  });
+
+  it("keeps a smaller name for a topic in a group, in a far view", () => {
+    expect(group.label("text", "rota", far)).toEqual({ color: theme.topicText, least: INNER_TOPIC_LINE, boxed: TOPIC_NAME_PAD });
+    expect(INNER_TOPIC_LINE).toBeLessThan(farNameLine(15));
   });
 
   it("keeps the name of a group in a far view, larger for a group at the top", () => {
