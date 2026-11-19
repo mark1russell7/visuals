@@ -24,6 +24,8 @@ const WARNINGS = '#legend .kind[data-kind="warning"]';
 const SELECTED = '#records .record[aria-pressed="true"]';
 /** The number of frames after which the turn of a drag stopped. The stage decreases the turn that remains by 14 parts in 100 at each frame. */
 const TURN_FRAMES = 45;
+/** A time longer than the move of the camera to a record, in milliseconds. The stage moves its camera for 380 milliseconds (`MOVE_TIME`). */
+const MOVE_WAIT = 600;
 /** This function waits for `count` frames of the page. Thus a wait does not change with the speed of the browser. */
 const frames = (count: number): Promise<void> =>
   new Promise((done) => {
@@ -139,6 +141,11 @@ if (canvas !== null) {
   // The second click removes the selection, and the camera continues to the area.
   click(SAHEL);
   click(SAHEL);
+  // A click in the picture stops the move of the camera. A camera that stops far from the area shows a small area,
+  // and a drag there turns the globe by a large angle: the area does not stay below the pointer.
+  // So the probe reads the picture only after the move. The two frames let the stage draw the end of the move.
+  await wait(MOVE_WAIT);
+  await frames(2);
   const found = await until(async () => {
     await wait(100);
     const [x, y] = center();
