@@ -9,4 +9,4 @@ export { DARK_THREAD_THEME, LIGHT_THREAD_THEME, type ThreadTheme } from "./threa
 export { mountThreadView, type ThreadActionEvent, type ThreadView, type ThreadViewOptions } from "./thread/mount.ts";
 export { THREAD_FEATURES } from "./thread/nest.ts";
 export type { ThreadPhase, ThreadPhaseEvent } from "./thread/phases.ts";
-export { SAMPLE_LEGEND, sampleThread } from "./thread/sample.ts";
+export { SAMPLE_IMAGE, SAMPLE_LEGEND, sampleThread, withSampleImage } from "./thread/sample.ts";

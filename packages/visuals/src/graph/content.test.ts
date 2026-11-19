@@ -6,6 +6,7 @@ import type { PictureView } from "./camera.ts";
 import { createPictureContent, FOCUS_FADE, type LayoutPictureContent } from "./content.ts";
 import { drawShapes } from "./draw.ts";
 import { FOCUS_OPACITY, focusOf } from "./focus.ts";
+import type { ImageSource } from "./images.ts";
 import { LIGHT_PICTURE_THEME, plainLooks, SMALLEST_TEXT_LINE, type PictureLooks, type PictureTheme } from "./looks.ts";
 import { BAR_HEIGHT, HALO_WIDTH, paintPicture } from "./paint.ts";
 import { indexPicture } from "./records.ts";
@@ -459,5 +460,40 @@ describe("setPicture", () => {
     const second = draw(content);
     expect(second.again).toBe(false);
     expect(alphas(second.calls)).toEqual(CLEAR);
+  });
+
+  describe("with an image in a box", () => {
+    /** The plain looks, with an image in all of the far box. */
+    const looks: PictureLooks<PictureTheme> = {
+      ...plain,
+      box: (box, state, t) => ({ ...plain.box(box, state, t), ...(box.id === "far" ? { image: { src: "/pictures/far.png", x: 0, y: 0, w: 100, h: 40 } } : {}) }),
+    };
+
+    /** This function gives the image of the far box: 200 pixels by 100 pixels. It writes each address that a drawing asks for. */
+    function sourceOf(asked: string[]): ImageSource {
+      return (src) => {
+        asked.push(src);
+        return src === "/pictures/far.png" ? { source: "bitmap" as unknown as CanvasImageSource, width: 200, height: 100 } : undefined;
+      };
+    }
+
+    it("draws the image with the images of its options, and no image with no option", () => {
+      const asked: string[] = [];
+      const { calls } = draw(createPictureContent(PICTURE, { looks, images: sourceOf(asked) }));
+      // All of the image is in the area of 100 by 40, at its middle.
+      expect(linesOf(calls, "drawImage")).toEqual(["drawImage bitmap 10 300 80 40"]);
+      expect(asked).toEqual(["/pictures/far.png"]);
+      expect(linesOf(draw(createPictureContent(PICTURE, { looks })).calls, "drawImage")).toEqual([]);
+    });
+
+    it("asks only for the images of the boxes in the view of the frame", () => {
+      const asked: string[] = [];
+      const content = createPictureContent(PICTURE, { looks, images: sourceOf(asked) });
+      // This frame shows the topic and the area around it. The far box is out of it.
+      draw(content, { view: { x: -560, y: 0, k: 2 }, width: 240, height: 200 });
+      expect(asked).toEqual([]);
+      draw(content);
+      expect(asked).toEqual(["/pictures/far.png"]);
+    });
   });
 });

@@ -7,8 +7,9 @@ import { edgeKind, edgeState, isMessageBox, isTopicBox, panelOf, relationOf, typ
  *
  * - `nests`: the view draws a box in its container (`parent` of a box), to each depth.
  * - `covered`: the view has the function `setCovered`, so a page tells it each change of the parts that the page covers.
+ * - `images`: the view shows the image of an entry (`data.image`) in the card of the entry.
  */
-export const THREAD_FEATURES: readonly string[] = ["nests", "covered"];
+export const THREAD_FEATURES: readonly string[] = ["nests", "covered", "images"];
 
 /** How a view shows the containers of a document. */
 export interface NestState {

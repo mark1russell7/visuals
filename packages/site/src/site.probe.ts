@@ -262,6 +262,26 @@ check("the picture of the conversation has a height of 150 pixels or more", thre
 // The view tells the page the layout and the first drawing of its picture. The line of the times has the two.
 check("the view tells the times of its first picture", await until(() => /^The view made this picture of \d+ boxes in .+, and drew it in .+\.$/.test(text("#thread-time"))), text("#thread-time"));
 check("the line of the times shows", $("#thread-time")?.hidden === false, $("#thread-time")?.hidden);
+// One entry of the sample has an image, and bed 6 of that image has the color (200, 71, 43).
+// No other shape of the picture has a color near it. The probe counts the pixels of that color in each canvas of the picture.
+// A canvas that the probe cannot read gives -1.
+const markPixels = (): number => {
+  let count = 0;
+  for (const element of $$("#thread canvas")) {
+    const canvas = element as HTMLCanvasElement;
+    try {
+      const data = canvas.getContext("2d")?.getImageData(0, 0, canvas.width, canvas.height).data;
+      if (data === undefined) continue;
+      for (let at = 0; at < data.length; at += 4) {
+        if (Math.abs((data[at] ?? 0) - 200) <= 12 && Math.abs((data[at + 1] ?? 0) - 71) <= 12 && Math.abs((data[at + 2] ?? 0) - 43) <= 12) count += 1;
+      }
+    } catch {
+      return -1;
+    }
+  }
+  return count;
+};
+check("the picture of the conversation shows the image of an entry", await until(() => markPixels() >= 12, 15000), markPixels());
 check("the list has each topic of the sample", $$("#thread-topics .kind").length === 10, $$("#thread-topics .kind").length);
 check("no box is selected at the start", $$('#thread-topics .kind[aria-pressed="true"]').length === 0 && $(CARD)?.hidden === true, cardBox());
 

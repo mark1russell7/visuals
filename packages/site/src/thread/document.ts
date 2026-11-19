@@ -24,6 +24,7 @@ export type ThreadBox = Omit<LayoutBox, "w" | "h"> & { readonly w?: number | und
  * - A topic has `topic` as its first kind. Its second kind is a tag, and its `data.state` can be `done`.
  * - An entry is a box with no box in it that is not a part, a topic or a panel. Its tag is its second kind.
  * - An entry can have `data.waits`: the id of who the entry waits on, for example a person. The entry stands out in the picture.
+ * - An entry can have `data.image`: the address of an image, for example a small picture of the page of its `data.ref`.
  * - A panel has `panel` as its first kind, and no parent. It is the place of a form of the page, next to the box of its `data.of`.
  * - An edge has `data.kind`: `reply`, `part`, `touches`, `relates` or `panel`. An edge `relates` can have `data.relation`.
  * - An edge of a sorter has also `data.state`, `data.rank`, `data.score`, `data.choice` and `data.by`.
@@ -171,6 +172,19 @@ const ADDRESS = /^(https?:\/\/|\/|\.{1,2}\/|#|\?)/i;
  */
 export function linkOf(box: WithData): string | undefined {
   return [field(box, "url"), field(box, "ref")].find((value) => value !== undefined && ADDRESS.test(value));
+}
+
+/** The start of a text that is an address for an image: `http`, `https`, a path, or the bytes of an image in a `data:` address. */
+const IMAGE_ADDRESS = /^(https?:\/\/|\/|\.{1,2}\/|data:image\/)/i;
+
+/**
+ * This function gives the address of the image of a box: its `data.image`.
+ * A value that is not an address of an image gives no result, for example an id or a text with a different scheme.
+ * The view loads the image with no credentials, and it does not load the page of `data.ref`.
+ */
+export function imageOf(box: WithData): string | undefined {
+  const value = field(box, "image");
+  return value !== undefined && IMAGE_ADDRESS.test(value) ? value : undefined;
 }
 
 /**

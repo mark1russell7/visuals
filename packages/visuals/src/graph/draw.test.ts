@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { drawShapes } from "./draw.ts";
+import { drawShapes, imageRect } from "./draw.ts";
+import type { ImageSource } from "./images.ts";
 import { LIGHT_PICTURE_THEME, plainLooks } from "./looks.ts";
 import { paintPicture, type PaintOutlined, type PaintShape, type PaintText } from "./paint.ts";
 import { indexPicture } from "./records.ts";
@@ -11,9 +12,9 @@ const VIEW = { x: 10, y: 20, k: 2 };
 const HEAD = ["save", "transform 2 0 0 2 10 20", "lineJoin = round", "lineCap = round", "textBaseline = middle"];
 
 /** This function draws a paint list, and gives the lines of the context between the first lines and the last line. */
-function drawn(shapes: readonly PaintShape[], options: FakeContextOptions = {}): string[] {
+function drawn(shapes: readonly PaintShape[], options: FakeContextOptions = {}, images?: ImageSource): string[] {
   const { context, calls } = fakeContext(options);
-  drawShapes(context, shapes, VIEW);
+  drawShapes(context, shapes, VIEW, images);
   expect(calls.slice(0, HEAD.length)).toEqual(HEAD);
   expect(calls.at(-1)).toBe("restore");
   return calls.slice(HEAD.length, -1);
@@ -227,5 +228,129 @@ describe("drawShapes", () => {
     expect(linesOf(calls, "stroke")).toHaveLength(8);
     expect(linesOf(calls, "fill")).toEqual(new Array(5).fill("fill evenodd"));
     expect(linesOf(calls, "setLineDash")).toEqual([]);
+  });
+
+  /** The image of a shape, in the middle of its outline. */
+  const MIDDLE = { src: "a.png", fit: "contain", alignX: 0.5, alignY: 0.5 } as const;
+
+  /** This function gives the image of the address `a.png`: 200 pixels by 100 pixels. It writes each address that a drawing asks for. */
+  function sourceOf(asked: string[] = []): ImageSource {
+    return (src) => {
+      asked.push(src);
+      return src === "a.png" ? { source: "bitmap" as unknown as CanvasImageSource, width: 200, height: 100 } : undefined;
+    };
+  }
+
+  it("draws the image of a shape in its outline, above its inside and below its line", () => {
+    const shape = square({ outline: { kind: "rect", x: 0, y: 0, w: 100, h: 100, radius: 8 }, fill: "#eee", image: MIDDLE });
+    expect(drawn([shape], {}, sourceOf())).toEqual([
+      "globalAlpha = 1",
+      "beginPath",
+      "roundRect 0 0 100 100 8",
+      "fillStyle = #eee",
+      "fill evenodd",
+      // The outline cuts the image, and the context gets its state back before the line.
+      "save",
+      "clip",
+      "imageSmoothingQuality = high",
+      "drawImage bitmap 0 25 100 50",
+      "restore",
+      "strokeStyle = #000",
+      "lineWidth = 1",
+      "stroke",
+    ]);
+  });
+
+  it("fills the outline with an image that has the fit `cover`, from the place that the shape gives", () => {
+    const outline = { kind: "rect", x: 0, y: 0, w: 100, h: 100, radius: 0 } as const;
+    const cover = (alignX: number): string[] => linesOf(drawn([square({ outline, image: { ...MIDDLE, fit: "cover", alignX } })], {}, sourceOf()), "drawImage");
+    expect(cover(0.5)).toEqual(["drawImage bitmap -50 0 200 100"]);
+    expect(cover(0)).toEqual(["drawImage bitmap 0 0 200 100"]);
+    expect(cover(1)).toEqual(["drawImage bitmap -100 0 200 100"]);
+  });
+
+  it("draws the image of an ellipse in the bounds of the ellipse", () => {
+    const shape: PaintShape = { type: "shape", outline: { kind: "ellipse", cx: 50, cy: 50, rx: 50, ry: 25 }, image: MIDDLE, opacity: 1 };
+    expect(drawn([shape], {}, sourceOf())).toEqual(["globalAlpha = 1", "beginPath", `ellipse 50 50 50 25 0 0 ${2 * Math.PI}`, "save", "clip", "imageSmoothingQuality = high", "drawImage bitmap 0 25 100 50", "restore"]);
+  });
+
+  it("draws a shape with no image when the image is not ready, and in a drawing with no images", () => {
+    const asked: string[] = [];
+    expect(drawn([square({ image: { ...MIDDLE, src: "later.png" } })], {}, sourceOf(asked))).toEqual(SQUARE);
+    expect(asked).toEqual(["later.png"]);
+    expect(drawn([square({ image: MIDDLE })])).toEqual(SQUARE);
+  });
+
+  it("asks for no image for an outline that is a polygon or a path", () => {
+    const asked: string[] = [];
+    const polygon: PaintShape = { type: "shape", outline: { kind: "polygon", rings: [[[0, 0], [10, 0], [0, 10]]] }, fill: "#eee", image: MIDDLE, opacity: 1 };
+    const path: PaintShape = { type: "shape", outline: { kind: "path", path: [{ kind: "move", to: { x: 0, y: 0 } }, { kind: "line", to: { x: 10, y: 10 } }] }, stroke: "#000", lineWidth: 1, image: MIDDLE, opacity: 1 };
+    const calls = drawn([polygon, path], {}, sourceOf(asked));
+    expect(linesOf(calls, "drawImage")).toEqual([]);
+    expect(linesOf(calls, "clip")).toEqual([]);
+    expect(asked).toEqual([]);
+  });
+
+  it("keeps the inside and the line of a shape whose image the context cannot draw", () => {
+    const { context, calls } = fakeContext();
+    const broken = new Proxy(context, {
+      get(target, name) {
+        if (name !== "drawImage") return Reflect.get(target, name) as unknown;
+        return (): void => {
+          calls.push("drawImage error");
+          throw new Error("The image is not good.");
+        };
+      },
+    });
+    drawShapes(broken, [square({ fill: "#eee", image: MIDDLE }), square()], VIEW, sourceOf());
+    expect(calls.slice(HEAD.length)).toEqual([
+      "globalAlpha = 1",
+      "beginPath",
+      "rect 0 0 10 10",
+      "fillStyle = #eee",
+      "fill evenodd",
+      "save",
+      "clip",
+      "imageSmoothingQuality = high",
+      "drawImage error",
+      "restore",
+      "strokeStyle = #000",
+      "lineWidth = 1",
+      "stroke",
+      ...SQUARE,
+      "restore",
+    ]);
+  });
+});
+
+describe("imageRect", () => {
+  const AREA = { x: 10, y: 20, w: 100, h: 100 };
+  const MIDDLE = { fit: "contain", alignX: 0.5, alignY: 0.5 } as const;
+
+  it("puts all of an image in the area with the fit `contain`, and keeps the ratio of its sides", () => {
+    // A wide image has the width of the area, and a tall image has its height.
+    expect(imageRect(AREA, 200, 100, MIDDLE)).toEqual({ x: 10, y: 45, w: 100, h: 50 });
+    expect(imageRect(AREA, 50, 200, MIDDLE)).toEqual({ x: 47.5, y: 20, w: 25, h: 100 });
+    // A small image becomes larger.
+    expect(imageRect(AREA, 10, 10, MIDDLE)).toEqual({ x: 10, y: 20, w: 100, h: 100 });
+  });
+
+  it("fills the area with the fit `cover`: a part of the image is out of the area", () => {
+    expect(imageRect(AREA, 200, 100, { ...MIDDLE, fit: "cover" })).toEqual({ x: -40, y: 20, w: 200, h: 100 });
+    expect(imageRect(AREA, 50, 200, { ...MIDDLE, fit: "cover" })).toEqual({ x: 10, y: -130, w: 100, h: 400 });
+  });
+
+  it("puts the image at the start, the middle or the end of each axis", () => {
+    expect(imageRect(AREA, 200, 100, { fit: "contain", alignX: 0.5, alignY: 0 })).toEqual({ x: 10, y: 20, w: 100, h: 50 });
+    expect(imageRect(AREA, 200, 100, { fit: "contain", alignX: 0.5, alignY: 1 })).toEqual({ x: 10, y: 70, w: 100, h: 50 });
+    expect(imageRect(AREA, 200, 100, { fit: "cover", alignX: 0, alignY: 0.5 })).toEqual({ x: 10, y: 20, w: 200, h: 100 });
+    expect(imageRect(AREA, 200, 100, { fit: "cover", alignX: 1, alignY: 0.5 })).toEqual({ x: -90, y: 20, w: 200, h: 100 });
+  });
+
+  it("gives the area for an image with no size, and for an area with no size", () => {
+    expect(imageRect(AREA, 0, 100, MIDDLE)).toEqual(AREA);
+    expect(imageRect(AREA, 200, Number.NaN, MIDDLE)).toEqual(AREA);
+    expect(imageRect({ x: 1, y: 2, w: 0, h: 50 }, 200, 100, MIDDLE)).toEqual({ x: 1, y: 2, w: 0, h: 50 });
+    expect(imageRect({ x: 1, y: 2, w: 50, h: 0 }, 200, 100, MIDDLE)).toEqual({ x: 1, y: 2, w: 50, h: 0 });
   });
 });

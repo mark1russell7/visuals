@@ -1,8 +1,9 @@
-import { KEPT_GAP, type BoxLook, type BoxMark, type LabelLook, type PictureLooks, type RouteLook } from "@mark1russell7/visuals/graph";
-import { choiceOf, edgeKind, edgeState, isDone, isProposal, relationOf, waitsOf } from "./document.ts";
+import type { PictureBox } from "@mark1russell7/layout-contract";
+import { KEPT_GAP, type BoxImage, type BoxLook, type BoxMark, type LabelLook, type PictureLooks, type RouteLook } from "@mark1russell7/visuals/graph";
+import { choiceOf, edgeKind, edgeState, imageOf, isDone, isProposal, relationOf, waitsOf } from "./document.ts";
 import { isPanelLine, type ThreadPicture } from "./picture.ts";
-import { entryRow } from "./place.ts";
-import { GROUP_LOOK, isTopicLook, MESSAGE_LOOK } from "./sizes.ts";
+import { entryImage, entryRow } from "./place.ts";
+import { GROUP_LOOK, IMAGE_LOOK, isTopicLook, MESSAGE_LOOK, type LeafSize } from "./sizes.ts";
 
 /** The colors of a thread picture. */
 export interface ThreadTheme {
@@ -163,11 +164,26 @@ export const INNER_TOPIC_LINE = 12;
 export const TOPIC_NAME_PAD = { x: 8, y: 4 } as const;
 
 /**
+ * This function gives the image of the card of an entry: the image of its `data.image`, between the header and the text.
+ *
+ * - The image fills the width of the row. It shows its top, so the image of a page shows the top of the page.
+ * - The area has the color `quiet` until the image is ready, and when the image has no load.
+ * - A view too far for the image gives `undefined`: the height of the area on the screen is less than `IMAGE_LOOK.least`.
+ */
+function entryPicture(box: PictureBox, size: LeafSize, zoom: number, theme: ThreadTheme): BoxImage | undefined {
+  const src = imageOf(box);
+  const area = src === undefined ? undefined : entryImage(box, size);
+  if (src === undefined || area === undefined || area.h * zoom < IMAGE_LOOK.least) return undefined;
+  return { src, x: area.x - box.x, y: area.y - box.y, w: area.w, h: area.h, fit: "cover", alignY: 0, radius: IMAGE_LOOK.radius, fill: theme.quiet };
+}
+
+/**
  * This function gives the looks of a thread picture. `read` gives the state at the time of a paint, so a change of the state needs only a new paint.
  *
  * - A message is a card, and each part is a row of it. An entry is a card with one text. A topic is a pill.
  * - A sign at the left end of a row tells the state of its topic. A full dot is a topic that is not the first proposal, and a ring is no topic.
  * - An entry that waits has a border and an inside of the color `waits`, and its header tells who it waits on.
+ * - An entry with an image shows the image above its text, at each zoom that has room for it.
  * - A reply has an arrow. A chosen topic is a thin line with a dot at its part.
  * - A proposal is a line of dashes, and a relation is a line of dots.
  * - A record of the focus, the record below the pointer and the selected record have the accent.
@@ -203,12 +219,13 @@ export function threadLooks(read: () => ThreadLookState): PictureLooks<ThreadThe
       const row = kind === "entry" && size !== undefined ? entryRow(box, size) : box;
       const at = { x: kind === "entry" ? MESSAGE_LOOK.padding + 6 : 6, y: row.y - box.y + row.h / 2 };
       const marks: BoxMark[] = sign === "changed" ? [{ shape: "dot", ...at, radius: 2.5, color: theme.accent }] : sign === "open" ? [{ shape: "ring", ...at, radius: 2.75, color: theme.open, width: 1.5 }] : [];
+      const image = kind === "entry" && size !== undefined ? entryPicture(box, size, state.zoom, theme) : undefined;
       if (kind === "entry" && waitsOf(box) !== undefined) {
         const waits = waitsColor(theme);
         const far = state.zoom < TEXT_ZOOM;
-        return { fill: far ? waits : (theme.waitsFill ?? theme.surface), stroke: lit ? theme.accent : waits, width: WAITS_WIDTH, radius: 9, marks };
+        return { fill: far ? waits : (theme.waitsFill ?? theme.surface), stroke: lit ? theme.accent : waits, width: WAITS_WIDTH, radius: 9, image, marks };
       }
-      if (kind === "entry") return { fill: theme.surface, ...border, radius: 9, marks };
+      if (kind === "entry") return { fill: theme.surface, ...border, radius: 9, image, marks };
       return { fill: theme.surface, ...(lit ? border : {}), radius: 6, marks };
     },
 

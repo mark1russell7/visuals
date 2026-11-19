@@ -689,6 +689,46 @@ stage?.refresh();
 - `setPicture` shows a different picture. Start `refresh` of the stage after it.
 - With the option `fade` of `setPicture`, the colors change in a short time, and a new record comes into the picture. Use it for more routes between the same boxes.
 
+A box can show an image, for example a small picture of a page. Its look gives the address of the image and its area in the box:
+
+```ts
+import { LIGHT_PICTURE_THEME, createImageStore, createPictureContent, createPictureStage, plainLooks, type PictureLooks, type PictureTheme } from "@mark1russell7/visuals/graph";
+
+const plain = plainLooks();
+// The box `card` shows an image in its top half.
+const looks: PictureLooks<PictureTheme> = {
+  ...plain,
+  box: (box, state, theme) => {
+    const look = plain.box(box, state, theme);
+    if (look === undefined || box.id !== "card") return look;
+    return { ...look, image: { src: "/pictures/card.png", x: 0, y: 0, w: box.w, h: box.h / 2, fit: "cover", fill: "#d3d8e3" } };
+  },
+};
+
+const images = createImageStore({ onReady: () => pictured?.refresh() });
+const pictured = createPictureStage(document.body, {
+  content: createPictureContent(picture, { looks, images: images.get }),
+  theme: LIGHT_PICTURE_THEME,
+  label: "A card with an image",
+});
+
+// The page removes the stage, then the images.
+pictured?.dispose();
+images.dispose();
+```
+
+- The image is above the inside of its box, and below the signs of the box. Its area can have round corners.
+- The fit `contain` shows all of the image in its area. The fit `cover` fills the area, and cuts the image at the edges of the area.
+- `alignX` and `alignY` give the place of the image in its area, from 0 to 1. The default is the middle.
+- `createImageStore` loads each image one time. Give its function `get` to the option `images` of the content.
+- An image that becomes ready starts `onReady`. Start `refresh` of the stage in it.
+- `loadImage` is the default loader. Its request has no credentials, so it sends no cookie of the person.
+- A box whose image is not ready shows the area of the image in the color `fill`. An image whose load fails stays in that state.
+- The store keeps `MOST_IMAGES` addresses. A full store removes the address that it used the longest time ago.
+- The content asks only for the images of the boxes in view.
+- A box that is larger around its name shows no image (`boxed` of a label look).
+- `imageRect` gives the rectangle of an image in its area, for a fit and a place.
+
 The parts of the content are pure functions. A test in Node.js examines a picture with no canvas:
 
 ```ts
@@ -711,7 +751,8 @@ shapes.length; // => 5: the card, its name, the link, the row and the topic
 | `routeLine` | The path of a route as a line of points, with its bounds. |
 | `plainLooks`, `lookUnit` | The looks of a plain picture, and the size of one unit of a look at a zoom. |
 | `paintPicture` | The paint list of a picture: its shapes as plain data, in the order of the paint. |
-| `drawShapes` | The drawing of a paint list on a 2D context, in the view of a camera. |
+| `drawShapes`, `imageRect` | The drawing of a paint list on a 2D context, in the view of a camera, and the rectangle of an image in its area. |
+| `createImageStore`, `loadImage` | The images of a picture by their addresses, and the load of one image with no credentials. |
 | `recordKey`, `boxState`, `routeState` | The key of a record for the function `fade` of a paint, and the state of a record for its look. |
 
 ## The camera maths

@@ -364,3 +364,42 @@ export function answerEntry(document: ThreadDocument, entry: string, text: strin
     ],
   };
 }
+
+/** The width and the height of the sample image, in pixels. They have the shape of the image area of an entry. */
+const PLAN = { width: 512, height: 320 } as const;
+
+/** The color of the bed that the sample image points at: bed 6. A page can find the image in a picture by this color. */
+export const SAMPLE_IMAGE_MARK = "#c8472b";
+
+/** This function gives the sample image as SVG text: a plan of the eight beds of the garden, with bed 6 in a different color. */
+function planImage(): string {
+  const beds = Array.from({ length: 8 }, (_, at): string => {
+    const x = 36 + (at % 4) * 114;
+    const y = 52 + Math.floor(at / 4) * 126;
+    const fill = at === 5 ? SAMPLE_IMAGE_MARK : "#8fa86a";
+    const bed = `<rect x="${String(x)}" y="${String(y)}" width="98" height="104" rx="8" fill="${fill}"/>`;
+    return `${bed}<text x="${String(x + 49)}" y="${String(y + 62)}" font-size="30" text-anchor="middle" fill="#ffffff">${String(at + 1)}</text>`;
+  });
+  const size = `width="${String(PLAN.width)}" height="${String(PLAN.height)}" viewBox="0 0 ${String(PLAN.width)} ${String(PLAN.height)}"`;
+  const ground = `<rect width="${String(PLAN.width)}" height="${String(PLAN.height)}" fill="#e7ead9"/>`;
+  const title = '<text x="36" y="34" font-size="18" fill="#3d4a2c">Beds 1 to 8</text>';
+  return `<svg xmlns="http://www.w3.org/2000/svg" ${size} font-family="sans-serif" font-weight="600">${ground}${title}${beds.join("")}</svg>`;
+}
+
+/**
+ * The address of the sample image of an entry: a plan of the beds of the garden.
+ * It is an SVG image in a `data:` address, so the sample needs no file and no server.
+ */
+export const SAMPLE_IMAGE: string = `data:image/svg+xml,${encodeURIComponent(planImage())}`;
+
+/** The entry of the sample that the sample image is for: the decision about the tomatoes. */
+export const SAMPLE_IMAGE_ENTRY = "e03";
+
+/**
+ * This function gives a document with the sample image on one entry: its `data.image`. The default entry is `SAMPLE_IMAGE_ENTRY`.
+ * The function does not change the document of the argument. The result is that document for an id that is not a box.
+ */
+export function withSampleImage(document: ThreadDocument, entry: string = SAMPLE_IMAGE_ENTRY): ThreadDocument {
+  if (!document.boxes.some((box) => box.id === entry)) return document;
+  return { ...document, boxes: document.boxes.map((box) => (box.id === entry ? { ...box, data: { ...box.data, image: SAMPLE_IMAGE } } : box)) };
+}

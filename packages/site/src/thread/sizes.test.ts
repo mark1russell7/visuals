@@ -3,7 +3,7 @@ import { fakeAdvance } from "./advance.test-util.ts";
 import { chooseTopic } from "./card.ts";
 import { flatSample } from "./sample.test-util.ts";
 import { panelBox, panelId, withPanels } from "./panel.test-util.ts";
-import { isTopicLook, PANEL_LOOK, PART_LOOK, threadSizes, topicLook } from "./sizes.ts";
+import { IMAGE_LOOK, isTopicLook, PANEL_LOOK, PART_LOOK, threadSizes, topicLook } from "./sizes.ts";
 
 const sample = flatSample();
 const sizes = threadSizes(sample, fakeAdvance);
@@ -48,6 +48,41 @@ describe("threadSizes", () => {
     expect(kept.get("north")?.look).toBe(sizes.get("north")?.look);
     expect(kept.get("north")?.w).toBe(sizes.get("north")?.w);
     expect(kept.get("m01#0")?.text).toBe(sizes.get("m01#0")?.text);
+  });
+
+  /** This function gives the sample with an image on one box. */
+  const withImage = (id: string, image: unknown = "/pictures/plan.png") => ({ ...sample, boxes: sample.boxes.map((box) => (box.id === id ? { ...box, data: { ...box.data, image } } : box)) });
+
+  it("gives an entry with an image a row that has the image above its text", () => {
+    const plain = sizes.get("e03");
+    const sized = threadSizes(withImage("e03"), fakeAdvance).get("e03");
+    expect(plain?.image).toBeUndefined();
+    expect(plain !== undefined && "image" in plain).toBe(false);
+    expect(sized?.image).toBe(IMAGE_LOOK.height + IMAGE_LOOK.gap);
+    expect(sized?.h).toBe((plain?.h ?? 0) + IMAGE_LOOK.height + IMAGE_LOOK.gap);
+    expect(sized?.w).toBe(PART_LOOK.width);
+    expect(sized?.text).toEqual(plain?.text);
+  });
+
+  it("gives no image to a box that is not an entry, and to an entry with a value that is not an address", () => {
+    expect(threadSizes(withImage("m01#0"), fakeAdvance).get("m01#0")).toEqual(sizes.get("m01#0"));
+    expect(threadSizes(withImage("water"), fakeAdvance).get("water")).toEqual(sizes.get("water"));
+    expect(threadSizes(withImage("e03", "plan"), fakeAdvance).get("e03")).toEqual(sizes.get("e03"));
+    expect(threadSizes(withImage("e03", 12), fakeAdvance).get("e03")).toEqual(sizes.get("e03"));
+  });
+
+  it("measures an entry again when its image comes or goes, and keeps it for a different address", () => {
+    const first = threadSizes(withImage("e03"), fakeAdvance, sizes);
+    expect(first.get("e03")?.h).toBe((sizes.get("e03")?.h ?? 0) + IMAGE_LOOK.height + IMAGE_LOOK.gap);
+    expect(first.get("e01")?.text).toBe(sizes.get("e01")?.text);
+    expect(first.get("e01")).toEqual(sizes.get("e01"));
+    // A new version of a picture has a new address and the same size.
+    const second = threadSizes(withImage("e03", "/pictures/plan.png?v=2"), fakeAdvance, first);
+    expect(second.get("e03")?.text).toBe(first.get("e03")?.text);
+    expect(second.get("e03")?.h).toBe(first.get("e03")?.h);
+    const last = threadSizes(sample, fakeAdvance, second);
+    expect(last.get("e03")?.image).toBeUndefined();
+    expect(last.get("e03")?.h).toBe(sizes.get("e03")?.h);
   });
 
   it("measures a box again when its name is different", () => {

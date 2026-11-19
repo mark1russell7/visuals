@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { actionsOf, soundDocument, threadKinds, topicCounts, waitsOf } from "./document.ts";
-import { answerEntry, SAMPLE_ANSWER, SAMPLE_LEGEND, sampleThread } from "./sample.ts";
+import { actionsOf, imageOf, soundDocument, threadKinds, topicCounts, waitsOf } from "./document.ts";
+import { answerEntry, SAMPLE_ANSWER, SAMPLE_IMAGE, SAMPLE_IMAGE_ENTRY, SAMPLE_IMAGE_MARK, SAMPLE_LEGEND, sampleThread, withSampleImage } from "./sample.ts";
 
 const sample = sampleThread();
 const at = "2026-09-03T12:00:00Z";
@@ -12,6 +12,36 @@ describe("sampleThread", () => {
     expect(waiting.map((box) => box.id)).toEqual(["e04"]);
     expect(actionsOf(waiting[0] ?? {})).toEqual([SAMPLE_ANSWER]);
     expect(SAMPLE_LEGEND.waits).toEqual([{ id: "reader", title: "you" }]);
+  });
+});
+
+describe("withSampleImage", () => {
+  it("puts the sample image on the entry of the decision, and changes no other box", () => {
+    const pictured = withSampleImage(sample);
+    expect(pictured.boxes.filter((box) => imageOf(box) !== undefined).map((box) => box.id)).toEqual([SAMPLE_IMAGE_ENTRY]);
+    expect(imageOf(boxOf(pictured, SAMPLE_IMAGE_ENTRY) ?? {})).toBe(SAMPLE_IMAGE);
+    expect(boxOf(pictured, SAMPLE_IMAGE_ENTRY)?.data?.["text"]).toBe("The tomatoes move to bed 6 this week.");
+    expect(pictured.boxes.filter((box) => box.id !== SAMPLE_IMAGE_ENTRY)).toEqual(sample.boxes.filter((box) => box.id !== SAMPLE_IMAGE_ENTRY));
+    expect(pictured.edges).toBe(sample.edges);
+    expect(soundDocument(pictured).boxes).toEqual(pictured.boxes);
+  });
+
+  it("puts the image on a named entry, and gives the document of the argument for an id that is not a box", () => {
+    expect(imageOf(boxOf(withSampleImage(sample, "e01"), "e01") ?? {})).toBe(SAMPLE_IMAGE);
+    expect(withSampleImage(sample, "nowhere")).toBe(sample);
+    const before = JSON.stringify(sample);
+    withSampleImage(sample);
+    expect(JSON.stringify(sample)).toBe(before);
+  });
+
+  it("has an SVG image with a size and the color of its mark, in an address that needs no server", () => {
+    const start = "data:image/svg+xml,";
+    expect(SAMPLE_IMAGE.startsWith(start)).toBe(true);
+    const svg = decodeURIComponent(SAMPLE_IMAGE.slice(start.length));
+    expect(svg).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="512" height="320" viewBox="0 0 512 320"/);
+    expect(svg.endsWith("</svg>")).toBe(true);
+    expect(svg.match(/<rect x=/g)).toHaveLength(8);
+    expect(svg.split(`fill="${SAMPLE_IMAGE_MARK}"`)).toHaveLength(2);
   });
 });
 

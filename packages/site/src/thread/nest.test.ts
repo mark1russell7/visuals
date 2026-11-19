@@ -93,6 +93,10 @@ describe("the features of the view", () => {
   it("names the change of the covered parts, so a page starts `setCovered` only on a build that has it", () => {
     expect(THREAD_FEATURES).toContain("covered");
   });
+
+  it("names the image of an entry, so a page gives `data.image` only to a build that shows it", () => {
+    expect(THREAD_FEATURES).toContain("images");
+  });
 });
 
 describe("the tree of a document", () => {

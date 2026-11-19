@@ -2,7 +2,7 @@ import { boxTree, siblingEdges, type BoxNode, type LayoutBox, type Rect } from "
 import { createEngine, type EdgeSpec, type Engine, type LayoutRef, type NodeSpec } from "ireko";
 import { forceStrategy, relaxForces, type RelaxNode } from "ireko/strategies/force";
 import { isSpring, threadKinds, type ThreadBox, type ThreadDocument } from "./document.ts";
-import { GROUP_LOOK, MESSAGE_LOOK, type LeafSize } from "./sizes.ts";
+import { GROUP_LOOK, IMAGE_LOOK, MESSAGE_LOOK, type LeafSize } from "./sizes.ts";
 
 /**
  * The options of the strategy `force` of `ireko` for the cards and the topics of a thread picture.
@@ -370,7 +370,7 @@ export function sizedBoxes(document: ThreadDocument, sizes: ReadonlyMap<string, 
 /**
  * This function places the boxes of a document with `ireko`. It gives the rectangle of each box, by the id of the box.
  *
- * 1. The strategy `grid` makes each card: the parts of a message in one column. An entry is a card with one row.
+ * 1. The strategy `grid` makes each card: the parts of a message in one column. An entry is a card with one row, for its image and its text.
  * 2. The strategy `force` places the cards and the topics. A reply, a relation and a chosen topic are springs.
  * 3. Each part moves with its card.
  *
@@ -490,7 +490,20 @@ export function layoutThread(document: ThreadDocument, sizes: ReadonlyMap<string
   return { places: out, issues };
 }
 
-/** This function gives the rectangle of the text row of an entry, from the rectangle of its card and the size of its text. */
-export function entryRow(card: Rect, size: Pick<LeafSize, "w" | "h">): Rect {
-  return { x: card.x + MESSAGE_LOOK.padding, y: card.y + card.h - MESSAGE_LOOK.padding - size.h, w: size.w, h: size.h };
+/**
+ * This function gives the rectangle of the text row of an entry, from the rectangle of its card and the size of its text.
+ * The row is at the bottom of the card. The image of an entry is above the row.
+ */
+export function entryRow(card: Rect, size: Pick<LeafSize, "w" | "h" | "image">): Rect {
+  const h = size.h - (size.image ?? 0);
+  return { x: card.x + MESSAGE_LOOK.padding, y: card.y + card.h - MESSAGE_LOOK.padding - h, w: size.w, h };
+}
+
+/**
+ * This function gives the rectangle of the image of an entry, from the rectangle of its card and the size of its text.
+ * The image is between the header of the card and the text row. An entry with no image gives `undefined`.
+ */
+export function entryImage(card: Rect, size: Pick<LeafSize, "w" | "h" | "image">): Rect | undefined {
+  if (size.image === undefined) return undefined;
+  return { x: card.x + MESSAGE_LOOK.padding, y: card.y + card.h - MESSAGE_LOOK.padding - size.h, w: size.w, h: size.image - IMAGE_LOOK.gap };
 }

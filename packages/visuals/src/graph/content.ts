@@ -4,6 +4,7 @@ import { approach } from "../motion.ts";
 import { drawShapes } from "./draw.ts";
 import { boxFocus, FOCUS_OPACITY, focusOf, routeFocus, type PictureFocus } from "./focus.ts";
 import { pickRecord } from "./hit.ts";
+import type { ImageSource } from "./images.ts";
 import type { PictureLooks } from "./looks.ts";
 import { boxState, FREE_LABELS, paintPicture, recordKey, routeState, type PaintState } from "./paint.ts";
 import { indexPicture, type PictureIndex, type PictureRecord } from "./records.ts";
@@ -31,6 +32,11 @@ export interface PictureContentOptions<T> {
    * With `none`, the picture has no focus until the page gives one with `setFocus`. The default is `selection`.
    */
   readonly focus?: "selection" | "none" | undefined;
+  /**
+   * This function gives the image of an address, for each box whose look has an image. Give `get` of an image store.
+   * With no function, a box shows the area of its image with no image.
+   */
+  readonly images?: ImageSource | undefined;
 }
 
 /** The options of `setPicture` of a picture content. */
@@ -62,7 +68,7 @@ const boxesOnly = (record: PictureRecord): boolean => record.type === "box";
  * - The looks give the colors, the lines and the signs of each record from its state.
  * - A person points at the top box below the pointer, or at a route that the option `picks` permits.
  * - A change of the focus changes the colors in a short time.
- * - The content makes shapes only for the records in view.
+ * - The content makes shapes only for the records in view. Thus it asks only for the images of the boxes in view.
  *
  * The picture must be good (`checkPicture` of `@mark1russell7/layout-contract`). The content does not change it.
  */
@@ -189,7 +195,7 @@ export function createPictureContent<T>(picture: LayoutPicture, options: Picture
       const larger: { id: string; rect: Rect }[] = [];
       for (const shape of shapes) if (shape.type === "shape" && shape.box !== undefined && shape.outline.kind === "rect") larger.push({ id: shape.box, rect: shape.outline });
       last = { theme, state, larger };
-      drawShapes(context, shapes, view);
+      drawShapes(context, shapes, view, options.images);
       return fades.size > 0;
     },
     setPicture(next, more) {

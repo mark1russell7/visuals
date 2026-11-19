@@ -3,10 +3,10 @@ import { MAX_THETA } from "ireko/strategies/force";
 import { describe, expect, it } from "vitest";
 import { fakeAdvance } from "./advance.test-util.ts";
 import type { ThreadDocument } from "./document.ts";
-import { ASPECT_RANGE, entryRow, EXACT_MOST, FAR_THETA, farTheta, firstScale, GROUP_RULES, groupLayout, KEEP_SHARE, keepsPlaces, layoutThread, mostLayouts, placeThread, sizedBoxes, THREAD_FORCE, threadEngine } from "./place.ts";
+import { ASPECT_RANGE, entryImage, entryRow, EXACT_MOST, FAR_THETA, farTheta, firstScale, GROUP_RULES, groupLayout, KEEP_SHARE, keepsPlaces, layoutThread, mostLayouts, placeThread, sizedBoxes, THREAD_FORCE, threadEngine } from "./place.ts";
 import { sampleThread } from "./sample.ts";
 import { flatSample } from "./sample.test-util.ts";
-import { GROUP_LOOK, MESSAGE_LOOK, threadSizes } from "./sizes.ts";
+import { GROUP_LOOK, IMAGE_LOOK, MESSAGE_LOOK, threadSizes } from "./sizes.ts";
 
 const sample = flatSample();
 const sizes = threadSizes(sample, fakeAdvance);
@@ -43,6 +43,37 @@ describe("placeThread", () => {
     const row = entryRow(card, size);
     expect(inside(row, card)).toBe(true);
     expect(row.y - card.y).toBeGreaterThanOrEqual(MESSAGE_LOOK.header - 1e-6);
+  });
+
+  it("gives an entry with an image a card with the image between its header and its text", () => {
+    const pictured = { ...sample, boxes: sample.boxes.map((box) => (box.id === "e03" ? { ...box, data: { ...box.data, image: "/pictures/plan.png" } } : box)) };
+    const measured = threadSizes(pictured, fakeAdvance);
+    const card = placeThread(pictured, measured).get("e03");
+    const size = measured.get("e03");
+    const plain = places.get("e03");
+    if (card === undefined || size === undefined || plain === undefined) throw new Error("no entry");
+    expect(card.h).toBeCloseTo(plain.h + IMAGE_LOOK.height + IMAGE_LOOK.gap, 6);
+    const row = entryRow(card, size);
+    const image = entryImage(card, size);
+    if (image === undefined) throw new Error("no image");
+    expect(inside(row, card)).toBe(true);
+    expect(inside(image, card)).toBe(true);
+    expect(image.y - card.y).toBeGreaterThanOrEqual(MESSAGE_LOOK.header - 1e-6);
+    expect([image.x, image.w, image.h]).toEqual([row.x, row.w, IMAGE_LOOK.height]);
+    // The text row is below the image, with the gap between them. It has the height of the row of the entry with no image.
+    expect(row.y).toBeCloseTo(image.y + image.h + IMAGE_LOOK.gap, 6);
+    expect(row.h).toBe(sizes.get("e03")?.h);
+    expect(row.y + row.h).toBeCloseTo(card.y + card.h - MESSAGE_LOOK.padding, 6);
+  });
+
+  it("gives no image area to an entry with no image, and its text row has all the row", () => {
+    const card = places.get("e01");
+    const size = sizes.get("e01");
+    if (card === undefined || size === undefined) throw new Error("no entry");
+    expect(entryImage(card, size)).toBeUndefined();
+    expect(entryRow(card, size)).toEqual({ x: card.x + MESSAGE_LOOK.padding, y: card.y + card.h - MESSAGE_LOOK.padding - size.h, w: size.w, h: size.h });
+    expect(entryRow({ x: 0, y: 0, w: 266, h: 240 }, { w: 256, h: 200, image: 163 })).toEqual({ x: 5, y: 198, w: 256, h: 37 });
+    expect(entryImage({ x: 0, y: 0, w: 266, h: 240 }, { w: 256, h: 200, image: 163 })).toEqual({ x: 5, y: 35, w: 256, h: 160 });
   });
 
   it("puts no card and no topic on a different one", () => {
