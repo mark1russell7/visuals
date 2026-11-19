@@ -520,13 +520,51 @@
   }
 }
 
+/*
+ * A phone: the controls stay in one row. A page can then put its own bar below one row of buttons.
+ * A switch has no box here, and it shows its state as a pressed button.
+ */
+@container (max-width: 460px) {
+  .thread-tools {
+    gap: 5px;
+    max-width: 70%;
+  }
+  .thread .thread-tool {
+    padding: 0 8px;
+  }
+  .thread .thread-jump {
+    padding: 0 10px 0 8px;
+  }
+  @supports selector(:has(*)) {
+    .thread-switch {
+      position: relative;
+    }
+    .thread-switch input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .thread .thread-switch:has(input:checked) {
+      border-color: var(--thread-accent);
+      background: color-mix(in srgb, var(--thread-accent) 16%, var(--thread-surface));
+      box-shadow: inset 0 0 0 1px var(--thread-accent);
+    }
+    .thread .thread-switch:has(input:focus-visible) {
+      outline: 2px solid var(--thread-accent);
+      outline-offset: 2px;
+    }
+  }
+}
+
 /* A phone: each button of a walk has fewer words, so it does not touch the controls. */
 @container (max-width: 420px) {
   .thread-jump-more {
     display: none;
   }
 }
-@container (max-width: 330px) {
+@container (max-width: 384px) {
   .thread-jump-words {
     display: none;
   }

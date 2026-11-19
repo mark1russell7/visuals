@@ -271,6 +271,15 @@ check("the card names the topic", text(`${CARD} .thread-text`) === "Water and dr
 // The topic has two topics in it. Its card lists those boxes first, then its parts.
 const inner = $$(`${CARD} .thread-part[data-key^="box:"]`).map((row) => row.dataset["key"]);
 check("the card of a topic with topics in it lists those topics", inner.join(" ") === "box:trench box:rota", inner);
+// The controls of the picture are in one row at each width. A page can then put its own bar below one row of buttons.
+const placed = (selector: string): DOMRect[] =>
+  $$(selector)
+    .filter((element) => element.getClientRects().length > 0)
+    .map((element) => element.getBoundingClientRect());
+const tools = placed("#thread .thread-tool");
+const walksEnd = Math.max(0, ...placed("#thread .thread-jump").map((box) => box.right));
+check("the controls of the picture are in one row", tools.length > 1 && tools.every((box) => Math.abs(box.top - (tools[0]?.top ?? 0)) < 1), tools.map((box) => Math.round(box.top)));
+check("the controls do not touch the buttons of the walks", walksEnd > 0 && tools.every((box) => box.left >= walksEnd), [Math.round(walksEnd), tools.map((box) => Math.round(box.left))]);
 // The button of the card closes the topic: the picture shows it as one box, and the card tells that state. The same button opens it.
 const FOLD = `${CARD} [data-key="fold"]`;
 const inside = (): string => text(`${CARD} .thread-inside .thread-heading`);
