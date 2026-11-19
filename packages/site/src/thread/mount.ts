@@ -91,6 +91,14 @@ export interface ThreadView {
    */
   reveal(id: string, covered?: Partial<Insets>): void;
   /**
+   * This function changes the parts of the view that the page covers, from each edge, in CSS pixels. It replaces the option `covered`.
+   * Use it after each change of the size of a bar that covers the picture.
+   * The camera goes to its view again if no person moved it. If a person moved it, the camera stays.
+   *
+   * A name of a far view stays in the new free area. A build has this function when `THREAD_FEATURES` has `covered`.
+   */
+  setCovered(covered: Partial<Insets> | undefined): void;
+  /**
    * This function gives the element of a panel. The page puts the content of the panel in it, and the element moves with the camera.
    * The view sets the width of the element, and it gives the panel the height of the content.
    * It gives `undefined` for an id that is not a panel of the picture, and for a view that cannot draw.
@@ -263,15 +271,17 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   setColors(options.theme);
   element.append(root);
 
+  /** The parts of the view that the page covers. The page changes them with `setCovered`. */
+  let pageCovers: Partial<Insets> = options.covered ?? {};
+
   /** This function gives the parts of the view that the page and the card cover. `more` has parts that the page covers for one move of the camera. */
-  const insetsNow = (more: Partial<Insets> = {}): Insets => {
+  const insetsNow =(more: Partial<Insets> = {}): Insets => {
     const narrow = root.clientWidth <= NARROW;
     // The buttons of the walks are in two rows in a view that has no room for them in one row, so the row of the controls gives the height.
     const rowEnd = controls.offsetHeight === 0 ? 0 : controls.offsetTop + controls.offsetHeight + 4;
     const top = Math.max(narrow ? 56 : 52, rowEnd);
     const own = narrow ? { top, right: 0, bottom: card.hidden ? 0 : card.offsetHeight, left: 0 } : { top, right: card.hidden ? 0 : card.offsetWidth + 20, bottom: 0, left: 0 };
-    const outer = options.covered ?? {};
-    const most = (edge: keyof Insets): number => Math.max(own[edge], outer[edge] ?? 0, more[edge] ?? 0);
+    const most = (edge: keyof Insets): number => Math.max(own[edge], pageCovers[edge] ?? 0, more[edge] ?? 0);
     return { top: most("top"), right: most("right"), bottom: most("bottom"), left: most("left") };
   };
 
@@ -1067,6 +1077,10 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
       // A box in a closed container has no place. The containers above it open first.
       uncover(id);
       bring(id, covered);
+    },
+    setCovered(next) {
+      pageCovers = next ?? {};
+      setInsets();
     },
     slot(id) {
       return slots.get(id);
