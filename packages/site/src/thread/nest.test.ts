@@ -89,6 +89,10 @@ describe("the features of the view", () => {
     expect(THREAD_FEATURES).toContain("nests");
     expect(new Set(THREAD_FEATURES).size).toBe(THREAD_FEATURES.length);
   });
+
+  it("names the change of the covered parts, so a page starts `setCovered` only on a build that has it", () => {
+    expect(THREAD_FEATURES).toContain("covered");
+  });
 });
 
 describe("the tree of a document", () => {

@@ -6,8 +6,9 @@ import { edgeKind, edgeState, isMessageBox, isTopicBox, panelOf, relationOf, typ
  * A page gives a document that needs a feature only to a build that has it. A build from before this list has no feature.
  *
  * - `nests`: the view draws a box in its container (`parent` of a box), to each depth.
+ * - `covered`: the view has the function `setCovered`, so a page tells it each change of the parts that the page covers.
  */
-export const THREAD_FEATURES: readonly string[] = ["nests"];
+export const THREAD_FEATURES: readonly string[] = ["nests", "covered"];
 
 /** How a view shows the containers of a document. */
 export interface NestState {
