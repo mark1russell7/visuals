@@ -5,7 +5,7 @@ import { isTopicBox, labelOf, topicCounts, type ThreadDocument } from "./thread/
 import { mountThreadView, type ThreadActionEvent, type ThreadView } from "./thread/mount.ts";
 import { panelId, withPanel } from "./thread/panels.ts";
 import { phaseText, type ThreadPhaseEvent } from "./thread/phases.ts";
-import { answerEntry, SAMPLE_ANSWER, SAMPLE_LEGEND, sampleThread } from "./thread/sample.ts";
+import { answerEntry, SAMPLE_ANSWER, SAMPLE_LEGEND, sampleThread, withSampleImage } from "./thread/sample.ts";
 
 /** The elements of the page that the conversation demo uses. */
 export interface ThreadElements {
@@ -33,7 +33,8 @@ const NARROW = "(max-width: 44rem)";
  * A person gives a part its topic, and answers the entry that waits. The page changes only its own copy of the sample.
  */
 export function startThread(elements: ThreadElements): ThreadView {
-  let current: ThreadDocument = sampleThread();
+  // One entry of the sample has an image: the plan of the beds.
+  let current: ThreadDocument = withSampleImage(sampleThread());
   let selected: string | undefined;
   /** The layout of the last picture. Its first drawing completes the line of the times. */
   let made: ThreadPhaseEvent | undefined;

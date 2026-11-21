@@ -392,6 +392,41 @@ describe("the shapes of a box", () => {
     ]);
   });
 
+  it("puts the image of a box above its inside and below its signs, from its top left corner", () => {
+    const marks = [{ shape: "dot", x: 8, y: 8, radius: 3, color: "#0a0" }] as const;
+    const image = { src: "/pictures/far.png", x: 4, y: 6, w: 92, h: 20 };
+    const looks = looksWith({ box: (box, state, t) => ({ ...plain.box(box, state, t), image, marks }) });
+    const shape: PaintOutlined = { type: "shape", outline: { kind: "rect", x: 4, y: 306, w: 92, h: 20, radius: 0 }, image: { src: "/pictures/far.png", fit: "contain", alignX: 0.5, alignY: 0.5 }, opacity: 1 };
+    expect(paint({}, looks, pictureWith([FAR]))).toEqual([FAR_BODY, shape, { type: "shape", outline: { kind: "ellipse", cx: 8, cy: 308, rx: 3, ry: 3 }, fill: "#0a0", opacity: 1 }]);
+    // The area of the image is in the unit of the picture, so it has the same place in a small picture.
+    expect(paint({ zoom: 0.5 }, looksWith({ box: () => ({ image }) }), pictureWith([FAR]))).toEqual([shape]);
+  });
+
+  it("gives the image of a box its fit, its place, its corners and its color", () => {
+    const of = (more: Partial<NonNullable<BoxLook["image"]>>): PaintShape[] => paint({}, looksWith({ box: () => ({ image: { src: "a.png", x: 0, y: 0, w: 100, h: 20, ...more } }) }), pictureWith([FAR]));
+    const area = { kind: "rect", x: 0, y: 300, w: 100, h: 20, radius: 0 } as const;
+    expect(of({ fit: "cover", alignX: 0, alignY: 1, fill: "#eee" })).toEqual([{ type: "shape", outline: area, fill: "#eee", image: { src: "a.png", fit: "cover", alignX: 0, alignY: 1 }, opacity: 1 }]);
+    // A place is a share from 0 to 1. A value that is not a number gives the middle.
+    expect(of({ alignX: -2, alignY: 3 })).toEqual([{ type: "shape", outline: area, image: { src: "a.png", fit: "contain", alignX: 0, alignY: 1 }, opacity: 1 }]);
+    expect(of({ alignX: Number.NaN })).toEqual([{ type: "shape", outline: area, image: { src: "a.png", fit: "contain", alignX: 0.5, alignY: 0.5 }, opacity: 1 }]);
+    // The radius of the corners is at most a half of the smaller side.
+    expect(outlines(of({ radius: 4 }))).toEqual([{ ...area, radius: 4 }]);
+    expect(outlines(of({ radius: 30 }))).toEqual([{ ...area, radius: 10 }]);
+  });
+
+  it("gives the image of a box the share of the color of the box", () => {
+    const looks = looksWith({ box: (box, state, t) => ({ ...plain.box(box, state, t), opacity: 0.5, image: { src: "a.png", x: 0, y: 0, w: 100, h: 20 } }) });
+    expect(paint({}, looks, pictureWith([FAR])).map((shape) => shape.opacity)).toEqual([0.5, 0.5]);
+  });
+
+  it("makes no shape for an image with no address or no area", () => {
+    const of = (image: NonNullable<BoxLook["image"]>): PaintShape[] => paint({}, looksWith({ box: () => ({ image }) }), pictureWith([FAR]));
+    expect(of({ src: "", x: 0, y: 0, w: 100, h: 20 })).toEqual([]);
+    expect(of({ src: "a.png", x: 0, y: 0, w: 0, h: 20 })).toEqual([]);
+    expect(of({ src: "a.png", x: 0, y: 0, w: 100, h: -1 })).toEqual([]);
+    expect(of({ src: "a.png", x: 0, y: 0, w: Number.NaN, h: 20 })).toEqual([]);
+  });
+
   it("gives a box only the parts that its look has: an inside, a border, dashes", () => {
     const looks = looksWith({
       box(box) {

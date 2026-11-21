@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionsOf, choiceOf, choicesOf, EDGE_KINDS, edgeKind, holdsOf, isChosen, isDone, isDrawn, isProposal, isSpring, isTopicBox, labelOf, linkOf, panelOf, partStates, relationOf, soundDocument, tagOf, textOf, THREAD_KINDS, threadKinds, topicCounts, waitsOf, type ThreadDocument } from "./document.ts";
+import { actionsOf, choiceOf, choicesOf, EDGE_KINDS, edgeKind, holdsOf, imageOf, isChosen, isDone, isDrawn, isProposal, isSpring, isTopicBox, labelOf, linkOf, panelOf, partStates, relationOf, soundDocument, tagOf, textOf, THREAD_KINDS, threadKinds, topicCounts, waitsOf, type ThreadDocument } from "./document.ts";
 import { SAMPLE_ANSWER, sampleThread } from "./sample.ts";
 import { flatSample } from "./sample.test-util.ts";
 
@@ -210,6 +210,24 @@ describe("actionsOf", () => {
     expect(actionsOf({ data: { actions: "reply" } })).toEqual([]);
     expect(actionsOf({ data: { actions: { id: "reply", title: "Reply" } } })).toEqual([]);
     for (const entry of sample.boxes) expect(actionsOf(entry)).toEqual(entry.id === "e04" ? [SAMPLE_ANSWER] : []);
+  });
+});
+
+describe("imageOf", () => {
+  it("gives the address of the image of a box", () => {
+    for (const address of ["https://example.com/a.png", "HTTPS://example.com/a.png", "/canvas/a/picture.png?v=12", "./a.png", "../a.png", "data:image/png;base64,AAAA", "data:image/svg+xml,%3Csvg%2F%3E"]) {
+      expect(imageOf({ data: { image: address } })).toBe(address);
+    }
+  });
+
+  it("gives no address for a value that is not an image, and for a box with no image", () => {
+    for (const other of ["picture", "a.png", "javascript:alert(1)", "data:text/html,a", "blob:https://example.com/a", "#a", "?a", ""]) {
+      expect(imageOf({ data: { image: other } })).toBeUndefined();
+    }
+    expect(imageOf({ data: { image: 12 } })).toBeUndefined();
+    expect(imageOf({ data: { ref: "/a/page/" } })).toBeUndefined();
+    expect(imageOf({})).toBeUndefined();
+    for (const entry of sample.boxes) expect(imageOf(entry)).toBeUndefined();
   });
 });
 

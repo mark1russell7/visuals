@@ -7,7 +7,7 @@ import { panelId, withPanels } from "./panel.test-util.ts";
 import { labelId, threadPicture } from "./picture.ts";
 import { sampleThread } from "./sample.ts";
 import { flatSample } from "./sample.test-util.ts";
-import { GROUP_LOOK, isTopicLook, MESSAGE_LOOK } from "./sizes.ts";
+import { GROUP_LOOK, IMAGE_LOOK, isTopicLook, MESSAGE_LOOK, PART_LOOK } from "./sizes.ts";
 
 const thread = threadPicture(flatSample(), fakeAdvance, { timeZone: "UTC" });
 const theme = LIGHT_THREAD_THEME;
@@ -98,6 +98,54 @@ describe("the look of a box", () => {
     expect(waitsColor(old)).toBe(theme.open);
     expect(looks.box(box("e04"), near, old)).toMatchObject({ fill: theme.surface, stroke: theme.open, width: WAITS_WIDTH });
     expect(looks.box(box("e04"), far, old)).toMatchObject({ fill: theme.open });
+  });
+});
+
+describe("the image of an entry", () => {
+  const src = "/pictures/plan.png";
+  const boxes = thread.document.boxes.map((entry) => (entry.id === "e03" || entry.id === "e04" ? { ...entry, data: { ...entry.data, image: src } } : entry));
+  const pictured = threadPicture({ ...thread.document, boxes }, fakeAdvance, { timeZone: "UTC" });
+  const picturedLooks = threadLooks(() => ({ thread: pictured, proposals: false }));
+  const card = (id: string): PictureBox => {
+    const found = pictured.picture.boxes.find((entry) => entry.id === id);
+    if (found === undefined) throw new Error(`no box ${id}`);
+    return found;
+  };
+
+  it("shows the image between the header and the text of the card, in the width of the row", () => {
+    const image = picturedLooks.box(card("e03"), near, theme)?.image;
+    expect(image).toMatchObject({ src, w: PART_LOOK.width, h: IMAGE_LOOK.height, fit: "cover", alignY: 0, radius: IMAGE_LOOK.radius, fill: theme.quiet });
+    expect(image?.x).toBeCloseTo(MESSAGE_LOOK.padding, 6);
+    expect(image?.y).toBeGreaterThanOrEqual(MESSAGE_LOOK.header - 1e-6);
+    // The text of the entry is below the image.
+    const text = pictured.picture.labels.find((entry) => entry.id === labelId("text", "e03"));
+    expect(text?.y).toBeGreaterThanOrEqual(card("e03").y + (image?.y ?? 0) + IMAGE_LOOK.height + IMAGE_LOOK.gap - 1e-6);
+    expect((text?.y ?? 0) + (text?.h ?? 0)).toBeLessThanOrEqual(card("e03").y + card("e03").h);
+  });
+
+  it("keeps the image in a far view, and gives none in a view too far for it", () => {
+    expect(picturedLooks.box(card("e03"), far, theme)?.image).toMatchObject({ src });
+    const least = IMAGE_LOOK.least / IMAGE_LOOK.height;
+    expect(picturedLooks.box(card("e03"), { ...near, zoom: least * 1.1 }, theme)?.image).toMatchObject({ src });
+    expect(picturedLooks.box(card("e03"), { ...near, zoom: least * 0.9 }, theme)?.image).toBeUndefined();
+  });
+
+  it("keeps the colors of an entry that waits, and gives no image to an entry with no address", () => {
+    expect(picturedLooks.box(card("e04"), near, theme)).toMatchObject({ fill: theme.waitsFill, stroke: theme.waits, image: { src } });
+    expect(picturedLooks.box(card("e04"), far, theme)).toMatchObject({ fill: theme.waits, image: { src } });
+    expect(picturedLooks.box(card("e01"), near, theme)?.image).toBeUndefined();
+    expect(looks.box(box("e03"), near, theme)?.image).toBeUndefined();
+  });
+
+  it("puts the sign of an entry in its text row, below the image", () => {
+    const first = { id: "touches:e03:water", source: "e03", target: "water", data: { kind: "touches", choice: "e03", state: "proposed", rank: 1 } };
+    const next = threadPicture({ ...pictured.document, edges: [...(pictured.document.edges ?? []).filter((edge) => edge.source !== "e03"), first] }, fakeAdvance, { keep: pictured });
+    const nextLooks = threadLooks(() => ({ thread: next, proposals: false }));
+    const found = next.picture.boxes.find((entry) => entry.id === "e03");
+    const look = found === undefined ? undefined : nextLooks.box(found, near, theme);
+    expect(look?.marks).toHaveLength(1);
+    expect(look?.marks?.[0]?.y).toBeGreaterThan((look?.image?.y ?? 0) + IMAGE_LOOK.height);
+    expect(look?.marks?.[0]?.y).toBeLessThan(found?.h ?? 0);
   });
 });
 

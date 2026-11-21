@@ -2,7 +2,7 @@ import { pictureBounds, type Rect } from "@mark1russell7/layout-contract";
 import { canvasAdvance } from "@mark1russell7/layout-contract/text";
 import { h, svg } from "@mark1russell7/site-pages/chrome";
 import { countOf } from "@mark1russell7/text";
-import { aimAll, aimReveal, createPictureContent, createPictureStage, freeArea, rectToScreen, revealRects, toPicture, type Insets, type PictureAim, type PictureContent, type PictureRecord, type PictureStage, type PictureView } from "@mark1russell7/visuals/graph";
+import { aimAll, aimReveal, createImageStore, createPictureContent, createPictureStage, freeArea, rectToScreen, revealRects, toPicture, type Insets, type PictureAim, type PictureContent, type PictureRecord, type PictureStage, type PictureView } from "@mark1russell7/visuals/graph";
 import { anchorRect } from "./anchor.ts";
 import { cardOf, relationNames, type CardChoice, type CardModel, type CardName, type TopicChoiceEvent } from "./card.ts";
 import { choiceOf, edgeKind, edgeState, isChosen, isProposal, labelOf, waitsOf, type ThreadBox, type ThreadDocument, type ThreadLegend } from "./document.ts";
@@ -388,7 +388,9 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     return part === undefined ? [] : [part];
   };
 
-  const content = createPictureContent(thread.picture, { looks: threadLooks(() => ({ thread, proposals, part: chooser(), hint })) });
+  // The images of the entries. An image that becomes ready asks for a new paint. The store sends no credentials.
+  const images = createImageStore({ onReady: () => stage?.refresh() });
+  const content = createPictureContent(thread.picture, { looks: threadLooks(() => ({ thread, proposals, part: chooser(), hint })), images: images.get });
 
   /** The options of the routes of the proposals that the view adds after the start. */
   const routeOptions: ThreadRouteOptions = { proposalRouter: options.proposalRouter, curve: options.curve };
@@ -1091,6 +1093,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
       stopPlan?.();
       router?.dispose();
       stage?.dispose();
+      images.dispose();
       root.remove();
     },
   };

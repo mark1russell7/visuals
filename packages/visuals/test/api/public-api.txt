@@ -202,6 +202,7 @@ file ./labels.css: styles/labels.css
 ARROW_SPREAD: build/graph.d.ts#ARROW_SPREAD
 type AimFrame: build/graph.d.ts#AimFrame
 BAR_HEIGHT: build/graph.d.ts#BAR_HEIGHT
+type BoxImage: build/graph.d.ts#BoxImage
 type BoxLook: build/graph.d.ts#BoxLook
 type BoxMark: build/graph.d.ts#BoxMark
 type BoxRing: build/graph.d.ts#BoxRing
@@ -216,15 +217,21 @@ type FocusLevel: build/graph.d.ts#FocusLevel
 type FocusOptions: build/graph.d.ts#FocusOptions
 type FrameOptions: build/graph.d.ts#FrameOptions
 HALO_WIDTH: build/graph.d.ts#HALO_WIDTH
+type ImageSource: build/graph.d.ts#ImageSource
+type ImageState: build/graph.d.ts#ImageState
+type ImageStore: build/graph.d.ts#ImageStore
+type ImageStoreOptions: build/graph.d.ts#ImageStoreOptions
 type Insets: build/graph.d.ts#Insets
 KEEP_IN_VIEW: build/graph.d.ts#KEEP_IN_VIEW
 KEPT_GAP: build/graph.d.ts#KEPT_GAP
 LIGHT_PICTURE_THEME: build/graph.d.ts#LIGHT_PICTURE_THEME
 type LabelLook: build/graph.d.ts#LabelLook
 type LayoutPictureContent: build/graph.d.ts#LayoutPictureContent
+MOST_IMAGES: build/graph.d.ts#MOST_IMAGES
 MOST_KEPT_LINE: build/graph.d.ts#MOST_KEPT_LINE
 NO_POINTERS: build/graph.d.ts#NO_POINTERS
 PICK_SLACK: build/graph.d.ts#PICK_SLACK
+type PaintImage: build/graph.d.ts#PaintImage
 type PaintOutline: build/graph.d.ts#PaintOutline
 type PaintOutlined: build/graph.d.ts#PaintOutlined
 type PaintShape: build/graph.d.ts#PaintShape
@@ -254,6 +261,7 @@ type PointerMoveResult: build/graph.d.ts#PointerMoveResult
 type PointerPair: build/graph.d.ts#PointerPair
 type PointerUpResult: build/graph.d.ts#PointerUpResult
 type Pointers: build/graph.d.ts#Pointers
+type ReadyImage: build/graph.d.ts#ReadyImage
 type RecordState: build/graph.d.ts#RecordState
 type RevealOptions: build/graph.d.ts#RevealOptions
 type RouteEnd: build/graph.d.ts#RouteEnd
@@ -280,6 +288,7 @@ boxDistance: build/graph.d.ts#boxDistance
 boxFocus: build/graph.d.ts#boxFocus
 boxState: build/graph.d.ts#boxState
 clampZoom: build/graph.d.ts#clampZoom
+createImageStore: build/graph.d.ts#createImageStore
 createPictureContent: build/graph.d.ts#createPictureContent
 createPictureStage: build/graph.d.ts#createPictureStage
 drawShapes: build/graph.d.ts#drawShapes
@@ -287,8 +296,10 @@ fitRect: build/graph.d.ts#fitRect
 focusOf: build/graph.d.ts#focusOf
 frameRects: build/graph.d.ts#frameRects
 freeArea: build/graph.d.ts#freeArea
+imageRect: build/graph.d.ts#imageRect
 indexPicture: build/graph.d.ts#indexPicture
 keepRect: build/graph.d.ts#keepRect
+loadImage: build/graph.d.ts#loadImage
 lookUnit: build/graph.d.ts#lookUnit
 paintPicture: build/graph.d.ts#paintPicture
 panView: build/graph.d.ts#panView
@@ -446,6 +457,20 @@ interface AimFrame {
 ### build/graph.d.ts#BAR_HEIGHT
 export declare const BAR_HEIGHT = .42;
 
+### build/graph.d.ts#BoxImage
+interface BoxImage {
+  readonly src: string;
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+  readonly fit?: "contain" | "cover" | undefined;
+  readonly alignX?: number | undefined;
+  readonly alignY?: number | undefined;
+  readonly radius?: number | undefined;
+  readonly fill?: string | undefined;
+}
+
 ### build/graph.d.ts#BoxLook
 interface BoxLook {
   readonly fill?: string | undefined;
@@ -455,6 +480,7 @@ interface BoxLook {
   readonly radius?: number | undefined;
   readonly opacity?: number | undefined;
   readonly ring?: BoxRing | undefined;
+  readonly image?: BoxImage | undefined;
   readonly marks?: readonly BoxMark[] | undefined;
 }
 
@@ -516,6 +542,26 @@ interface FrameOptions extends FitOptions {
 ### build/graph.d.ts#HALO_WIDTH
 export declare const HALO_WIDTH = .25;
 
+### build/graph.d.ts#ImageSource
+type ImageSource = (src: string) => ReadyImage | undefined;
+
+### build/graph.d.ts#ImageState
+type ImageState = "loading" | "ready" | "failed";
+
+### build/graph.d.ts#ImageStore
+interface ImageStore {
+  readonly get: ImageSource;
+  state(src: string): ImageState | undefined;
+  dispose(): void;
+}
+
+### build/graph.d.ts#ImageStoreOptions
+interface ImageStoreOptions {
+  readonly onReady?: ((src: string) => void) | undefined;
+  readonly load?: ((src: string) => Promise<ReadyImage>) | undefined;
+  readonly most?: number | undefined;
+}
+
 ### build/graph.d.ts#Insets
 interface Insets {
   readonly top: number;
@@ -552,6 +598,9 @@ interface LayoutPictureContent<T> extends PictureContent<PictureRecord, T> {
   setFocus(records: readonly string[] | undefined): void;
 }
 
+### build/graph.d.ts#MOST_IMAGES
+export declare const MOST_IMAGES = 64;
+
 ### build/graph.d.ts#MOST_KEPT_LINE
 export declare const MOST_KEPT_LINE = 32;
 
@@ -560,6 +609,14 @@ export declare const NO_POINTERS: Pointers;
 
 ### build/graph.d.ts#PICK_SLACK
 export declare const PICK_SLACK = 5;
+
+### build/graph.d.ts#PaintImage
+interface PaintImage {
+  readonly src: string;
+  readonly fit: "contain" | "cover";
+  readonly alignX: number;
+  readonly alignY: number;
+}
 
 ### build/graph.d.ts#PaintOutline
 type PaintOutline = {
@@ -592,6 +649,7 @@ interface PaintOutlined {
   readonly lineWidth?: number | undefined;
   readonly dash?: readonly number[] | undefined;
   readonly opacity: number;
+  readonly image?: PaintImage | undefined;
   readonly box?: string | undefined;
 }
 
@@ -657,6 +715,7 @@ interface PictureContentOptions<T> {
   readonly looks: PictureLooks<T>;
   readonly picks?: ((record: PictureRecord) => boolean) | undefined;
   readonly focus?: "selection" | "none" | undefined;
+  readonly images?: ImageSource | undefined;
 }
 
 ### build/graph.d.ts#PictureFocus
@@ -822,6 +881,14 @@ interface Pointers {
   readonly many: boolean;
 }
 
+### build/graph.d.ts#ReadyImage
+interface ReadyImage {
+  readonly source: CanvasImageSource;
+  readonly width: number;
+  readonly height: number;
+  readonly close?: (() => void) | undefined;
+}
+
 ### build/graph.d.ts#RecordState
 interface RecordState {
   readonly highlight: Highlight;
@@ -925,6 +992,9 @@ export declare function boxState(index: PictureIndex, box: PictureBox, state: Pa
 ### build/graph.d.ts#clampZoom
 export declare function clampZoom(k: number, limits?: ZoomLimits): number;
 
+### build/graph.d.ts#createImageStore
+export declare function createImageStore(options?: ImageStoreOptions): ImageStore;
+
 ### build/graph.d.ts#createPictureContent
 export declare function createPictureContent<T>(picture: LayoutPicture, options: PictureContentOptions<T>): LayoutPictureContent<T>;
 
@@ -932,7 +1002,7 @@ export declare function createPictureContent<T>(picture: LayoutPicture, options:
 export declare function createPictureStage<P, T>(container: HTMLElement, options: PictureStageOptions<P, T>): PictureStage<P, T> | undefined;
 
 ### build/graph.d.ts#drawShapes
-export declare function drawShapes(context: CanvasRenderingContext2D, shapes: readonly PaintShape[], view: PictureView): void;
+export declare function drawShapes(context: CanvasRenderingContext2D, shapes: readonly PaintShape[], view: PictureView, images?: ImageSource): void;
 
 ### build/graph.d.ts#fitRect
 export declare function fitRect(rect: Rect, area: Rect, options?: FitOptions): PictureView;
@@ -949,11 +1019,17 @@ export declare function freeArea(size: {
   readonly height: number;
 }, insets?: Partial<Insets>): Rect;
 
+### build/graph.d.ts#imageRect
+export declare function imageRect(area: Rect, width: number, height: number, image: Pick<PaintImage, "fit" | "alignX" | "alignY">): Rect;
+
 ### build/graph.d.ts#indexPicture
 export declare function indexPicture(picture: LayoutPicture): PictureIndex;
 
 ### build/graph.d.ts#keepRect
 export declare function keepRect(view: PictureView, rect: Rect, area: Rect, least?: number): PictureView;
+
+### build/graph.d.ts#loadImage
+export declare function loadImage(src: string): Promise<ReadyImage>;
 
 ### build/graph.d.ts#lookUnit
 export declare function lookUnit(zoom: number): number;

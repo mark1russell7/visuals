@@ -28,6 +28,18 @@ export type PaintOutline =
   | { readonly kind: "polygon"; readonly rings: readonly Ring[] }
   | { readonly kind: "path"; readonly path: readonly PathSegment[] };
 
+/** The image of a shape of a paint list. A renderer draws it in the bounds of the outline of the shape, and the outline cuts it. */
+export interface PaintImage {
+  /** The address of the image. */
+  readonly src: string;
+  /** With `contain`, all of the image is in the bounds. With `cover`, the image fills the bounds. */
+  readonly fit: "contain" | "cover";
+  /** The place of the image in the bounds on the x axis, from 0 to 1. With 0, the image starts at the left edge. */
+  readonly alignX: number;
+  /** The place of the image in the bounds on the y axis, from 0 to 1. With 0, the image starts at the top edge. */
+  readonly alignY: number;
+}
+
 /** A shape of a paint list with an outline: an inside, a line, or the two. */
 export interface PaintOutlined {
   readonly type: "shape";
@@ -42,6 +54,11 @@ export interface PaintOutlined {
   readonly dash?: readonly number[] | undefined;
   /** The share of its color that the shape keeps, above 0 and to 1. */
   readonly opacity: number;
+  /**
+   * An image in the outline, above the color of the inside and below the line. Only a rectangle and an ellipse can have one.
+   * A renderer with no image for the address draws the shape with no image.
+   */
+  readonly image?: PaintImage | undefined;
   /**
    * The id of a box, for the inside of a box that is larger around its name (`boxed` of a label look).
    * A content lets a person point at the box through this shape. Each other shape has no id.
@@ -180,6 +197,20 @@ function addFrame(shapes: PaintShape[], outline: (more: number) => PaintOutline,
   }
 }
 
+/** This function gives a place of an image on one axis: a share from 0 to 1. The default is the middle. */
+function alignShare(value: number | undefined): number {
+  return value === undefined || !Number.isFinite(value) ? 0.5 : Math.min(1, Math.max(0, value));
+}
+
+/** This function adds the image of a box: one shape with the area of the image as its outline. An image with no address or no area gets no shape. */
+function addImage(shapes: PaintShape[], box: PictureBox, look: BoxLook, opacity: number): void {
+  const image = look.image;
+  if (image === undefined || image.src === "" || !(image.w > 0) || !(image.h > 0)) return;
+  const area: Rect = { x: box.x + image.x, y: box.y + image.y, w: image.w, h: image.h };
+  const paint: PaintImage = { src: image.src, fit: image.fit ?? "contain", alignX: alignShare(image.alignX), alignY: alignShare(image.alignY) };
+  shapes.push({ type: "shape", outline: roundRect(area, image.radius ?? 0, 0), fill: image.fill, image: paint, opacity });
+}
+
 /** This function adds the signs of a box. */
 function addMarks(shapes: PaintShape[], box: PictureBox, look: BoxLook, unit: number, opacity: number): void {
   for (const mark of look.marks ?? []) {
@@ -190,12 +221,13 @@ function addMarks(shapes: PaintShape[], box: PictureBox, look: BoxLook, unit: nu
   }
 }
 
-/** This function adds the shapes of a box: its ring, its inside and border, and its signs. */
+/** This function adds the shapes of a box: its ring, its inside and border, its image, and its signs. */
 function addBox(shapes: PaintShape[], box: PictureBox, look: BoxLook, unit: number, share: number): void {
   const opacity = boxOpacity(look, share);
   if (!(opacity > 0)) return;
   const radius = look.radius ?? 0;
   addFrame(shapes, (more) => outlineOf(box, radius, more), look, unit, opacity);
+  addImage(shapes, box, look, opacity);
   addMarks(shapes, box, look, unit, opacity);
 }
 

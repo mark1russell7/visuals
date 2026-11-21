@@ -50,7 +50,38 @@ export interface BoxMark {
   readonly width?: number | undefined;
 }
 
-/** The look of a box. A box with no `fill` and no `stroke` shows only its ring and its signs. */
+/**
+ * An image in a box, for example a small picture of a page. The image has an area in the box.
+ * A content gets the image of the address from its option `images`. Until the image is ready, the box shows the area with no image.
+ * A box that is larger around its name shows no image (`boxed` of a label look).
+ */
+export interface BoxImage {
+  /** The address of the image. */
+  readonly src: string;
+  /** The left edge of the area from the left edge of the box, in the unit of the picture. */
+  readonly x: number;
+  /** The top edge of the area from the top edge of the box, in the unit of the picture. */
+  readonly y: number;
+  /** The width of the area, in the unit of the picture. */
+  readonly w: number;
+  /** The height of the area, in the unit of the picture. */
+  readonly h: number;
+  /**
+   * With `contain`, all of the image is in the area. With `cover`, the image fills the area, and the area cuts the rest of the image.
+   * The default is `contain`.
+   */
+  readonly fit?: "contain" | "cover" | undefined;
+  /** The place of the image in the area on the x axis, from 0 to 1. With 0, the image starts at the left edge. The default is 0.5, the middle. */
+  readonly alignX?: number | undefined;
+  /** The place of the image in the area on the y axis, from 0 to 1. With 0, the image starts at the top edge. The default is 0.5, the middle. */
+  readonly alignY?: number | undefined;
+  /** The radius of the corners of the area, in the unit of the picture. The default is 0. */
+  readonly radius?: number | undefined;
+  /** The color of the area below the image. The area shows it until the image is ready, and next to an image that does not fill the area. */
+  readonly fill?: string | undefined;
+}
+
+/** The look of a box. A box with no `fill` and no `stroke` shows only its ring, its image and its signs. */
 export interface BoxLook {
   /** The color of the inside. */
   readonly fill?: string | undefined;
@@ -65,6 +96,8 @@ export interface BoxLook {
   /** The share of its color that the box keeps, from 0 to 1. The focus of the picture decreases it more. The default is 1. */
   readonly opacity?: number | undefined;
   readonly ring?: BoxRing | undefined;
+  /** An image in the box, above its inside and below its signs. */
+  readonly image?: BoxImage | undefined;
   readonly marks?: readonly BoxMark[] | undefined;
 }
 

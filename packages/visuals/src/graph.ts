@@ -37,9 +37,10 @@ export {
   type ZoomLimits,
 } from "./graph/camera.ts";
 export { FOCUS_FADE, createPictureContent, type LayoutPictureContent, type PictureContentOptions, type SetPictureOptions } from "./graph/content.ts";
-export { drawShapes } from "./graph/draw.ts";
+export { drawShapes, imageRect } from "./graph/draw.ts";
 export { FOCUS_OPACITY, boxFocus, focusOf, routeFocus, type FocusLevel, type FocusOptions, type PictureFocus } from "./graph/focus.ts";
 export { boxDistance, pickRecord, type PickOptions } from "./graph/hit.ts";
+export { MOST_IMAGES, createImageStore, loadImage, type ImageSource, type ImageState, type ImageStore, type ImageStoreOptions, type ReadyImage } from "./graph/images.ts";
 export { pictureKeyAction, type PictureKeyAction, type PictureKeyOptions } from "./graph/keys.ts";
 export {
   DARK_PICTURE_THEME,
@@ -50,6 +51,7 @@ export {
   SMALLEST_TEXT_LINE,
   lookUnit,
   plainLooks,
+  type BoxImage,
   type BoxLook,
   type BoxMark,
   type BoxRing,
@@ -72,6 +74,7 @@ export {
   paintPicture,
   recordKey,
   routeState,
+  type PaintImage,
   type PaintOutline,
   type PaintOutlined,
   type PaintShape,

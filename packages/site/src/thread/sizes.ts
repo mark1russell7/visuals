@@ -1,5 +1,5 @@
 import { createMeasurer, layoutText, type AdvanceFn, type TextLayout } from "@mark1russell7/layout-contract/text";
-import { labelOf, threadKinds, topicCounts, type ThreadDocument, type ThreadKind } from "./document.ts";
+import { imageOf, labelOf, threadKinds, topicCounts, type ThreadDocument, type ThreadKind } from "./document.ts";
 
 /** The font family of the text of a thread picture: the font of the system. */
 export const THREAD_FAMILY = "system-ui, -apple-system, 'Segoe UI', sans-serif";
@@ -40,6 +40,18 @@ export const MESSAGE_LOOK = {
   dateFont: `11px ${THREAD_FAMILY}`,
   /** The height of the line of the date. */
   dateLine: 14,
+} as const;
+
+/**
+ * The measures of the image of an entry. The image has the width of a row, and it is above the text of the entry.
+ * `height` is its height, `gap` is the space between the image and the text, and `radius` is the radius of its corners.
+ * `least` is the smallest height of the image on the screen, in CSS pixels. A smaller image has no paint.
+ */
+export const IMAGE_LOOK = {
+  height: 160,
+  gap: 3,
+  radius: 5,
+  least: 12,
 } as const;
 
 /**
@@ -123,8 +135,10 @@ export interface LeafSize {
   readonly countWidth: number;
   /** The width of the text with the space around it. It is the width of a part and of a topic, and of the row of an entry. */
   readonly w: number;
-  /** The height of the text with the space around it. */
+  /** The height of the text with the space around it. For an entry with an image, it includes `image`. */
   readonly h: number;
+  /** The height of the image of an entry with the gap below it. An entry with no image has no value. */
+  readonly image?: number | undefined;
 }
 
 /** This function tells if a look is the look of a topic. */
@@ -169,7 +183,9 @@ export function threadSizes(document: ThreadDocument, advance: AdvanceFn, keep?:
       out.set(box.id, { kind, label, text, look, count: 0, countWidth: 0, w: side(box.w, look.width), h: side(panels?.get(box.id), box.h, look.height) });
       continue;
     }
-    if (kept !== undefined && kept.kind === kind && kept.label === label) {
+    // An entry whose image comes or goes gets a new size, so the layout gives its card a new height.
+    const image = kind === "entry" && imageOf(box) !== undefined ? IMAGE_LOOK.height + IMAGE_LOOK.gap : undefined;
+    if (kept !== undefined && kept.kind === kind && kept.label === label && kept.image === image) {
       const countWidth = isTopicLook(kept.look) ? Math.ceil(advance(String(count), kept.look.countFont)) : 0;
       out.set(box.id, { ...kept, count, countWidth });
       continue;
@@ -189,7 +205,9 @@ export function threadSizes(document: ThreadDocument, advance: AdvanceFn, keep?:
     }
     const look = PART_LOOK;
     const text = layoutText(label, { font: look.font, measurer, lineHeight: look.lineHeight, wrapWidth: look.wrapWidth, maxLines: look.maxLines, wordBreak: "anywhere" });
-    out.set(box.id, { kind, label, text, look, count: 0, countWidth: 0, w: look.width, h: Math.max(1, text.lineCount) * look.lineHeight + 2 * look.padY });
+    const lines = Math.max(1, text.lineCount) * look.lineHeight + 2 * look.padY;
+    // The image of an entry is above its text, in the same row of the card.
+    out.set(box.id, { kind, label, text, look, count: 0, countWidth: 0, w: look.width, h: lines + (image ?? 0), ...(image === undefined ? {} : { image }) });
   }
   return out;
 }
