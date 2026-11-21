@@ -174,7 +174,7 @@ export function linkOf(box: WithData): string | undefined {
   return [field(box, "url"), field(box, "ref")].find((value) => value !== undefined && ADDRESS.test(value));
 }
 
-/** The start of a text that is an address for an image: `http`, `https`, a path, or the bytes of an image in a `data:` address. */
+/** The start of an address for an image: `http`, `https`, a path, or a `data:` address with the bytes of an image. */
 const IMAGE_ADDRESS = /^(https?:\/\/|\/|\.{1,2}\/|data:image\/)/i;
 
 /**
