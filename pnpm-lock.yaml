@@ -183,13 +183,13 @@ importers:
         version: 0.3.2(@swc/core@1.16.22)(dependency-cruiser@18.8.0)
       '@mark1russell7/conventions':
         specifier: ^0.50.4
-        version: 0.50.7
+        version: 0.50.12
       '@mark1russell7/cue':
         specifier: ^2.0.0
         version: 2.1.4
       '@mark1russell7/ste-lint':
-        specifier: ^0.4.0
-        version: 0.4.0
+        specifier: ^0.5.0
+        version: 0.5.0
       '@mark1russell7/template-cli':
         specifier: ^0.1.8
         version: 0.1.9
@@ -225,7 +225,7 @@ importers:
         version: 2.1.4
       '@mark1russell7/geo':
         specifier: ^0.5.0
-        version: 0.5.5
+        version: 0.5.12
       '@mark1russell7/highways':
         specifier: ^0.19.1
         version: 0.19.3
@@ -237,7 +237,7 @@ importers:
         version: 0.19.0
       '@mark1russell7/site-pages':
         specifier: ^0.8.0
-        version: 0.8.2
+        version: 0.8.3
       '@mark1russell7/text':
         specifier: ^0.0.17
         version: 0.0.17
@@ -258,7 +258,7 @@ importers:
         version: 4.10.2
       ireko:
         specifier: ^0.2.5
-        version: 0.2.6
+        version: 0.2.7
       three:
         specifier: ^0.187.0
         version: 0.187.0
@@ -276,7 +276,7 @@ importers:
     dependencies:
       '@mark1russell7/geo':
         specifier: ^0.5.0
-        version: 0.5.5
+        version: 0.5.12
       '@mark1russell7/layout-contract':
         specifier: ^0.11.0
         version: 0.11.1
@@ -555,8 +555,8 @@ packages:
     resolution: {integrity: sha512-KKAYIACji5XtOpbE3fIX4D3aVd0oddyM9dU+Pk+lXpgYOh6VTVoa/0yzwDTipZ42RKp+6BG+LSkLjCe/FjCHFA==}
     engines: {node: '>=22.12'}
 
-  '@mark1russell7/conventions@0.50.7':
-    resolution: {integrity: sha512-1tx4G5JETCH+sccyKiNXi9rVviMEnFJS3RNpPnwI5/3Cp2DFKkyGZCKJpEh+uXJ5BSli5NrgWAV0lWTOnKWHSQ==}
+  '@mark1russell7/conventions@0.50.12':
+    resolution: {integrity: sha512-dpwW6MiAhfIo83z2HHidTEzaSQ5dRK2VOO2LySgYZ7cD5XyGdcsGlfgX1muf+w5egi+KzPzIOtseNetmoAKy6A==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -565,12 +565,12 @@ packages:
     engines: {node: '>=22'}
     hasBin: true
 
-  '@mark1russell7/files@0.0.4':
-    resolution: {integrity: sha512-Pb978ZnvlAxzcdWtRtqTGb7mZFCvlNrdKnpZqhxQ7gafzeNGf1JqYFuB4RWiLbJzRuFUWjEoAVG5f2TndCIlSg==}
+  '@mark1russell7/files@0.0.5':
+    resolution: {integrity: sha512-2p3FGGlLJiHdPE3JFl41CjrS7nkewLbb0QKKhWLHEpjWHP1KT60IKSb7hP8kcF++Yof0XW6wwctQDnQ3p8jZeg==}
     engines: {node: '>=22'}
 
-  '@mark1russell7/geo@0.5.5':
-    resolution: {integrity: sha512-xi68H+YBJRYNx17d6qIrqYtsXXu/TONHKXnvm7lNYUAY4eFFw4goGu1pjh8ctcluaBaAigc7KQ58St5Vxgw5FQ==}
+  '@mark1russell7/geo@0.5.12':
+    resolution: {integrity: sha512-OrULUW+Mq6+qPdpbmaIDG+IdvxYH4cMLxvQn+KEZIlZNQmaY84IB7f0xjljJE1DGorzdhbI5qj9RbontBZB6Zw==}
     engines: {node: '>=22.12'}
 
   '@mark1russell7/highways@0.19.3':
@@ -633,13 +633,13 @@ packages:
     resolution: {integrity: sha512-zMfirguRPEJin3H1q5Rl3kCl6b5M5QSg0ukd/damhZXPwLEUQ/oAYXoRAJA5sSZ7tHW4wZF9DhK8FidiMGsbbg==}
     engines: {node: '>=22'}
 
-  '@mark1russell7/site-pages@0.8.2':
-    resolution: {integrity: sha512-WMErq1NBREuaBOn28Vg+7LMJSTou8+O27qNRoaRt11h+r3j9muf4jFmuwGazDOSS+Cf32gxDT1/IpXbAz2h/Vg==}
+  '@mark1russell7/site-pages@0.8.3':
+    resolution: {integrity: sha512-ZYjdSgnBbBZBLtZ6J7Qs5WZYFNMswKT/SdGi8wHX6v69WvmOxr0F9fn1HuDNFrSoxFbE2h/jibfjjgJ84iQ9Rg==}
     engines: {node: '>=22'}
     hasBin: true
 
-  '@mark1russell7/ste-lint@0.4.0':
-    resolution: {integrity: sha512-V58Mtpt7WOW2wRBreSuuIO4am0WOdrJq8603+NNtqyI5EY0/LpPiQFxEDx+yNOgkN5ddnpPTkjalRTmBF+9GXQ==}
+  '@mark1russell7/ste-lint@0.5.0':
+    resolution: {integrity: sha512-FQ+fDY4qRnOXkjBWJn0pkDKHgrVE0acsgHvrW0fenvd4awpJqooDLsam65K3t7WGs+r7lkDBk3SGlNgSLDi21g==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -1372,8 +1372,8 @@ packages:
     resolution: {integrity: sha512-6xwYfHbajpoF0xLW+iwLkhwgvLoZDfjYfoFNu8ftMoXINzwuymNLd9u/KmwtdT2GbR+/Cz66otEGEVVUHX9QLQ==}
     engines: {node: '>=10.13.0'}
 
-  ireko@0.2.6:
-    resolution: {integrity: sha512-QaXK0hq01VN76B93BqOt0zIelwZz/dn/3EtqWA3vTRMstK2Hk6D61jwJsW/qz0un3L/w6tnZHVOjv6Pz30bQSw==}
+  ireko@0.2.7:
+    resolution: {integrity: sha512-wGhOtkQvyTka35I+lQlO0ajdCpuAhXYSFGk+gLEfkVlmQTHFt3W95NC5AcxK2D35piyaHov+HZRmLAifUfwmfw==}
     engines: {node: '>=22.12'}
     peerDependencies:
       '@xyflow/react': ^12.0.0
@@ -1972,7 +1972,7 @@ snapshots:
 
   '@mark1russell7/api-report@0.5.18':
     dependencies:
-      '@mark1russell7/conventions': 0.50.7
+      '@mark1russell7/conventions': 0.50.12
 
   '@mark1russell7/boundaries@0.3.2(@swc/core@1.16.22)(dependency-cruiser@18.8.0)':
     optionalDependencies:
@@ -1995,16 +1995,16 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
-  '@mark1russell7/conventions@0.50.7':
+  '@mark1russell7/conventions@0.50.12':
     dependencies:
       '@mark1russell7/text': 0.0.17
       yaml: 2.9.1
 
   '@mark1russell7/cue@2.1.4': {}
 
-  '@mark1russell7/files@0.0.4': {}
+  '@mark1russell7/files@0.0.5': {}
 
-  '@mark1russell7/geo@0.5.5':
+  '@mark1russell7/geo@0.5.12':
     dependencies:
       '@mark1russell7/optional': 1.2.0
       '@mark1russell7/predicates': 0.1.5
@@ -2083,13 +2083,13 @@ snapshots:
     dependencies:
       '@mark1russell7/rigor-generators': 0.2.0
 
-  '@mark1russell7/site-pages@0.8.2':
+  '@mark1russell7/site-pages@0.8.3':
     dependencies:
-      '@mark1russell7/rigor-statistics': 0.2.11
+      '@mark1russell7/rigor-statistics': 0.2.19
 
-  '@mark1russell7/ste-lint@0.4.0':
+  '@mark1russell7/ste-lint@0.5.0':
     dependencies:
-      '@mark1russell7/files': 0.0.4
+      '@mark1russell7/files': 0.0.5
       typescript: 6.0.3
 
   '@mark1russell7/strategy-space@0.0.5':
@@ -2621,7 +2621,7 @@ snapshots:
 
   interpret@3.1.1: {}
 
-  ireko@0.2.6: {}
+  ireko@0.2.7: {}
 
   is-core-module@2.18.0:
     dependencies:
