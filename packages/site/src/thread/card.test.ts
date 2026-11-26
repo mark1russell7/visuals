@@ -36,6 +36,20 @@ describe("cardOf", () => {
     ]);
   });
 
+  it("gives no topics for an entry that takes no topic", () => {
+    const box = { id: "unsorted", data: { label: "Not sorted", kinds: ["unsorted"], topics: false } };
+    const document = { ...sample, boxes: [...sample.boxes, box] };
+    const card = cardOf(threadPicture(document, fakeAdvance), "unsorted");
+    expect(card).toMatchObject({ kind: "entry", choosable: false, choices: [], others: [] });
+    const open = cardOf(threadPicture({ ...sample, boxes: [...sample.boxes, { ...box, data: { ...box.data, topics: true } }] }, fakeAdvance), "unsorted");
+    expect(open?.choosable).toBe(true);
+    expect(open?.others.length).toBeGreaterThan(0);
+  });
+
+  it("can give a topic to a part", () => {
+    expect(cardOf(thread, "m01#0", options)?.choosable).toBe(true);
+  });
+
   it("shows the chosen topic and 3 proposals at most", () => {
     const edges = [...(sample.edges ?? []), ...["shed", "seeds", "rota"].map((target, i) => ({ id: `more:${target}`, source: "m01#0", target, data: { kind: "touches", state: "proposed", choice: "m01#0", rank: 4 + i, score: 0.1 } }))];
     const card = cardOf(threadPicture({ ...sample, edges }, fakeAdvance), "m01#0");

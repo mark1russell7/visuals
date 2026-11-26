@@ -829,13 +829,17 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
       h("p", { class: "thread-text" }, model.text),
       ...(link === false ? [] : [link]),
       ...(actions === false ? [] : [actions]),
-      h("h3", { class: "thread-heading" }, model.choices.some((choice) => choice.chosen) ? "Topic" : "Choose a topic"),
-      h(
-        "ul",
-        { class: "thread-choices", role: "radiogroup", "aria-label": "Topics of the sorter" },
-        model.choices.map((choice) => choiceRow(choice, model)),
-      ),
-      ...(model.others.length === 0 ? [] : [more]),
+      ...(model.choosable
+        ? [
+            h("h3", { class: "thread-heading" }, model.choices.some((choice) => choice.chosen) ? "Topic" : "Choose a topic"),
+            h(
+              "ul",
+              { class: "thread-choices", role: "radiogroup", "aria-label": "Topics of the sorter" },
+              model.choices.map((choice) => choiceRow(choice, model)),
+            ),
+            ...(model.others.length === 0 ? [] : [more]),
+          ]
+        : []),
     );
     refocus();
   };

@@ -10,8 +10,9 @@ import { edgeKind, edgeState, isMessageBox, isTopicBox, panelOf, relationOf, typ
  * - `images`: the view shows the image of an entry (`data.image`) in the card of the entry.
  * - `legend-open`: the option `legendOpen` sets the start state of the legend.
  * - `hosts`: the options `tools` and `jumps` put the tools and the buttons of the walks into host elements of the page.
+ * - `no-topic`: the card of an entry with `data.topics: false` shows no topics.
  */
-export const THREAD_FEATURES: readonly string[] = ["nests", "covered", "images", "legend-open", "hosts"];
+export const THREAD_FEATURES: readonly string[] = ["nests", "covered", "images", "legend-open", "hosts", "no-topic"];
 
 /** How a view shows the containers of a document. */
 export interface NestState {

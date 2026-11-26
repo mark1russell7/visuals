@@ -1,5 +1,5 @@
 import type { LayoutEdge } from "@mark1russell7/layout-contract";
-import { actionsOf, choiceOf, choicesOf, edgeKind, edgeState, holdsOf, isChosen, isDone, isTopicBox, labelOf, linkOf, tagOf, textOf, threadKinds, timeOf, waitsOf, type ThreadAction, type ThreadBox, type ThreadDocument, type ThreadKind, type ThreadLegend } from "./document.ts";
+import { actionsOf, choiceOf, choicesOf, edgeKind, edgeState, holdsOf, isChosen, isDone, isTopicBox, labelOf, linkOf, tagOf, takesTopic, textOf, threadKinds, timeOf, waitsOf, type ThreadAction, type ThreadBox, type ThreadDocument, type ThreadKind, type ThreadLegend } from "./document.ts";
 import { timeText, titleOf, type ThreadPicture, type ThreadPictureOptions } from "./picture.ts";
 
 /** A box that a card names: its id and its short name. */
@@ -42,6 +42,8 @@ export interface CardModel extends CardName {
   readonly done: boolean;
   /** The name of who an entry waits on: the title of the legend, or the id. A box that waits on no one has `undefined`. */
   readonly waits: string | undefined;
+  /** This value is true for a part or an entry that can take a topic. The card shows its topics only then. */
+  readonly choosable: boolean;
   /** The topics of a part or of an entry, in the order of the sorter. A different box has an empty list. */
   readonly choices: readonly CardChoice[];
   /** The name of who chose the topic of the part. */
@@ -88,7 +90,7 @@ export function cardOf(thread: ThreadPicture, id: string, options: Pick<ThreadPi
   const title =
     kind === "part" ? `Part ${String(siblings.indexOf(box) + 1)} of ${String(siblings.length)}` : kind === "message" ? "Message" : isTopicBox(box) ? (named ?? "Topic") : kind === "group" ? (named ?? "Group") : (named ?? "Entry");
   // A container is not a part of a choice, also when it is closed and the picture shows it as one box.
-  const has = (kind === "part" || kind === "entry") && !container;
+  const has = (kind === "part" || kind === "entry") && !container && takesTopic(box);
   const ranked = has ? choicesOf(edges, id) : [];
   const listed = [...ranked.filter((choice) => choice.chosen), ...ranked.filter((choice) => !choice.chosen).slice(0, MOST_CHOICES)].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
   const choices = listed.map((choice): CardChoice => ({ ...nameOf(choice.target), edge: choice.edge?.id, chosen: choice.chosen, rank: choice.rank, score: choice.score }));
@@ -114,6 +116,7 @@ export function cardOf(thread: ThreadPicture, id: string, options: Pick<ThreadPi
     link: linkOf(box),
     done: isDone(box),
     waits: waits === undefined ? undefined : titleOf(options.legend?.waits, waits),
+    choosable: has,
     choices,
     by: ranked.find((choice) => choice.chosen)?.by,
     others,
