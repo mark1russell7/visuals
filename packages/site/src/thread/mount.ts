@@ -4,6 +4,7 @@ import { h, svg } from "@mark1russell7/site-pages/chrome";
 import { countOf } from "@mark1russell7/text";
 import { aimAll, aimReveal, createImageStore, createPictureContent, createPictureStage, freeArea, rectToScreen, revealRects, toPicture, type Insets, type PictureAim, type PictureContent, type PictureRecord, type PictureStage, type PictureView } from "@mark1russell7/visuals/graph";
 import { anchorRect } from "./anchor.ts";
+import { controlsTop, legendOpenAt, placeControls } from "./controls.ts";
 import { cardOf, relationNames, type CardChoice, type CardModel, type CardName, type TopicChoiceEvent } from "./card.ts";
 import { choiceOf, edgeKind, edgeState, isChosen, isProposal, labelOf, waitsOf, type ThreadBox, type ThreadDocument, type ThreadLegend } from "./document.ts";
 import { TEXT_ZOOM, threadLooks, type ThreadLookState, type ThreadTheme } from "./looks.ts";
@@ -37,6 +38,18 @@ export interface ThreadViewOptions extends Pick<ThreadPictureOptions, "router" |
   readonly label?: string | undefined;
   /** The parts of the view that the page covers, from each edge, in CSS pixels. */
   readonly covered?: Partial<Insets> | undefined;
+  /**
+   * The start state of the legend. With no value, the legend is open on a wide view and closed on a narrow view.
+   * A build has this option when `THREAD_FEATURES` has `legend-open`.
+   */
+  readonly legendOpen?: boolean | undefined;
+  /**
+   * The host element of the tools: the switches, the zoom and the button that shows all. With a host, the tools are in it and not on the canvas.
+   * The view puts a wrapper with the class `thread` into the host, so the style and the colors of the view apply. A build has this option when `THREAD_FEATURES` has `hosts`.
+   */
+  readonly tools?: HTMLElement | undefined;
+  /** The host element of the buttons of the walks, for example "No topic yet". It works as `tools` does. */
+  readonly jumps?: HTMLElement | undefined;
   /** With `true`, each proposal has a line from the start. The default is `false`: only the proposals of the selected part have lines. */
   readonly proposals?: boolean | undefined;
   /** The view starts this function when a person selects a box, or selects no box. */
@@ -253,10 +266,12 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     button("thread-tool thread-fit", { "aria-label": "Show all" }, [h("span", { class: "thread-fit-sign", "aria-hidden": "true" }), h("span", { class: "thread-fit-words" }, "Show all")], () => stage?.setView("all")),
   );
   // The row of the controls: the buttons of the walks take the room that the controls leave.
-  const controls = h("div", { class: "thread-controls" }, jumps, tools);
+  // A part with a host element of the page goes into a wrapper in that host (V23).
+  const controls = h("div", { class: "thread-controls" });
+  const placed = placeControls<HTMLElement>({ jumps, tools }, { jumps: options.jumps, tools: options.tools }, controls, (part) => h("div", { class: "thread thread-hosted" }, part));
   const card = h("aside", { class: "thread-card", hidden: true, "aria-label": "The selected box" });
   const legendList = h("ul");
-  const legendBox = h("details", { class: "thread-legend", open: true }, h("summary", {}, "Legend"), legendList);
+  const legendBox = h("details", { class: "thread-legend", open: options.legendOpen ?? true }, h("summary", {}, "Legend"), legendList);
   const tip = h("div", { class: "thread-tip", role: "tooltip", hidden: true });
   const root = h("div", { class: "thread" }, stageBox, slotLayer, note, controls, card, legendBox, tip);
 
@@ -264,8 +279,10 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   const setColors = (theme: ThreadTheme): void => {
     for (const [key, property] of Object.entries(THEME_PROPERTIES)) {
       const color = theme[key as keyof ThreadTheme];
-      if (color === undefined) root.style.removeProperty(property);
-      else root.style.setProperty(property, color);
+      for (const at of [root, ...placed.wrappers]) {
+        if (color === undefined) at.style.removeProperty(property);
+        else at.style.setProperty(property, color);
+      }
     }
   };
   setColors(options.theme);
@@ -279,7 +296,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
     const narrow = root.clientWidth <= NARROW;
     // The buttons of the walks are in two rows in a view that has no room for them in one row, so the row of the controls gives the height.
     const rowEnd = controls.offsetHeight === 0 ? 0 : controls.offsetTop + controls.offsetHeight + 4;
-    const top = Math.max(narrow ? 56 : 52, rowEnd);
+    const top = controlsTop(placed.inRow, narrow, rowEnd);
     const own = narrow ? { top, right: 0, bottom: card.hidden ? 0 : card.offsetHeight, left: 0 } : { top, right: card.hidden ? 0 : card.offsetWidth + 20, bottom: 0, left: 0 };
     const most = (edge: keyof Insets): number => Math.max(own[edge], pageCovers[edge] ?? 0, more[edge] ?? 0);
     return { top: most("top"), right: most("right"), bottom: most("bottom"), left: most("left") };
@@ -1031,7 +1048,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
   const observer = new ResizeObserver(() => {
     if (first && root.clientWidth > 0) {
       first = false;
-      legendBox.open = root.clientWidth > NARROW;
+      legendBox.open = legendOpenAt(options.legendOpen, root.clientWidth, NARROW);
       // A view that had no size at its start has a picture with no shape. Its first size gives the shape.
       if (aspect === undefined) {
         aspect = shapeNow();
@@ -1094,6 +1111,7 @@ export function mountThreadView(element: HTMLElement, options: ThreadViewOptions
       router?.dispose();
       stage?.dispose();
       images.dispose();
+      for (const wrapper of placed.wrappers) wrapper.remove();
       root.remove();
     },
   };
