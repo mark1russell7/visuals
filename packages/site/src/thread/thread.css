@@ -112,6 +112,23 @@
   pointer-events: auto;
 }
 
+/*
+ * The wrapper of a part in a host element of the page (V23). It has the class `thread` for the style and the colors of the view,
+ * but it is not a canvas: it has the size of its content and no background. It stays a container, so a narrow host gets the narrow controls.
+ */
+.thread.thread-hosted {
+  position: static;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  background: none;
+  border-radius: 0;
+}
+.thread-hosted > .thread-tools {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 /* The controls of the camera and the switches. They are one row at each width, so a page can put its own bar below them. */
 .thread-tools {
   display: flex;
