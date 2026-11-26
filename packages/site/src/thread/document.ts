@@ -25,6 +25,7 @@ export type ThreadBox = Omit<LayoutBox, "w" | "h"> & { readonly w?: number | und
  * - An entry is a box with no box in it that is not a part, a topic or a panel. Its tag is its second kind.
  * - An entry can have `data.waits`: the id of who the entry waits on, for example a person. The entry stands out in the picture.
  * - An entry can have `data.image`: the address of an image, for example a small picture of the page of its `data.ref`.
+ * - An entry with `data.topics: false` takes no topic. It only collects other boxes of the page, so its card shows no topics.
  * - A panel has `panel` as its first kind, and no parent. It is the place of a form of the page, next to the box of its `data.of`.
  * - An edge has `data.kind`: `reply`, `part`, `touches`, `relates` or `panel`. An edge `relates` can have `data.relation`.
  * - An edge of a sorter has also `data.state`, `data.rank`, `data.score`, `data.choice` and `data.by`.
@@ -111,6 +112,11 @@ export function isMessageBox(box: WithData): boolean {
  */
 export function isTopicBox(box: WithData): boolean {
   return kindsOf(box)[0] === "topic";
+}
+
+/** This function tells if a box can take a topic. A box with `data.topics: false` takes no topic. */
+export function takesTopic(box: WithData): boolean {
+  return box.data?.["topics"] !== false;
 }
 
 /**

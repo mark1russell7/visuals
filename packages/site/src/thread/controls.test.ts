@@ -61,5 +61,6 @@ describe("THREAD_FEATURES", () => {
   it("tells a page that the build has the start state of the legend and the hosts of the controls", () => {
     expect(THREAD_FEATURES).toContain("legend-open");
     expect(THREAD_FEATURES).toContain("hosts");
+    expect(THREAD_FEATURES).toContain("no-topic");
   });
 });
