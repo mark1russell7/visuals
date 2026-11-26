@@ -157,6 +157,16 @@ export interface LabelLook {
    * A box with no room for its larger size stays as it is, with its name at its place.
    */
   readonly boxed?: { readonly x: number; readonly y: number } | undefined;
+  /**
+   * The rank of a text that keeps a height, in the order of the places. A text with a higher rank has the first choice of a place.
+   * The highlight of a record comes first, then the rank, then the area of the box. The default is 0.
+   */
+  readonly rank?: number | undefined;
+  /**
+   * With `true`, a text that keeps a height covers no box with no child, other than the box that it names. A text with no such place has no paint.
+   * A box with no room for its larger size then keeps no name at its place, because the name is too small to read.
+   */
+  readonly clear?: boolean | undefined;
 }
 
 /** The largest height on the screen that a label keeps with `least`, in CSS pixels. A larger value of `least` becomes this value. */

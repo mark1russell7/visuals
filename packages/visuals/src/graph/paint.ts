@@ -134,6 +134,54 @@ export const ARROW_SPREAD = 0.45;
 /** The smallest distance between two labels that keep a height on the screen, in units of a look. */
 export const KEPT_GAP = 4;
 
+/** The side of a cell of the grid of the boxes with no child, in units of a look. A text that keeps a height finds the boxes near it in the grid. */
+const LEAF_CELL = 128;
+
+/** The boxes with no child in the view, in the cells of a grid. */
+interface LeafGrid {
+  readonly cell: number;
+  readonly cells: Map<string, PictureBox[]>;
+}
+
+/** This function gives the range of the cells of a grid that a rectangle touches, on one axis. */
+function cellSpan(start: number, length: number, cell: number): [number, number] {
+  return [Math.floor(start / cell), Math.floor((start + Math.max(0, length)) / cell)];
+}
+
+/** This function puts each box into each cell of the grid that it touches. */
+function leafGrid(boxes: readonly PictureBox[], cell: number): LeafGrid {
+  const cells = new Map<string, PictureBox[]>();
+  for (const box of boxes) {
+    const [x0, x1] = cellSpan(box.x, box.w, cell);
+    const [y0, y1] = cellSpan(box.y, box.h, cell);
+    for (let i = x0; i <= x1; i++) {
+      for (let j = y0; j <= y1; j++) {
+        const key = `${String(i)},${String(j)}`;
+        const list = cells.get(key);
+        if (list === undefined) cells.set(key, [box]);
+        else list.push(box);
+      }
+    }
+  }
+  return { cell, cells };
+}
+
+/** This function tells if a rectangle covers a box of the grid that is not the box `own`. */
+function coversLeaf(grid: LeafGrid, rect: Rect, own: string | undefined): boolean {
+  const [x0, x1] = cellSpan(rect.x, rect.w, grid.cell);
+  const [y0, y1] = cellSpan(rect.y, rect.h, grid.cell);
+  for (let i = x0; i <= x1; i++) {
+    for (let j = y0; j <= y1; j++) {
+      for (const box of grid.cells.get(`${String(i)},${String(j)}`) ?? []) {
+        if (box.id === own) continue;
+        const overlap = overlapOf(rect, box);
+        if (overlap.x > 0 && overlap.y > 0) return true;
+      }
+    }
+  }
+  return false;
+}
+
 /** This function gives the key of a record for `fade`: its type, a colon and its id. A box and a route with the same id have different keys. */
 export function recordKey(type: PictureRecord["type"], id: string): string {
   return `${type}:${id}`;
@@ -323,6 +371,22 @@ function placeIn(rect: Rect, area: Rect, view: Rect, box: Rect | undefined, pad:
   return seen.x > 0 && seen.y > 0 ? undefined : rect;
 }
 
+/**
+ * This function gives the places that the plate of a box that becomes larger tries, in their order.
+ * The first place has its middle at the middle of the box. The next places put the plate at each edge and at each corner of the box, so the box grows to that side.
+ */
+function platesAround(plate: Rect, box: Rect): Rect[] {
+  const xs = [box.x + box.w / 2 - plate.w / 2, box.x, box.x + box.w - plate.w, box.x - plate.w, box.x + box.w];
+  const ys = [box.y + box.h / 2 - plate.h / 2, box.y, box.y + box.h - plate.h, box.y - plate.h, box.y + box.h];
+  const all: Rect[] = [];
+  for (const y of ys) for (const x of xs) all.push({ ...plate, x, y });
+  // The order is by the distance of the middle of the plate from the middle of the box, so the plate stays near its box. The sort keeps the order of two equal distances.
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  const distance = (rect: Rect): number => Math.hypot(rect.x + rect.w / 2 - cx, rect.y + rect.h / 2 - cy);
+  return all.sort((a, b) => distance(a) - distance(b));
+}
+
 /** This function adds the texts of a label that keeps a height on the screen. `rect` is the rectangle of its lines. */
 function addKept(shapes: PaintShape[], kept: KeptLabel, rect: Rect): void {
   const { label, look, scale, opacity } = kept;
@@ -445,6 +509,8 @@ export function paintPicture<T>(index: PictureIndex, looks: PictureLooks<T>, the
 
   const containers: PaintShape[] = [];
   const leaves: PaintShape[] = [];
+  /** The boxes with no child in the view. A text with `clear` covers none of them. */
+  const shownLeaves: PictureBox[] = [];
   for (const box of picture.boxes) {
     const labels = index.boxLabels.get(box.id) ?? [];
     const shown = inView(box);
@@ -456,6 +522,7 @@ export function paintPicture<T>(index: PictureIndex, looks: PictureLooks<T>, the
     const shapes = boxIs.container ? containers : leaves;
     const from = shapes.length;
     if (shown) addBox(shapes, box, look, unit, share);
+    if (shown && !boxIs.container) shownLeaves.push(box);
     const to = shapes.length;
     let own: KeptBox | undefined;
     const of = (): KeptBox => (own ??= { box, look, share, shapes: shapes.slice(from, to) });
@@ -521,36 +588,57 @@ export function paintPicture<T>(index: PictureIndex, looks: PictureLooks<T>, the
       plans.push({ item, text, plate, size: Math.max(of.box.w, plate.w) * Math.max(of.box.h, plate.h), of });
     }
     // The sort keeps the order of two labels of the same rank: the boxes, then the routes, then the labels that name no record.
-    plans.sort((a, b) => b.item.highlight - a.item.highlight || b.size - a.size);
+    plans.sort((a, b) => b.item.highlight - a.item.highlight || (b.item.look.rank ?? 0) - (a.item.look.rank ?? 0) || b.size - a.size);
     const taken: Rect[] = [];
-    for (const { item, text, plate, of } of plans) {
-      // A text that an edge of the free area cuts moves into the area, before it takes its place.
-      const placed = area === undefined ? plate : placeIn(plate, area, visible ?? area, item.of?.box, gap);
-      // The larger box is the smallest rectangle around its box and the plate. Thus a text that moved stays in its box.
-      const rect =
-        placed === undefined || of === undefined
-          ? placed
-          : boundsOf({
-              kind: "polygon",
-              points: [
-                [of.box.x, of.box.y],
-                [of.box.x + of.box.w, of.box.y + of.box.h],
-                [placed.x, placed.y],
-                [placed.x + placed.w, placed.y + placed.h],
-              ],
-            });
-      const clear =
-        rect !== undefined &&
-        inView(rect) &&
-        taken.every((other) => {
-          const overlap = overlapOf(grow(rect, gap), other);
-          return !(overlap.x > 0 && overlap.y > 0);
-        });
-      if (placed === undefined || rect === undefined || !clear) {
+    let grid: LeafGrid | undefined;
+    const coversOther = (rect: Rect, own: string | undefined): boolean => coversLeaf((grid ??= leafGrid(shownLeaves, LEAF_CELL * unit)), rect, own);
+    for (const plan of plans) {
+      const { item, of } = plan;
+      /** This function gives the place of the plate and the rectangle that it takes, or `undefined` when the place is not clear. */
+      const tryPlate = (plate: Rect): { placed: Rect; rect: Rect } | undefined => {
+        // A text that an edge of the free area cuts moves into the area, before it takes its place.
+        const placed = area === undefined ? plate : placeIn(plate, area, visible ?? area, item.of?.box, gap);
+        if (placed === undefined) return undefined;
+        // The larger box is the smallest rectangle around its box and the plate. Thus a text that moved stays in its box.
+        const rect =
+          of === undefined
+            ? placed
+            : boundsOf({
+                kind: "polygon",
+                points: [
+                  [of.box.x, of.box.y],
+                  [of.box.x + of.box.w, of.box.y + of.box.h],
+                  [placed.x, placed.y],
+                  [placed.x + placed.w, placed.y + placed.h],
+                ],
+              });
+        const clear =
+          inView(rect) &&
+          taken.every((other) => {
+            const overlap = overlapOf(grow(rect, gap), other);
+            return !(overlap.x > 0 && overlap.y > 0);
+          }) &&
+          !(item.look.clear === true && coversOther(rect, item.of?.box.id));
+        return clear ? { placed, rect } : undefined;
+      };
+      // With `clear`, a box that becomes larger can grow to each side of its box: its plate tries the middle, then each edge and each corner.
+      const plates = of !== undefined && item.look.clear === true ? platesAround(plan.plate, of.box) : [plan.plate];
+      let found: { placed: Rect; rect: Rect; plate: Rect } | undefined;
+      for (const plate of plates) {
+        const at = tryPlate(plate);
+        if (at !== undefined) {
+          found = { ...at, plate };
+          break;
+        }
+      }
+      if (found === undefined) {
         // A box with no room for its larger size stays as it is, with its name at its place.
-        if (of !== undefined && inView(item.label)) addLabel(small, item.label, item.look, of.share, measure);
+        // With `clear`, the name at its place is too small to read, so it has no paint.
+        if (of !== undefined && item.look.clear !== true && inView(item.label)) addLabel(small, item.label, item.look, of.share, measure);
         continue;
       }
+      const { placed, rect, plate } = found;
+      const text = { ...plan.text, x: plan.text.x + plate.x - plan.plate.x, y: plan.text.y + plate.y - plan.plate.y };
       taken.push(rect);
       if (of !== undefined) {
         const opacity = boxOpacity(of.look, of.share);

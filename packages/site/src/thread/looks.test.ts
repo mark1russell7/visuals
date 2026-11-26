@@ -2,7 +2,7 @@ import type { PictureBox, PictureLabel, PictureRoute } from "@mark1russell7/layo
 import { KEPT_GAP, type RecordState } from "@mark1russell7/visuals/graph";
 import { describe, expect, it } from "vitest";
 import { fakeAdvance } from "./advance.test-util.ts";
-import { DONE_OPACITY, FAR_LINE_OPACITY, farNameLine, GROUP_LIT_OPACITY, GROUP_NAME_LEAST, GROUP_NAME_LINE, GROUP_OPACITY, GROUP_RADIUS, groupNameLine, INNER_TOPIC_LINE, LIGHT_THREAD_THEME, PANEL_DASH, PANEL_NAME_LINE, PANEL_RADIUS, PROPOSAL_OPACITY, TEXT_ZOOM, threadLooks, TOPIC_NAME_PAD, WAITS_WIDTH, waitsColor, type ThreadLookState } from "./looks.ts";
+import { DONE_OPACITY, FAR_LINE_OPACITY, FAR_RANK, farNameLine, GROUP_LIT_OPACITY, GROUP_NAME_LEAST, GROUP_NAME_LINE, GROUP_OPACITY, GROUP_RADIUS, groupNameLine, INNER_TOPIC_LINE, LIGHT_THREAD_THEME, PANEL_DASH, PANEL_NAME_LINE, PANEL_RADIUS, PROPOSAL_OPACITY, TEXT_ZOOM, threadLooks, TOPIC_NAME_PAD, WAITS_WIDTH, waitsColor, type ThreadLookState } from "./looks.ts";
 import { panelId, withPanels } from "./panel.test-util.ts";
 import { labelId, threadPicture } from "./picture.ts";
 import { sampleThread } from "./sample.ts";
@@ -218,7 +218,7 @@ describe("the look of a panel", () => {
   it("shows the name of a panel only in a far view, where the content of the page is not visible", () => {
     const of = { type: "box", id, box: panel } as const;
     expect(panelLooks.label(name, near, theme, of)).toBeUndefined();
-    expect(panelLooks.label(name, far, theme, of)).toEqual({ color: theme.text, halo: theme.surface, least: PANEL_NAME_LINE });
+    expect(panelLooks.label(name, far, theme, of)).toEqual({ color: theme.text, halo: theme.surface, least: PANEL_NAME_LINE, rank: FAR_RANK.group, clear: true });
   });
 });
 
@@ -241,11 +241,16 @@ describe("the look of a label", () => {
     expect(labelLook(labelId("date", "m01"), "m01", far)).toBeUndefined();
   });
 
+  it("names the topics first in a far view, and no name covers a box of a different record", () => {
+    expect(FAR_RANK.topic).toBeGreaterThan(FAR_RANK.group);
+    for (const id of ["trench", "water"]) expect(labelLook(labelId("text", id), id, far)).toMatchObject({ clear: true });
+  });
+
   it("keeps the name of a topic in its pill, at a height that a person reads in a far view", () => {
     const size = thread.sizes.get("trench");
     const least = farNameLine(size !== undefined && isTopicLook(size.look) ? size.look.size : 0);
     // The pill becomes larger around the name, so the name has the color of the text of a topic.
-    expect(labelLook(labelId("text", "trench"), "trench", far)).toEqual({ color: theme.topicText, least, boxed: TOPIC_NAME_PAD });
+    expect(labelLook(labelId("text", "trench"), "trench", far)).toEqual({ color: theme.topicText, least, boxed: TOPIC_NAME_PAD, rank: FAR_RANK.topic, clear: true });
     // The ring of the pill shows a highlight, and the pill of a topic that is done has less color.
     expect(labelLook(labelId("text", "trench"), "trench", { ...far, highlight: 1 })).toEqual(labelLook(labelId("text", "trench"), "trench", far));
     expect(labelLook(labelId("text", "fence"), "fence", far)).not.toHaveProperty("opacity");
@@ -289,15 +294,15 @@ describe("the look of a group", () => {
   });
 
   it("keeps a smaller name for a topic in a group, in a far view", () => {
-    expect(group.label("text", "rota", far)).toEqual({ color: theme.topicText, least: INNER_TOPIC_LINE, boxed: TOPIC_NAME_PAD });
+    expect(group.label("text", "rota", far)).toEqual({ color: theme.topicText, least: INNER_TOPIC_LINE, boxed: TOPIC_NAME_PAD, rank: FAR_RANK.topic, clear: true });
     expect(INNER_TOPIC_LINE).toBeLessThan(farNameLine(15));
   });
 
   it("keeps the name of a group in a far view, larger for a group at the top", () => {
     expect(group.label("text", "water", near)).toEqual({ color: theme.text });
     expect(group.label("text", "water", lit)).toEqual({ color: theme.accent });
-    expect(group.label("text", "water", far)).toEqual({ color: theme.text, halo: theme.background, least: groupNameLine(far.zoom, true) });
-    expect(group.label("text", "trench", far)).toEqual({ color: theme.text, halo: theme.background, least: groupNameLine(far.zoom, false) });
+    expect(group.label("text", "water", far)).toEqual({ color: theme.text, halo: theme.background, least: groupNameLine(far.zoom, true), rank: FAR_RANK.group, clear: true });
+    expect(group.label("text", "trench", far)).toEqual({ color: theme.text, halo: theme.background, least: groupNameLine(far.zoom, false), rank: FAR_RANK.group, clear: true });
     expect(GROUP_NAME_LINE.top).toBeGreaterThan(GROUP_NAME_LINE.inner);
   });
 
@@ -305,15 +310,17 @@ describe("the look of a group", () => {
     // At the zoom where a far view starts, the header has room for the largest name.
     expect(groupNameLine(TEXT_ZOOM, true)).toBe(GROUP_NAME_LINE.top);
     expect(groupNameLine(TEXT_ZOOM, false)).toBe(GROUP_NAME_LINE.inner);
-    expect(groupNameLine(0.5, true)).toBeCloseTo(GROUP_LOOK.header * 0.5 - KEPT_GAP - 1);
-    expect(groupNameLine(0.5, false)).toBe(groupNameLine(0.5, true));
+    expect(groupNameLine(0.62, true)).toBeCloseTo(GROUP_LOOK.header * 0.62 - KEPT_GAP - 1);
+    expect(groupNameLine(0.62, false)).toBe(Math.min(GROUP_NAME_LINE.inner, groupNameLine(0.62, true)));
     expect(groupNameLine(0.1, true)).toBe(GROUP_NAME_LEAST);
     expect(groupNameLine(0.1, false)).toBe(GROUP_NAME_LEAST);
   });
 
   it("gives a group and a group in it room for their two names, down to the smallest name", () => {
     // The names of a group and of a group in it are one header apart. The stage keeps `KEPT_GAP` between two names.
-    for (const zoom of [0.69, 0.6, 0.57, 0.5, 0.48]) {
+    // Below the zoom of the smallest name, the stage shows the name of the larger group only.
+    const lowest = (GROUP_NAME_LEAST + KEPT_GAP + 1) / GROUP_LOOK.header;
+    for (const zoom of [0.69, 0.6, 0.57, lowest]) {
       const apart = GROUP_LOOK.header * zoom;
       expect((groupNameLine(zoom, true) + groupNameLine(zoom, false)) / 2 + KEPT_GAP, String(zoom)).toBeLessThanOrEqual(apart);
       expect(groupNameLine(zoom, false) + KEPT_GAP, String(zoom)).toBeLessThanOrEqual(apart);
