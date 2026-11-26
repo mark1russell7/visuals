@@ -1032,11 +1032,21 @@ describe("a label that keeps a height on the screen", () => {
       const clearLook: LabelLook = { ...nameLook, clear: true };
       /** A box with no child 2 units right of the pill. The larger pill ends at 268 on the x axis, so it covers the box. */
       const near: PictureBox = { id: "near", x: 262, y: 105, w: 10, h: 10 };
-      const crowded = (more: PictureBox = near): PictureIndex => pictureWith([pill, more], [], [pillName]);
+      /** A box with no child 4 units left of the pill. With the near box, each larger pill covers one of the two. */
+      const left: PictureBox = { id: "left", x: 186, y: 105, w: 10, h: 10 };
+      const crowded = (...more: PictureBox[]): PictureIndex => pictureWith([pill, ...(more.length === 0 ? [near] : more)], [], [pillName]);
+
+      it("grows to the side with room when a box with no child is near its middle", () => {
+        // The larger pill grows to the left: its right edge is the right edge of the pill, 2 units before the near box.
+        const shapes = grown({}, pillLooks(pillLook, clearLook), crowded());
+        expect(shapes).toContainEqual({ ...LARGER, outline: { ...LARGER.outline, x: 184 } });
+        expect(shapes).toContainEqual({ ...TOPIC_TEXT, x: 192 });
+        expect(texts(shapes)).toEqual(["Topic"]);
+      });
 
       it("gives no place over a box with no child, and no name at its place", () => {
-        expect(texts(grown({}, pillLooks(pillLook, clearLook), crowded()))).toEqual([]);
-        const shapes = grown({}, pillLooks(pillLook, clearLook), crowded());
+        expect(texts(grown({}, pillLooks(pillLook, clearLook), crowded(near, left)))).toEqual([]);
+        const shapes = grown({}, pillLooks(pillLook, clearLook), crowded(near, left));
         expect(shapes).toContainEqual(PILL);
         expect(shapes.some((shape) => "box" in shape && shape.box !== undefined)).toBe(false);
         // Without clear, the larger pill covers the box.
@@ -1045,7 +1055,7 @@ describe("a label that keeps a height on the screen", () => {
 
       it("covers its own box, a box out of the larger pill and a container", () => {
         expect(grown({}, pillLooks(pillLook, clearLook))).toEqual([LARGER, TOPIC_TEXT]);
-        expect(texts(grown({}, pillLooks(pillLook, clearLook), crowded({ ...near, x: 300 })))).toEqual(["Topic"]);
+        expect(texts(grown({}, pillLooks(pillLook, clearLook), crowded({ ...near, x: 300 }, { ...left, x: 100 })))).toEqual(["Topic"]);
         // A box with boxes in it is not a box with no child.
         const framed = pictureWith([{ id: "frame", x: 100, y: 50, w: 300, h: 200 }, { ...pill, parent: "frame" }], [], [pillName]);
         expect(texts(grown({}, pillLooks(pillLook, clearLook), framed))).toEqual(["Topic"]);
@@ -1053,8 +1063,9 @@ describe("a label that keeps a height on the screen", () => {
 
       it("finds a box in each cell of the grid that the larger pill touches", () => {
         // At the zoom 0.25, a cell has 512 units. The larger pill from 442 to 518 is in two cells, and a box from 514 to 524 is only in the second cell.
-        const far = pictureWith([{ ...pill, x: 450 }, { ...near, x: 514 }], [], [{ ...pillName, box: "pill", x: 455 }]);
-        expect(texts(grown({}, pillLooks(pillLook, clearLook), pictureWith([{ ...pill, x: 450 }, { ...near, x: 530 }], [], [{ ...pillName, box: "pill", x: 455 }])))).toEqual(["Topic"]);
+        // A box from 436 to 446 stops the larger pills that grow to the left.
+        const far = pictureWith([{ ...pill, x: 450 }, { ...near, x: 514 }, { ...left, x: 436 }], [], [{ ...pillName, box: "pill", x: 455 }]);
+        expect(texts(grown({}, pillLooks(pillLook, clearLook), pictureWith([{ ...pill, x: 450 }, { ...near, x: 530 }, { ...left, x: 436 }], [], [{ ...pillName, box: "pill", x: 455 }])))).toEqual(["Topic"]);
         expect(texts(grown({}, pillLooks(pillLook, clearLook), far))).toEqual([]);
       });
     });
