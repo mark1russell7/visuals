@@ -183,7 +183,7 @@ importers:
         version: 0.3.2(@swc/core@1.16.22)(dependency-cruiser@18.8.0)
       '@mark1russell7/conventions':
         specifier: ^0.54.0
-        version: 0.54.0
+        version: 0.54.1
       '@mark1russell7/cue':
         specifier: ^2.0.0
         version: 2.1.4
@@ -225,13 +225,13 @@ importers:
         version: 2.1.4
       '@mark1russell7/geo':
         specifier: ^0.5.0
-        version: 0.5.17
+        version: 0.5.18
       '@mark1russell7/highways':
         specifier: ^0.19.1
         version: 0.19.3
       '@mark1russell7/layout-contract':
         specifier: ^0.11.0
-        version: 0.11.3
+        version: 0.11.4
       '@mark1russell7/packing':
         specifier: ^0.19.0
         version: 0.19.0
@@ -276,10 +276,10 @@ importers:
     dependencies:
       '@mark1russell7/geo':
         specifier: ^0.5.0
-        version: 0.5.17
+        version: 0.5.18
       '@mark1russell7/layout-contract':
         specifier: ^0.11.0
-        version: 0.11.3
+        version: 0.11.4
     devDependencies:
       '@mark1russell7/cue':
         specifier: ^2.0.0
@@ -551,12 +551,12 @@ packages:
     resolution: {integrity: sha512-uOqrK6ZYqgbG8DLchTU2FO8DcNeeeLbNAqR8E3YTe/HKK3rk4ZpR0M0GlYG/7ApiWfrFkVhW1rCF6opaeiL16g==}
     engines: {node: '>=22.12'}
 
-  '@mark1russell7/collections@0.11.3':
-    resolution: {integrity: sha512-KKAYIACji5XtOpbE3fIX4D3aVd0oddyM9dU+Pk+lXpgYOh6VTVoa/0yzwDTipZ42RKp+6BG+LSkLjCe/FjCHFA==}
+  '@mark1russell7/collections@0.11.5':
+    resolution: {integrity: sha512-ZWAbb/PRwllj+WjY536zytXYcB0ZUeYJcz4hHwVAKquCheIxl5VsfPBG8X2zPPNw9aS5mknM3TzlkL5Xk7bpfg==}
     engines: {node: '>=22.12'}
 
-  '@mark1russell7/conventions@0.54.0':
-    resolution: {integrity: sha512-pqdCwKE5ejF5Bf0pYvpbykFpzW8zgBh3MCRmpiOzuXgIYCnoEPAHmPFB316BohXS9HMV6o5OJsjfXJPq+gR+Vw==}
+  '@mark1russell7/conventions@0.54.1':
+    resolution: {integrity: sha512-E0yy1BWw6wM2Y2L2MysbgId+C2v1ACFMCvm3nXch1PUqYbWXkDrca9kN5OlBhMfohvsHyHgW2tZYI+KZxPMWBw==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -569,8 +569,8 @@ packages:
     resolution: {integrity: sha512-VLsy9pwIP1LuDEOkzVpUKU/SOTw+/d3F/IYjSp0Fj+Cqfl440Qs/ad5islvClQEKPNmiDp5Zs+VraNO2QQ/MkQ==}
     engines: {node: '>=22'}
 
-  '@mark1russell7/geo@0.5.17':
-    resolution: {integrity: sha512-UiXSrzj9usMGR087VBbzS/p83ObsGXonklFfRm2M6vJ+P3fr+zJXbw3bUdQQQIwiJW5NKgNr9/UOsI5NPaqE/A==}
+  '@mark1russell7/geo@0.5.18':
+    resolution: {integrity: sha512-ckFBGhF23vxxc0L+BPsA+vhcoe0kKfn0RyFb42ioxBSisQTXXcTUaOoO+h+rQjlQ67a3XMBjHIoRM13JpHuZWQ==}
     engines: {node: '>=22.12'}
 
   '@mark1russell7/highways@0.19.3':
@@ -584,8 +584,8 @@ packages:
     resolution: {integrity: sha512-/al3v3Q/DH9QvSVZdAqxjKIcoC53FfhCR6T6p819lUIMFglNswy8AaXEo3EZ7rz0xBwBj5C4X0bPLWitrcOsLg==}
     engines: {node: '>=22.12'}
 
-  '@mark1russell7/layout-contract@0.11.3':
-    resolution: {integrity: sha512-kpOC87QPH+6vNPrrkxcdbf6nBo9IK5PXI3CY6apY1u317fyJ69Vca6IOibr9vI2Dg2atD11t6cStchLVzmynjw==}
+  '@mark1russell7/layout-contract@0.11.4':
+    resolution: {integrity: sha512-WG3Y7yhqbxDu82cgw2fVEUrD4ajHBNhJXJWTXSSuN+uvhpTGXGIRFSOlj4q/By/ouVXq4KZxB2bEeZundTOUNg==}
     engines: {node: '>=22.12'}
 
   '@mark1russell7/optional@1.2.0':
@@ -1972,7 +1972,7 @@ snapshots:
 
   '@mark1russell7/api-report@0.5.22':
     dependencies:
-      '@mark1russell7/conventions': 0.54.0
+      '@mark1russell7/conventions': 0.54.1
 
   '@mark1russell7/boundaries@0.3.2(@swc/core@1.16.22)(dependency-cruiser@18.8.0)':
     optionalDependencies:
@@ -1987,7 +1987,7 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
-  '@mark1russell7/collections@0.11.3':
+  '@mark1russell7/collections@0.11.5':
     dependencies:
       '@mark1russell7/algebra': 0.8.10
       '@mark1russell7/optional': 1.2.0
@@ -1995,7 +1995,7 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
-  '@mark1russell7/conventions@0.54.0':
+  '@mark1russell7/conventions@0.54.1':
     dependencies:
       '@mark1russell7/text': 0.0.20
       yaml: 2.9.1
@@ -2004,7 +2004,7 @@ snapshots:
 
   '@mark1russell7/files@0.0.6': {}
 
-  '@mark1russell7/geo@0.5.17':
+  '@mark1russell7/geo@0.5.18':
     dependencies:
       '@mark1russell7/optional': 1.2.0
       '@mark1russell7/predicates': 0.1.5
@@ -2038,8 +2038,9 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
-  '@mark1russell7/layout-contract@0.11.3':
+  '@mark1russell7/layout-contract@0.11.4':
     dependencies:
+      '@mark1russell7/collections': 0.11.5
       '@mark1russell7/predicates': 0.1.5
       '@mark1russell7/rigor-generators': 0.2.0
       '@mark1russell7/rigor-statistics': 0.2.19
@@ -2122,7 +2123,7 @@ snapshots:
 
   '@mark1russell7/typeset@0.7.0':
     dependencies:
-      '@mark1russell7/collections': 0.11.3
+      '@mark1russell7/collections': 0.11.5
       '@mark1russell7/rigor-generators': 0.2.0
     transitivePeerDependencies:
       - zod
