@@ -100,6 +100,13 @@ export const PANEL_RADIUS = 10;
 /** The dashes of the line from a box to its panel. */
 export const PANEL_DASH: readonly number[] = [3, 4];
 
+/**
+ * The ranks of the names in a far view. A name with a higher rank has the first choice of a place.
+ * Thus a far view names the topics first, and a nearer view has room for the names of the groups and the panels too.
+ * No name covers a box with no child of a different record, so a name with no free place waits for a nearer view.
+ */
+export const FAR_RANK = { topic: 2, group: 1 } as const;
+
 /** The height on the screen of the name of a panel in a far view. */
 export const PANEL_NAME_LINE = 15;
 
@@ -115,8 +122,8 @@ export const GROUP_LIT_OPACITY = 0.6;
 /** The largest height on the screen of the name of a group in a far view. `top` is for a group at the top, and `inner` for a group in a group. */
 export const GROUP_NAME_LINE = { top: 18, inner: 14 } as const;
 
-/** The smallest height on the screen of the name of a group in a far view: the smallest line that a person reads. */
-export const GROUP_NAME_LEAST = 11;
+/** The smallest height on the screen of the name of a group in a far view: a line with letters of 10 CSS pixels. */
+export const GROUP_NAME_LEAST = 14;
 
 /**
  * This function gives the height on the screen of the name of a group in a far view. `top` is true for a group with no group around it.
@@ -155,7 +162,7 @@ export function farNameLine(size: number): number {
 }
 
 /** The largest height on the screen of the name of a topic in a group, in a far view. Thus the topics of a group have room for their names. */
-export const INNER_TOPIC_LINE = 12;
+export const INNER_TOPIC_LINE = 14;
 
 /**
  * The distances between the name of a topic and the line of its pill in a far view, in CSS pixels.
@@ -257,17 +264,17 @@ export function threadLooks(read: () => ThreadLookState): PictureLooks<ThreadThe
         const line = farNameLine(size !== undefined && isTopicLook(size.look) ? size.look.size : 15);
         // The name keeps a height that a person reads, and the pill becomes larger around it. The ring of the pill shows a highlight.
         const least = of.box.parent === undefined ? line : Math.min(line, INNER_TOPIC_LINE);
-        return { color: theme.topicText, least, boxed: TOPIC_NAME_PAD };
+        return { color: theme.topicText, least, boxed: TOPIC_NAME_PAD, rank: FAR_RANK.topic, clear: true };
       }
       if (kind === "group" && of?.type === "box") {
         // The text of a finding and its sign have the color of a sign that asks for work. A far view has no room for them.
         if (role === "issue" || role === "sign") return far ? undefined : { color: theme.open };
         const color = state.highlight > 0 ? theme.accent : theme.text;
         // In a far view, the name of a group keeps a height that a person reads. A group at the top keeps a larger name.
-        return far ? { color, halo: theme.background, least: groupNameLine(state.zoom, of.box.parent === undefined) } : { color };
+        return far ? { color, halo: theme.background, least: groupNameLine(state.zoom, of.box.parent === undefined), rank: FAR_RANK.group, clear: true } : { color };
       }
       // In a near view, the slot of the view has the content of a panel. In a far view the slot is hidden, so the name tells the panel.
-      if (kind === "panel") return far ? { color: theme.text, halo: theme.surface, least: PANEL_NAME_LINE } : undefined;
+      if (kind === "panel") return far ? { color: theme.text, halo: theme.surface, least: PANEL_NAME_LINE, rank: FAR_RANK.group, clear: true } : undefined;
       if (role === "waits") return far ? undefined : { color: waitsColor(theme) };
       if (role === "date" || role === "tag") return far ? undefined : { color: theme.muted };
       if (!far) return { color: theme.text };

@@ -590,6 +590,8 @@ interface LabelLook {
     readonly x: number;
     readonly y: number;
   } | undefined;
+  readonly rank?: number | undefined;
+  readonly clear?: boolean | undefined;
 }
 
 ### build/graph.d.ts#LayoutPictureContent

@@ -134,6 +134,54 @@ export const ARROW_SPREAD = 0.45;
 /** The smallest distance between two labels that keep a height on the screen, in units of a look. */
 export const KEPT_GAP = 4;
 
+/** The side of a cell of the grid of the boxes with no child, in units of a look. A text that keeps a height finds the boxes near it in the grid. */
+const LEAF_CELL = 128;
+
+/** The boxes with no child in the view, in the cells of a grid. */
+interface LeafGrid {
+  readonly cell: number;
+  readonly cells: Map<string, PictureBox[]>;
+}
+
+/** This function gives the range of the cells of a grid that a rectangle touches, on one axis. */
+function cellSpan(start: number, length: number, cell: number): [number, number] {
+  return [Math.floor(start / cell), Math.floor((start + Math.max(0, length)) / cell)];
+}
+
+/** This function puts each box into each cell of the grid that it touches. */
+function leafGrid(boxes: readonly PictureBox[], cell: number): LeafGrid {
+  const cells = new Map<string, PictureBox[]>();
+  for (const box of boxes) {
+    const [x0, x1] = cellSpan(box.x, box.w, cell);
+    const [y0, y1] = cellSpan(box.y, box.h, cell);
+    for (let i = x0; i <= x1; i++) {
+      for (let j = y0; j <= y1; j++) {
+        const key = `${String(i)},${String(j)}`;
+        const list = cells.get(key);
+        if (list === undefined) cells.set(key, [box]);
+        else list.push(box);
+      }
+    }
+  }
+  return { cell, cells };
+}
+
+/** This function tells if a rectangle covers a box of the grid that is not the box `own`. */
+function coversLeaf(grid: LeafGrid, rect: Rect, own: string | undefined): boolean {
+  const [x0, x1] = cellSpan(rect.x, rect.w, grid.cell);
+  const [y0, y1] = cellSpan(rect.y, rect.h, grid.cell);
+  for (let i = x0; i <= x1; i++) {
+    for (let j = y0; j <= y1; j++) {
+      for (const box of grid.cells.get(`${String(i)},${String(j)}`) ?? []) {
+        if (box.id === own) continue;
+        const overlap = overlapOf(rect, box);
+        if (overlap.x > 0 && overlap.y > 0) return true;
+      }
+    }
+  }
+  return false;
+}
+
 /** This function gives the key of a record for `fade`: its type, a colon and its id. A box and a route with the same id have different keys. */
 export function recordKey(type: PictureRecord["type"], id: string): string {
   return `${type}:${id}`;
@@ -445,6 +493,8 @@ export function paintPicture<T>(index: PictureIndex, looks: PictureLooks<T>, the
 
   const containers: PaintShape[] = [];
   const leaves: PaintShape[] = [];
+  /** The boxes with no child in the view. A text with `clear` covers none of them. */
+  const shownLeaves: PictureBox[] = [];
   for (const box of picture.boxes) {
     const labels = index.boxLabels.get(box.id) ?? [];
     const shown = inView(box);
@@ -456,6 +506,7 @@ export function paintPicture<T>(index: PictureIndex, looks: PictureLooks<T>, the
     const shapes = boxIs.container ? containers : leaves;
     const from = shapes.length;
     if (shown) addBox(shapes, box, look, unit, share);
+    if (shown && !boxIs.container) shownLeaves.push(box);
     const to = shapes.length;
     let own: KeptBox | undefined;
     const of = (): KeptBox => (own ??= { box, look, share, shapes: shapes.slice(from, to) });
@@ -521,8 +572,10 @@ export function paintPicture<T>(index: PictureIndex, looks: PictureLooks<T>, the
       plans.push({ item, text, plate, size: Math.max(of.box.w, plate.w) * Math.max(of.box.h, plate.h), of });
     }
     // The sort keeps the order of two labels of the same rank: the boxes, then the routes, then the labels that name no record.
-    plans.sort((a, b) => b.item.highlight - a.item.highlight || b.size - a.size);
+    plans.sort((a, b) => b.item.highlight - a.item.highlight || (b.item.look.rank ?? 0) - (a.item.look.rank ?? 0) || b.size - a.size);
     const taken: Rect[] = [];
+    let grid: LeafGrid | undefined;
+    const coversOther = (rect: Rect, own: string | undefined): boolean => coversLeaf((grid ??= leafGrid(shownLeaves, LEAF_CELL * unit)), rect, own);
     for (const { item, text, plate, of } of plans) {
       // A text that an edge of the free area cuts moves into the area, before it takes its place.
       const placed = area === undefined ? plate : placeIn(plate, area, visible ?? area, item.of?.box, gap);
@@ -545,10 +598,12 @@ export function paintPicture<T>(index: PictureIndex, looks: PictureLooks<T>, the
         taken.every((other) => {
           const overlap = overlapOf(grow(rect, gap), other);
           return !(overlap.x > 0 && overlap.y > 0);
-        });
+        }) &&
+        !(item.look.clear === true && coversOther(rect, item.of?.box.id));
       if (placed === undefined || rect === undefined || !clear) {
         // A box with no room for its larger size stays as it is, with its name at its place.
-        if (of !== undefined && inView(item.label)) addLabel(small, item.label, item.look, of.share, measure);
+        // With `clear`, the name at its place is too small to read, so it has no paint.
+        if (of !== undefined && item.look.clear !== true && inView(item.label)) addLabel(small, item.label, item.look, of.share, measure);
         continue;
       }
       taken.push(rect);

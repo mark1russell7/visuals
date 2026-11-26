@@ -1027,6 +1027,48 @@ describe("a label that keeps a height on the screen", () => {
       expect(near[0]).not.toHaveProperty("box");
       expect(far(only, {}, pillLooks())).toEqual([{ ...NAME_TEXT, fill: "#fff" }]);
     });
+
+    describe("with clear", () => {
+      const clearLook: LabelLook = { ...nameLook, clear: true };
+      /** A box with no child 2 units right of the pill. The larger pill ends at 268 on the x axis, so it covers the box. */
+      const near: PictureBox = { id: "near", x: 262, y: 105, w: 10, h: 10 };
+      const crowded = (more: PictureBox = near): PictureIndex => pictureWith([pill, more], [], [pillName]);
+
+      it("gives no place over a box with no child, and no name at its place", () => {
+        expect(texts(grown({}, pillLooks(pillLook, clearLook), crowded()))).toEqual([]);
+        const shapes = grown({}, pillLooks(pillLook, clearLook), crowded());
+        expect(shapes).toContainEqual(PILL);
+        expect(shapes.some((shape) => "box" in shape && shape.box !== undefined)).toBe(false);
+        // Without clear, the larger pill covers the box.
+        expect(texts(grown({}, pillLooks(), crowded()))).toEqual(["Topic"]);
+      });
+
+      it("covers its own box, a box out of the larger pill and a container", () => {
+        expect(grown({}, pillLooks(pillLook, clearLook))).toEqual([LARGER, TOPIC_TEXT]);
+        expect(texts(grown({}, pillLooks(pillLook, clearLook), crowded({ ...near, x: 300 })))).toEqual(["Topic"]);
+        // A box with boxes in it is not a box with no child.
+        const framed = pictureWith([{ id: "frame", x: 100, y: 50, w: 300, h: 200 }, { ...pill, parent: "frame" }], [], [pillName]);
+        expect(texts(grown({}, pillLooks(pillLook, clearLook), framed))).toEqual(["Topic"]);
+      });
+
+      it("finds a box in each cell of the grid that the larger pill touches", () => {
+        // At the zoom 0.25, a cell has 512 units. The larger pill from 442 to 518 is in two cells, and a box from 514 to 524 is only in the second cell.
+        const far = pictureWith([{ ...pill, x: 450 }, { ...near, x: 514 }], [], [{ ...pillName, box: "pill", x: 455 }]);
+        expect(texts(grown({}, pillLooks(pillLook, clearLook), pictureWith([{ ...pill, x: 450 }, { ...near, x: 530 }], [], [{ ...pillName, box: "pill", x: 455 }])))).toEqual(["Topic"]);
+        expect(texts(grown({}, pillLooks(pillLook, clearLook), far))).toEqual([]);
+      });
+    });
+
+    it("comes before a larger box with a higher rank", () => {
+      const first = pictureWith([{ id: "wide", x: 150, y: 60, w: 200, h: 100 }, pill], [], [{ id: "wide-name", box: "wide", x: 200, y: 100, w: 50, h: 20, lines: ["Wide"], lineHeight: 20, font: FONT }, pillName]);
+      const ranked = (rank: number): PictureLooks<PictureTheme> => looksWith({ box: () => pillLook, label: (label) => (label.id === "pill-name" ? { ...nameLook, rank } : { color: "#111", least: 10 }) });
+      // With the same rank, the larger box comes first: the pill keeps its name at its place.
+      expect(grown({}, ranked(0), first)).toContainEqual(SMALL_TEXT);
+      // With a higher rank, the pill becomes larger first, and the name of the larger box has no place.
+      const shapes = grown({}, ranked(1), first);
+      expect(texts(shapes)).toEqual(["Topic"]);
+      expect(shapes).toContainEqual(TOPIC_TEXT);
+    });
   });
 });
 
